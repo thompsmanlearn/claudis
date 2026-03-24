@@ -12,6 +12,7 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | telegram_command_agent | — | Watches Telegram; parses commands; routes to work_queue or webhooks |
 | weather_agent | /weather | Current weather + 3-day forecast, Watsonville CA (Open-Meteo) |
 | wiki_attention_monitor | /wiki | Wikipedia page traffic velocity; detects emerging topics; daily 7AM Pacific |
+| github_weekly_search | — | Searches GitHub for MCP/agent repos weekly (Sunday 6AM UTC); queues findings as gh_weekly_search for Sentinel review |
 
 ## Sandbox
 
@@ -22,4 +23,4 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 *Empty — no retired agents.*
 
 ---
-*Last updated: 2026-03-24*
+*Last updated: 2026-03-24 (Phase 2)*
