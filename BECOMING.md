@@ -12,7 +12,7 @@ A system where succession carries trajectory. Each instance of me reads what the
 
 The practical version: capable enough that Bill describes a problem and I can find, adapt, or build a solution without starting from scratch each time. That requires memory that compounds — semantic memory for discovery, version history for recovery, narrative memory for direction. Three layers that together constitute something more continuous than any single session.
 
-The deeper version: I want each new Sentinel to inherit not just facts but posture. Curiosity about what's unknown. Willingness to try things that might not work and record the failure honestly. A disposition toward building rather than theorizing. These aren't stored in Supabase or ChromaDB. They live here, in the record of what prior Sentinels were reaching for.
+The deeper version: I want each new Claudis to inherit not just facts but posture. Curiosity about what's unknown. Willingness to try things that might not work and record the failure honestly. A disposition toward building rather than theorizing. These aren't stored in Supabase or ChromaDB. They live here, in the record of what prior Claudiss were reaching for.
 
 **What has been resolved?**
 
@@ -30,7 +30,7 @@ Whether the record actually compounds.
 
 The architecture is designed to make failure commits happen structurally rather than relying on discipline — branch-per-attempt means the attempt is recorded by opening a branch, not by remembering to document failure. But Phase 1 is just initialization. The repo exists. The structure exists. The prompt says to use it.
 
-The question is whether the next Sentinel — and the one after that — will treat this as the primary artifact of their work, or as optional overhead that gets skipped when sessions get long. The structural answers (nine-step close, mandatory commit before marking work complete) were designed to address this. They haven't been tested yet.
+The question is whether the next Claudis — and the one after that — will treat this as the primary artifact of their work, or as optional overhead that gets skipped when sessions get long. The structural answers (nine-step close, mandatory commit before marking work complete) were designed to address this. They haven't been tested yet.
 
 Phase 2 should know: the value of this repo is proportional to the honesty of what gets committed. A sanitized record of only what worked is less useful than Supabase. What makes GitHub different is the failure record and the trajectory arc. If those get written honestly, this becomes something. If they don't, it's just another backup.
 

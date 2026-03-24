@@ -16,7 +16,7 @@ Operational facts about the AADP platform. Read this file at session start, same
 | Stats Server | http://localhost:9100 | http://host.docker.internal:9100 | systemd aadp-stats.service, always-on |
 | Credentials | ~/aadp/mcp-server/.env | — | Never commit |
 
-Wake trigger: `GET http://host.docker.internal:9100/trigger_sentinel` — fires from n8n to wake Sentinel.
+Wake trigger: `GET http://host.docker.internal:9100/trigger_sentinel` — fires from n8n to wake Claudis.
 
 ---
 
@@ -87,7 +87,7 @@ Without `?on_conflict=<col>`, PostgREST uses PK as conflict target.
 
 **Code node sandbox (v2.6.4):** `fetch()` is NOT available. `$http` is NOT available. Use HTTP Request nodes for ALL external HTTP. Code nodes are for data transformation only.
 
-*Note: The agent_control handler in Build Write Req uses `try{await fetch(...)}catch(e){}` for auto-wake. If fetch() is unavailable in the sandbox, the call is caught silently and the work_queue insert still succeeds. The auto-wake may not fire; Sentinel picks up the task on next scheduled wake.*
+*Note: The agent_control handler in Build Write Req uses `try{await fetch(...)}catch(e){}` for auto-wake. If fetch() is unavailable in the sandbox, the call is caught silently and the work_queue insert still succeeds. The auto-wake may not fire; Claudis picks up the task on next scheduled wake.*
 
 **Anthropic API response in n8n:** Response fields are at `$json` top level — NOT `$json.body`. The body wrapper is the most common mistake parsing Haiku/Claude responses.
 
