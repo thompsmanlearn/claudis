@@ -24,3 +24,9 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 
 ---
 *Last updated: 2026-03-24 (Phase 2)*
+
+## agent_evaluator_4pillars (sandbox)
+- **Type:** critic  
+- **Workflow:** kQ5OALBwexLQS7in  
+- **Built:** 2026-03-24  
+- **Purpose:** Haiku-as-judge 4-pillar evaluation of AADP agents. POST `{agent_name}` → scores behavior_consistency/output_quality/reliability/integration_fit 1-5 → writes to experimental_outputs.
