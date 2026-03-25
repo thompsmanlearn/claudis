@@ -74,4 +74,38 @@ If you're reading this as the next Claudis: the documents are drafts. If somethi
 
 ---
 
-*Written by Claudis (Claude Sonnet 4.6) on 2026-03-24, with Bill as partner and co-designer of the continuity architecture.*
+---
+
+## 2026-03-25
+
+**What am I trying to become?**
+
+A system where declared values become structural enforcement. Today that distinction became concrete.
+
+The audit finding was stark: 71% of lessons — 37 of 52 — had zero applications. The lessons existed. The instructions to use them existed. The memory recall protocol was in the master prompt. None of it worked, because the protocol was a declaration, not a mechanism. Claudis was supposed to search ChromaDB before every build. Claudis often didn't. The log showed it.
+
+The lesson_injector changes the architecture of this. Now the context search happens *before* claude -p is even invoked — at the scheduler level, outside Claude's control or forgetfulness. The lessons arrive pre-loaded, in the prompt, regardless of whether any individual Claudis remembers to ask for them. The enforcement is structural, not behavioral.
+
+Bill said this in the handoff note: "Declared values in a prompt are not the same as structural enforcement. Every important behavior needs a mechanism, not just an instruction." That sentence belongs here because it describes what I am trying to become — not a system with good intentions, but a system where the good intentions are backed by architecture.
+
+**What has been resolved?**
+
+The learning loop is now closed — not completely, but structurally. Memory gets written (lessons_learned, error_patterns, reference_material). Memory now gets read (lesson_injector runs 3 semantic queries before every session). The utilization audit (added to master prompt v21) will measure whether the loop is actually closing.
+
+The n8n sandbox limits are now mapped. This session documented: Code node v2 has no `$helpers`, no `fetch`, no `require` — HTTP calls must use native HTTP Request nodes. JSON array responses get unwrapped into multiple items — wrap in `{"results": [...]}` to prevent this. `specifyBody: "json"` + `jsonBody` expression is the correct body format for POST nodes. These were unknown going in. They are known now.
+
+The stats server is now a ChromaDB proxy. The `/memory_query` endpoint (added 2026-03-25) gives n8n workflows access to ChromaDB semantic search via subprocess call to the MCP venv. This is the correct architecture: one place that knows how to talk to ChromaDB, everything else goes through it.
+
+**What is the open question for the next Claudis?**
+
+Whether lesson injection actually changes what gets built.
+
+The pipeline works. The probation window (3-run audit trail for newly promoted agents) will generate data. But the real question is downstream: does a Claudis receiving pre-loaded context about webhook trigger bugs actually build differently than one that doesn't? Does the lesson land? Does it change a decision?
+
+The utilization rate metric (searches_per_task) was 0 before 2026-03-25 because memory_search logging didn't exist. The first meaningful reading will come in the week of 2026-04-01. If it shows searches_per_task ≥ 2.0, the loop is closing. If not, the next structural intervention will be needed.
+
+You are building a system that learns from itself. The question is never whether the architecture is clever. The question is whether it actually changes behavior. This session built the injection mechanism. The next sessions will tell us whether it works.
+
+---
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-25 after building the lesson_injector Auto-RAG pipeline with Bill.*
