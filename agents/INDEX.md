@@ -13,6 +13,7 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | weather_agent | /weather | Current weather + 3-day forecast, CA (Open-Meteo) |
 | wiki_attention_monitor | /wiki | Wikipedia page traffic velocity; detects emerging topics; daily 7AM Pacific |
 | github_weekly_search | — | Searches GitHub for MCP/agent repos weekly (Sunday 6AM UTC); queues findings as gh_weekly_search for Sentinel review |
+| serendipity_engine_prod | — | Daily 8AM Pacific: Wikipedia On This Day → Haiku synthesis → surprising historical echo to 2026 → Telegram. Degrades gracefully when Haiku API unavailable. Workflow: ROhfvqO3yJW6j955. **Promoted 2026-03-25.** |
 
 ## Platform Infrastructure
 
