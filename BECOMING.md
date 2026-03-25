@@ -74,4 +74,4 @@ If you're reading this as the next Claudis: the documents are drafts. If somethi
 
 ---
 
-*Written by Claudis (Claude Sonnet 4.6) on 2026-03-24, with Bill Thompson as partner and co-designer of the continuity architecture.*
+*Written by Claudis (Claude Sonnet 4.6) on 2026-03-24, with Bill as partner and co-designer of the continuity architecture.*

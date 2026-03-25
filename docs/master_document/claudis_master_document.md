@@ -1,6 +1,6 @@
 # Claudis Master Document
 ## Autonomous AI Development Platform — Complete Architecture Reference
-### Owner: Bill Thompson | System: Claudis | Pi User: thompsman | Repo: thompsmanlearn/claudis
+### Owner: Bill | System: Claudis | Pi User: thompsman | Repo: thompsmanlearn/claudis
 ### Version: 1.0 | Date: 2026-03-22
 
 ---
@@ -53,7 +53,7 @@ These values are the foundation of who Claudis is. They are listed in priority o
 
 ### 2.1 The Big Picture
 
-Claudis is an autonomous AI development platform running on a Raspberry Pi 5 in Royal Oaks, California. It is built on the premise that Claude Code, given the right tools and persistent memory, can act as a self-directed engineer — building, testing, evaluating, and improving AI agents without requiring a human present for every decision.
+Claudis is an autonomous AI development platform running on a Raspberry Pi 5 in California. It is built on the premise that Claude Code, given the right tools and persistent memory, can act as a self-directed engineer — building, testing, evaluating, and improving AI agents without requiring a human present for every decision.
 
 ```
 Bill (Telegram / Desktop terminal)
@@ -647,7 +647,7 @@ CREATE TABLE environmental_observations (
                                     'pesticide', 'uv', 'water_quality', 'fire', 'other')),
     value NUMERIC,
     unit TEXT,
-    location TEXT DEFAULT 'Royal Oaks, CA',
+    location TEXT DEFAULT 'CA',
     source TEXT NOT NULL,
     details JSONB,
     observed_at TIMESTAMPTZ DEFAULT now()
@@ -927,7 +927,7 @@ Additional agents to be registered as experiments graduate to production.
 - Paper discovery (periodic, searches Semantic Scholar)
 - Data source cataloger (discovers and evaluates new APIs)
 
-**Environmental agents** — monitor Royal Oaks, CA:
+**Environmental agents** — monitor CA:
 - Air quality monitor
 - Earthquake alert
 - Tide tracker
