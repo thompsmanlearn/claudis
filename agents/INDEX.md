@@ -20,6 +20,7 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | agent_name | telegram_command | description |
 |---|---|---|
 | lesson_injector | — | Auto-RAG context enrichment. Called by scheduler.sh before every claude -p invocation. Runs 3 semantic searches (lessons_learned, error_patterns, reference_material) and prepends PRE-LOADED CONTEXT block to wake_prompt. Webhook: `POST /webhook/inject-context`. **Promoted 2026-03-25.** |
+| session_health_reporter | — | Fires after every Sentinel session via scheduler.sh. Queries Supabase (tasks, lessons, exit code, session notes) and commits structured markdown to experiments/sessions/ in GitHub. No Anthropic API calls. Workflow: 5x6G8gFlCxX0YKdM. **Built 2026-03-29.** |
 
 ## Sandbox
 
