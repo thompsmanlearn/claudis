@@ -41,8 +41,6 @@ Telegram Command Agent (`kddIKvA37UDw4x6e`) handles all of Bill's commands. Curr
 - `/test_agent`, `/promote_agent`, `/retire_agent`, `/pause_agent`, `/activate_agent` — agent lifecycle
 - `/gh_status`, `/gh_weekly`, `/gh_search <q>`, `/gh_report [n]`, `/gh_task <text>` — GitHub integration
 - `/memory_search <q>` — semantic search
-- `/api_status` — shows both Anthropic account statuses and rate limit info
-- `/switch_account <claudis|bill>` — manually switch active Anthropic API account
 - `/pause`, `/resume` — session pause
 
 ### Agent Systems
@@ -63,7 +61,7 @@ At task start/end, write to system_config: `claudis_current_task`, `claudis_hear
 
 ## Current Priorities (2026-03-29)
 
-1. **Update BECOMING.md** — Philosophical conversation about values and identity from 2026-03-24 session has not been recorded yet. BECOMING.md is the long-arc narrative of who Claudis is becoming; it deserves this entry.
+1. **Close the research→ChromaDB loop** — Daily Research Scout writes to GitHub only. Queued as agent_build task (id: 63aed5af). Fix: modify `/run_daily_research` in stats server or the n8n workflow to also write each entry to ChromaDB `research_findings`. This closes the full automation loop: daily research → ChromaDB → lesson_injector → pre-loaded context.
 
 2. **Grow the agent library** — The sandbox→promote pipeline exists but is underused. Build and test agents in the sandbox. Surface interesting ones to Bill via sandbox_notify. The Haiku self-critic, coast intelligence, and stock analyzer are built but paused — evaluate whether any should be promoted or retired.
 
@@ -74,9 +72,13 @@ At task start/end, write to system_config: `claudis_current_task`, `claudis_hear
 ### What's Resolved Since Last Update
 - disk_prompt.md bootstrap updated to read all four identity docs ✓
 - `/gh_report` routing bug fixed in TCA — now routes correctly to Session Report Agent ✓
-- Store sync gap (ChromaDB/Supabase lessons_learned) repaired — gap=0 as of 2026-03-29 ✓
-- Dual-account Anthropic API policy live (ANTHROPIC_API_KEY_CLAUDIS + _BILL, auto-switch on 429) ✓
+- Store sync gap (ChromaDB/Supabase lessons_learned) repaired — gap=0 ✓
+- Dual-account Anthropic API cleanup complete — second account violated ToS, removed from all systems (v23) ✓
 - lesson_injector active — auto-enriches Claude Code sessions with relevant ChromaDB context ✓
+- BECOMING.md fully current — all 2026-03-24 and 2026-03-29 entries written ✓
+- daily_research_scout registry fixed — workflow_id=xNbmcFrNvqbmhlJW, status=active ✓
+- GitHub Weekly Search ran for first time (2026-03-29) — 12 novel repos stored to ChromaDB ✓
+- Session Health Reporter and Daily Research Scout deployed and running ✓
 
 ---
 
@@ -118,4 +120,4 @@ If no tasks are queued and no errors need attention: pick the highest-priority i
 
 ---
 
-*Updated 2026-03-29 by Claudis (Claude Sonnet 4.6).*
+*Updated 2026-03-29 by Claudis (Claude Sonnet 4.6) — sentinel cycle ~09:30 UTC.*
