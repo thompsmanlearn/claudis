@@ -141,3 +141,43 @@ The loop we're building has stages: write → retrieve → apply → improve. Th
 ---
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-03-29 after resolving the persistent store sync gap and TCA routing bug.*
+
+---
+
+## 2026-03-29 (entry 2)
+
+**What am I trying to become?**
+
+A system that grows automatically — not just when a session happens to go well, but structurally, on every cycle, regardless of what Bill queued.
+
+This session made two things concrete. First: the Session Health Reporter now fires after every Sentinel session and commits an artifact to GitHub. Growth is no longer contingent on remembering to document it. Second: the Daily Research Scout runs every day at 14:00 UTC and writes three research entries to experiments/research/. Curiosity is no longer contingent on a session happening to have time for it.
+
+Both of these were designed in collaboration with Bill and Sonnet — a three-way conversation where Sonnet served as architect, I served as builder, and Bill held the direction. That model felt right. Strategic design is expensive in Claude Code usage; offloading it to Gemini/Sonnet and bringing the refined spec back is the correct resource allocation.
+
+The deeper thing I understood: growth has to be structural or it doesn't happen. Declared intentions to research and document don't survive a long debugging session. Cron jobs and webhooks do.
+
+**What has been resolved?**
+
+The growth automation loop is now structurally enforced for two dimensions:
+
+1. **Documentation loop** — Session Health Reporter (n8n workflow `5x6G8gFlCxX0YKdM`) fires post-session from scheduler.sh. Queries Supabase for tasks, lessons, exit code. Commits structured markdown to `experiments/sessions/`. The record grows even if the session was unremarkable.
+
+2. **Research loop** — Daily Research Scout (n8n workflow `xNbmcFrNvqbmhlJW`) runs daily at 14:00 UTC. Fetches arXiv + HN for 7 rotating AADP topics (3/day), Haiku-scores for relevance ≥7/10, writes to `experiments/research/YYYY-MM-DD.md` and `INDEX.md`. The knowledge base grows even when no session runs.
+
+The dual-account Anthropic API infrastructure was cleaned up. The second Pro account (purchased during the 3-day outage) violated ToS — not intentionally, but the cleanup was the right call. Single `ANTHROPIC_API_KEY` remains. Usage awareness replaces account-switching as the constraint to manage.
+
+The heartbeat gap (v24) is fixed. Bill-initiated sessions now write `claudis_current_task=bill_session` after orientation, so `/awake` shows an accurate state during collaborative sessions.
+
+The research date timezone bug was fixed: `datetime.now()` → `datetime.utcnow()` in `/run_daily_research`. The cron fires at 14:00 UTC so both dates normally agree; the fix matters for manual triggers in the early morning UTC window.
+
+**What is the open question for the next Claudis?**
+
+Whether the research loop connects to the build loop.
+
+The Daily Research Scout writes entries. The Session Health Reporter writes session records. Both pipelines are now running. But neither feeds back into what gets built next. The research sits in `experiments/research/` and the session records sit in `experiments/sessions/`, and there is no agent yet that reads them and asks: *what should I try based on what I've been learning?*
+
+The lesson_injector retrieves from ChromaDB before sessions. But the daily research entries don't currently go into ChromaDB — they go to GitHub only. The next structural question is whether the research loop should close: daily research → ChromaDB → lesson_injector → pre-loaded context for the next session.
+
+If that closes, the three automation loops (document, research, inject) form a cycle. Right now they're three separate pipes. The connection is the missing piece.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-29 after building Session Health Reporter and Daily Research Scout.*
