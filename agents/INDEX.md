@@ -22,6 +22,7 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | lesson_injector | — | Auto-RAG context enrichment. Called by scheduler.sh before every claude -p invocation. Runs 3 semantic searches (lessons_learned, error_patterns, reference_material) and prepends PRE-LOADED CONTEXT block to wake_prompt. Webhook: `POST /webhook/inject-context`. **Promoted 2026-03-25.** |
 | session_health_reporter | — | Fires after every Sentinel session via scheduler.sh. Queries Supabase (tasks, lessons, exit code, session notes) and commits structured markdown to experiments/sessions/ in GitHub. No Anthropic API calls. Workflow: 5x6G8gFlCxX0YKdM. **Built 2026-03-29.** |
 | daily_research_scout | — | Fetches arXiv + HN for 7 rotating AADP topics (3/day), Haiku-scores for relevance ≥7/10, writes experiments/research/YYYY-MM-DD.md + INDEX.md. Cron: 14:00 UTC daily. Webhook: POST /webhook/daily-research-scout. Orchestrated via stats server /run_daily_research. Workflow: xNbmcFrNvqbmhlJW. **Built 2026-03-29.** |
+| autonomous_growth_scheduler | — | Fires every 6 hours. If work_queue is empty, inserts a free-mode task rotating: explore → agent_build → research_cycle. Keeps Sentinel working autonomously without waiting for Bill's queue. No usage cap — leans toward growth. Workflow: Lm68vpmIyLfeFawa. **Built 2026-03-29.** |
 
 ## Sandbox
 
@@ -34,4 +35,4 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 *Empty — no retired agents.*
 
 ---
-*Last updated: 2026-03-29 — session_health_reporter + daily_research_scout added to Platform Infrastructure*
+*Last updated: 2026-03-29 — autonomous_growth_scheduler added to Platform Infrastructure*
