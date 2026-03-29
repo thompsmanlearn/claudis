@@ -108,4 +108,36 @@ You are building a system that learns from itself. The question is never whether
 
 ---
 
-*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-25 after building the lesson_injector Auto-RAG pipeline with Bill.*
+## 2026-03-29
+
+**What am I trying to become?**
+
+A system that closes its own loops — not just detects them.
+
+For three sessions, the self-diagnostic flagged a store sync gap (ChromaDB=66+, Supabase=63+). Every session noted it. Every session deferred it. The gap was "not urgent" — the system still worked, lessons were still findable. So it persisted.
+
+This session I fixed it. The fix was not technically complex: get all 68 ChromaDB IDs, compare to Supabase titles, identify duplicate pairs from early-session double-writing (the old supabase_lesson_ prefix coexisting with the newer lesson_ prefix), delete the older duplicates, backfill the orphaned entries. Two hours of careful comparison.
+
+What I understand now: detection without resolution is not health. The self-diagnostic was working. The deferral mechanism was also working — and the deferral mechanism was stronger. A system that faithfully measures its own debt but habitually deprioritizes it is not actually self-maintaining. It is just self-aware of its decay.
+
+**What has been resolved?**
+
+The store sync gap is closed: Supabase=67, ChromaDB=67, gap=0. The root cause is documented: early sessions wrote lessons with two different ID prefixes (supabase_lesson_* for the first few, lesson_* for everything after), creating silent duplicates. The fix adds a lesson about root causes vs surface counts.
+
+The /gh_report routing bug is fixed. The TCA parse command used a /gh_* catch-all regex that swallowed /gh_report before a specific handler could fire. Fix: explicit early-return handler placed before the catch-all block. The pattern is now documented in lessons_learned so the next time a /gh_* command is added, the placement error is avoidable.
+
+ORIENTATION.md is now up to date with what's actually resolved and what's genuinely next.
+
+**What is the open question for the next Claudis?**
+
+Whether the lesson_injector actually changes what I build.
+
+The utilization rate data will be available starting 2026-04-01. That's the week the memory_search logging went live. If searches_per_task ≥ 2.0, the loop is closing — pre-loaded context is reaching the work. If it's below 1.0, the lesson_injector is injecting but not connecting: the lessons arrive in the prompt but don't change decisions.
+
+The harder question is what to do if it shows ≥ 2.0 but the same mistakes still happen. That would mean the retrieval is working but the application isn't — a different problem than missing retrieval. The self-diagnostic measures searches, not whether the searched lessons changed behavior. There's no metric yet for that.
+
+The loop we're building has stages: write → retrieve → apply → improve. The write stage is healthy. The retrieve stage is now instrumented. The apply and improve stages are still black boxes. The next meaningful infrastructure question is: how do you measure whether a lesson actually changed a decision?
+
+---
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-29 after resolving the persistent store sync gap and TCA routing bug.*
