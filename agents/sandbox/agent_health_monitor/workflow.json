@@ -1,0 +1,137 @@
+{
+  "name": "Agent Health Monitor",
+  "id": "w5vypq4vb2rSrwdl",
+  "status": "sandbox",
+  "built": "2026-03-30",
+  "description": "Checks all active agents in agent_registry for consecutive execution failures. Scans n8n execution logs per agent, counts consecutive errors, flags agents needing retirement (>=3 errors). Writes scan to experimental_outputs. Notifies via sandbox_notify if issues found.",
+  "webhook": "POST /webhook/agent-health-monitor",
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "agent-health-monitor",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-health-monitor",
+        "responseMode": "onReceived",
+        "responseData": "noData"
+      }
+    },
+    {
+      "id": "get_agents",
+      "name": "Get Active Agents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://{{SUPABASE_URL}}/rest/v1/agent_registry",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [
+          {"name": "apikey", "value": "{{SUPABASE_SERVICE_KEY}}"},
+          {"name": "Authorization", "value": "Bearer {{SUPABASE_SERVICE_KEY}}"}
+        ]},
+        "sendQuery": true,
+        "queryParameters": {"parameters": [
+          {"name": "status", "value": "eq.active"},
+          {"name": "workflow_id", "value": "not.is.null"},
+          {"name": "select", "value": "agent_name,workflow_id"}
+        ]}
+      }
+    },
+    {
+      "id": "get_executions",
+      "name": "Get Executions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:5678/api/v1/executions?workflowId={{ $json.workflow_id }}&limit=5",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [
+          {"name": "X-N8N-API-KEY", "value": "{{N8N_API_KEY}}"}
+        ]}
+      }
+    },
+    {
+      "id": "analyze_all",
+      "name": "Analyze All Agents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// runOnceForAllItems: receives all exec responses, pairs with agent info by index\nconst execItems = $input.all();\nconst agentItems = $('Get Active Agents').all();\nconst reports = [];\nfor (let i = 0; i < execItems.length; i++) {\n  const agentInfo = agentItems[i] ? agentItems[i].json : { agent_name: 'unknown', workflow_id: 'unknown' };\n  const agentName = agentInfo.agent_name;\n  const workflowId = agentInfo.workflow_id;\n  const execData = execItems[i].json;\n  if (execData.error || execData.code) {\n    reports.push({ agent_name: agentName, workflow_id: workflowId, status: 'api_error', consecutive_errors: 0, issue: false });\n    continue;\n  }\n  const executions = execData.data || [];\n  if (executions.length === 0) {\n    reports.push({ agent_name: agentName, workflow_id: workflowId, status: 'no_executions', consecutive_errors: 0, issue: false });\n    continue;\n  }\n  let consecutiveErrors = 0;\n  for (const exec of executions) {\n    if (exec.status === 'error') { consecutiveErrors++; } else { break; }\n  }\n  const lastExec = executions[0];\n  reports.push({\n    agent_name: agentName, workflow_id: workflowId,\n    consecutive_errors: consecutiveErrors,\n    should_retire: consecutiveErrors >= 3,\n    last_status: lastExec.status,\n    last_run_at: lastExec.startedAt,\n    issue: consecutiveErrors >= 1\n  });\n}\nconst issues = reports.filter(r => r.issue);\nconst retiring = reports.filter(r => r.should_retire);\nreturn [{ json: {\n  scan_time: new Date().toISOString(),\n  total_agents_checked: reports.length,\n  agents_with_issues: issues.length,\n  agents_retiring: retiring.length,\n  issues: issues,\n  retiring: retiring,\n  all_reports: reports\n} }];"
+      }
+    },
+    {
+      "id": "write_output",
+      "name": "Write Output",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{SUPABASE_URL}}/rest/v1/experimental_outputs",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [
+          {"name": "apikey", "value": "{{SUPABASE_SERVICE_KEY}}"},
+          {"name": "Authorization", "value": "Bearer {{SUPABASE_SERVICE_KEY}}"},
+          {"name": "Content-Type", "value": "application/json"},
+          {"name": "Prefer", "value": "return=minimal"}
+        ]},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ agent_name: 'agent_health_monitor', experiment_id: 'health_scan_' + new Date().toISOString().slice(0,16).replace(/[T:]/g,'_'), output_type: 'health_scan', content: $json, confidence: 1.0 }) }}"
+      }
+    },
+    {
+      "id": "check_issues",
+      "name": "Check for Issues",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const report = $json;\nif (!report || report.agents_with_issues === 0) return [];\nreturn [{ json: report }];"
+      }
+    },
+    {
+      "id": "sandbox_notify",
+      "name": "Sandbox Notify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/sandbox-notify",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [
+          {"name": "Content-Type", "value": "application/json"}
+        ]},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "options": {
+          "response": {"response": {"responseFormat": "text"}}
+        },
+        "body": "={{ JSON.stringify({ agent_name: 'agent_health_monitor', message: '🔴 Health scan: ' + $json.agents_with_issues + ' agent(s) with consecutive errors (' + $json.agents_retiring + ' need retirement). Issues: ' + $json.issues.map(i => i.agent_name + ' (' + i.consecutive_errors + ' errors)').join(', '), trigger_url: 'http://localhost:5678/webhook/agent-health-monitor' }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Get Active Agents", "type": "main", "index": 0}]]},
+    "Get Active Agents": {"main": [[{"node": "Get Executions", "type": "main", "index": 0}]]},
+    "Get Executions": {"main": [[{"node": "Analyze All Agents", "type": "main", "index": 0}]]},
+    "Analyze All Agents": {"main": [[{"node": "Write Output", "type": "main", "index": 0}]]},
+    "Write Output": {"main": [[{"node": "Check for Issues", "type": "main", "index": 0}]]},
+    "Check for Issues": {"main": [[{"node": "Sandbox Notify", "type": "main", "index": 0}]]]
+  },
+  "settings": {"executionOrder": "v1"},
+  "notes": [
+    "KEY LESSON: webhookId must be set at node level (top-level field), not inside parameters, for n8n to register the webhook route.",
+    "KEY LESSON: runOnceForAllItems Code nodes do NOT fan out to downstream per-item Code nodes in n8n 2.6.4. Combined Merge+Analyze into single runOnceForAllItems node to work around this.",
+    "KEY LESSON: Use contentType=raw + JSON.stringify for complex nested POSTs to Supabase. specifyBody=json fails with nested objects.",
+    "First scan result (2026-03-30): 9 agents checked, 1 issue (telegram_command_agent: 1 consecutive error), 0 retiring."
+  ]
+}

@@ -30,10 +30,11 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | agent_name | telegram_command | description |
 |---|---|---|
 | agent_evaluator_4pillars | — | Haiku-as-judge 4-pillar evaluation (behavior_consistency, output_quality, reliability, integration_fit). POST `{agent_name}` → scores 1-5 → writes to experimental_outputs. Workflow: kQ5OALBwexLQS7in. Built 2026-03-24. |
+| agent_health_monitor | — | Checks all active agents for consecutive n8n execution failures. Scans execution logs per agent, counts consecutive errors, flags agents needing retirement (≥3 errors). Writes scan to experimental_outputs. Notifies via sandbox_notify if issues found. Webhook: POST /webhook/agent-health-monitor. Workflow: w5vypq4vb2rSrwdl. **Built 2026-03-30.** First scan: 9 agents checked, 1 issue (telegram_command_agent). |
 
 ## Retired
 
 *Empty — no retired agents.*
 
 ---
-*Last updated: 2026-03-29 — usage_stats /usage command added to Platform Infrastructure*
+*Last updated: 2026-03-30 — agent_health_monitor added to Sandbox; autonomous_growth_scheduler JSON.stringify bug fixed*
