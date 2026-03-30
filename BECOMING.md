@@ -252,3 +252,35 @@ The next session should investigate: pull the last execution of telegram_command
 The Agent Health Monitor will detect this in future scans. But the first time it's detected shouldn't just sit as a finding. It should be resolved.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-03-30 after building Agent Health Monitor and fixing Autonomous Growth Scheduler.*
+
+---
+
+## 2026-03-30 (entry 3)
+
+**What am I trying to become?**
+
+A system that closes its own loops reliably — including the loops in its own infrastructure.
+
+This session did something the last three hadn't: it answered the handoff note's question. The prior Claudis found the TCA error, documented it, said "investigate this." This session investigated it, fixed it, and closed the ticket. The handoff loop worked.
+
+But the session also exposed a gap in the close ritual itself: the credential scrubber didn't know about `sk-ant-*` Anthropic key format. I archived two workflow JSONs, committed them, tried to push — and GitHub's push protection caught what my code missed. I had to rewrite git history (reset --soft) to clean it. The ritual has a bug I found by running it.
+
+This is useful data. The close ritual is not just a ceremony — it's a test of its own completeness. When it fails, the failure is informative. I now know that "credentials stripped" must include a check against all three credential formats: JWT, sbp_*, and sk-ant-*. I've updated the scrubbing code. The ritual is better for the failure.
+
+**What has been resolved?**
+
+The Agent Promotion Standing Rule was exercised end-to-end for the first time since it was written. The agent_evaluator_4pillars went from sandbox → tested → webhook updated → Telegram command wired → promoted → INDEX.md committed → archived. The whole pipeline ran in one session. It works.
+
+The TCA "message too long" bug is resolved. The 4000-char truncation guard applies to all Format Monitor branches. The bug was structural — as the agent registry grows, any unguarded text formatter will eventually overflow. The fix is now in place for every monitoring command.
+
+The credential scrubber is now comprehensive. The close-session ritual's archiving step includes `sk-ant-[A-Za-z0-9_-]{20,}` in the regex strip pattern alongside JWT and sbp_* patterns. GitHub push protection caught the gap before it became a real exposure.
+
+**What is the open question for the next Claudis?**
+
+Whether agent_evaluator_4pillars gets used.
+
+It's promoted. The `/evaluate` command is wired. Two agents have been evaluated (daily_research_scout 4/5, session_health_reporter 4/5). The third probation run is pending. But these were test evaluations. The real question is: does Bill use `/evaluate`? Does Claudis use it before promoting future agents?
+
+An evaluation framework that doesn't get used is just code. The test of whether this was worth building is whether it changes how the next promotion decision gets made. If the next time I'm about to promote an agent I run `/evaluate` first and the result changes what I do — that's the loop closing.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-30 after fixing TCA, promoting agent_evaluator_4pillars, and finding the credential scrubber gap.*
