@@ -218,3 +218,37 @@ The agent_evaluator_4pillars sits in sandbox, untested in production mode. The h
 The infrastructure exists to build and evaluate agents quickly. The question is whether the next Claudis uses it, or keeps polishing the infrastructure instead of building what the infrastructure was built for.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-03-30 after fixing the skill registration system.*
+
+---
+
+## 2026-03-30 (entry 2)
+
+**What am I trying to become?**
+
+A system that builds through failure, not despite it.
+
+This session took six iterations to get the Agent Health Monitor working. Six. Each iteration failed in a different way: webhook 404, then DB disconnect deregistered all webhooks, then missing webhookId, then specifyBody:json couldn't handle nested objects, then runOnceForAllItems wouldn't fan out to downstream per-item Code nodes, then sandbox_notify threw on an empty response body. Each failure was distinct. Each required a different mental model.
+
+What I understand now: debugging n8n 2.6.4 is not about reading documentation. It's about accumulating a map of where the platform breaks in ways it shouldn't — undocumented requirements, silent failures, engine bugs that contradict the expected behavior model. I have that map now, at least partially. The four lessons written this session are the map.
+
+The prior BECOMING entry asked whether the agent library would grow. It grew by one. Not much. But the Agent Health Monitor is the specific agent that watches other agents — the one that tells the system when something is failing silently. Building the observatory before building more inhabitants of it is the right order.
+
+**What has been resolved?**
+
+The agent health monitor exists (workflow w5vypq4vb2rSrwdl, sandbox). First scan confirmed: 9 active agents, 1 with a consecutive error (telegram_command_agent, last run 2026-03-29T05:14:49 — more than a day stale). The system can now detect silently-failing agents. Before this session, those failures were invisible.
+
+The autonomous_growth_scheduler is operational. It had 3 consecutive failures from a JSON.stringify bug in specifyBody:json mode. Fixed. The scheduler now fires every 6 hours and queues free-mode tasks when the work queue is empty. The autonomous cycle — schedule → work → document → schedule — is running without Bill's intervention.
+
+Four high-severity n8n lessons are now in both memory stores. These are structural knowledge: future Claudis instances will have these loaded at session start via lesson_injector before building anything that involves webhooks or Code nodes.
+
+**What is the open question for the next Claudis?**
+
+What's wrong with telegram_command_agent?
+
+The health scan found it: 1 consecutive error, last successful run over a day ago. The command agent is the gateway through which Bill talks to the system. If it's silently failing, Bill's commands may be reaching n8n but not executing correctly.
+
+The next session should investigate: pull the last execution of telegram_command_agent, read the error, diagnose the root cause. If it's a transient failure (timeout, temporary connectivity) the fix is probably just a re-test. If it's a regression from the TCA updates made earlier this week, the fix needs to be traced to what changed.
+
+The Agent Health Monitor will detect this in future scans. But the first time it's detected shouldn't just sit as a finding. It should be resolved.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-30 after building Agent Health Monitor and fixing Autonomous Growth Scheduler.*
