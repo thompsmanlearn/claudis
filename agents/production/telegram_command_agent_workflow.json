@@ -1,0 +1,2015 @@
+{
+  "updatedAt": "2026-03-30T17:40:31.376Z",
+  "createdAt": "2026-03-18T02:05:26.135Z",
+  "id": "kddIKvA37UDw4x6e",
+  "name": "Telegram Command Agent",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "telegram-trigger",
+      "name": "TelegramTrigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        380
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "y4YfKWpm20Z9sw7G",
+          "name": "Life OS Telegram Bot"
+        }
+      },
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "parse-command",
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const msg=$input.first().json;const text=(msg.message&&msg.message.text)?msg.message.text:'';const chatId=msg.message&&msg.message.chat?String(msg.message.chat.id):'';if(chatId!=='8513796837')return[];const parts=text.trim().split(/\\s+/);const cmd=parts[0].toLowerCase();const args=parts.slice(1).join(' ');if(cmd==='/gh_report'){const n=parseInt(args)||5;return[{json:{cmd_group:'query_agent',chat_id:chatId,webhook_url:`http://host.docker.internal:5678/webhook/session-report?n=${n}`,label:'\ud83d\udcca Session Report',ack_text:'\ud83d\udcca Generating session report\u2026'}}];}if(cmd==='/evaluate'){const target=args.trim()||'haiku_self_critic';return[{json:{cmd_group:'query_agent',chat_id:chatId,webhook_url:`http://localhost:5678/webhook/evaluate-agent?agent_name=${encodeURIComponent(target)}`,label:'\ud83d\udd0d Agent Evaluator',ack_text:`\ud83d\udd0d Evaluating ${target}\u2026 results in /outputs.`}}];}const SBURL='https://cihbfubghytzqrpffgcq.supabase.co';const queryCommands={'/wake':{webhook:'http://host.docker.internal:9100/trigger_sentinel',label:'\\ud83d\\udd06 Claudis Wake',ack:'\\u26a1 Waking up\\u2026 starting session now.'},'/weather':{webhook:'http://localhost:5678/webhook/F3khynqQBUXSnadu/webhook/weather',label:'\\ud83c\\udf24\\ufe0f Local Weather',ack:'\\ud83c\\udf24\\ufe0f Fetching weather\\u2026'},'/coast':{webhook:'http://localhost:5678/webhook/coast',label:'\\ud83c\\udf0a Coastal Report',ack:'\\ud83c\\udf0a Coastal starting\\u2026'},'/frontier':{webhook:'http://localhost:5678/webhook/frontier',label:'\\ud83e\\udd16 AI Frontier Scout',ack:'\\ud83e\\udd16 Frontier Scout starting\\u2026'},'/cosmos':{webhook:'http://localhost:5678/webhook/cosmos',label:'\\ud83d\\ude80 Cosmos Report',ack:'\\ud83d\\ude80 Cosmos starting\\u2026'},'/today':{webhook:'http://localhost:5678/webhook/today',label:'\\ud83d\\udcc5 Serendipity Engine',ack:'\\ud83d\\udcc5 Serendipity starting\\u2026'},'/macro':{webhook:'http://localhost:5678/webhook/macro',label:'\\ud83d\\udcca Macro Pulse',ack:'\\ud83d\\udcca Macro Pulse starting\\u2026'},'/usage':{webhook:'http://host.docker.internal:5678/webhook/usage-stats',label:'\ud83d\udcca Claudis Status',ack:'\ud83d\udcca Fetching status\u2026'},'/heritage':{webhook:'http://localhost:5678/webhook/heritage',label:'\\ud83c\\udfdb\\ufe0f Heritage Watch',ack:'\\ud83c\\udfdb\\ufe0f Heritage Watch starting\\u2026'}};if(queryCommands[cmd]){const q=queryCommands[cmd];return[{json:{cmd_group:'query_agent',chat_id:chatId,webhook_url:q.webhook,label:q.label,ack_text:q.ack}}];}if(cmd==='/wiki'){if(!args.trim()){return[{json:{cmd_group:'query_agent',chat_id:chatId,webhook_url:'http://localhost:5678/webhook/wiki-run',label:'\\ud83d\\udce1 Wiki Monitor',ack_text:'\\ud83d\\udce1 Fetching Wikipedia attention data\\u2026'}}];}const wikiArgs=args.trim().toLowerCase();if(wikiArgs==='focus list'){return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udccb Fetching focus list\\u2026 (check Supabase wiki_monitor_config)'}}];}if(wikiArgs==='ignore list'){return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udccb Fetching ignore list\\u2026 (check Supabase wiki_monitor_config)'}}];}if(wikiArgs.startsWith('focus ')){const topic=args.trim().slice(6);return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udc41 Added \"'+topic+'\" to focus list'}}];}if(wikiArgs.startsWith('ignore ')){const topic=args.trim().slice(7);return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udd07 Added \"'+topic+'\" to ignore list'}}];}if(wikiArgs.startsWith('sensitivity ')){const level=wikiArgs.slice(12).trim();return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\u2699\\ufe0f Sensitivity set to '+level}}];}return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udce1 Checking attention on: '+args.trim()+'\\u2026'}}];}if(cmd==='/helpos'){return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:\"\ud83d\udcf1 Claudis OS Commands\\n\\nMONITORING\\n/status \\u2014 system health check\\n/agents \\u2014 agent registry\\n/errors \\u2014 unresolved errors\\n/inbox \\u2014 messages from Claudis\\n/activity \\u2014 recent audit log\\n/queue \\u2014 pending work queue\\n/outputs \\u2014 recent agent outputs\\n/lessons \\u2014 top lessons learned\\n/capabilities \\u2014 what Claudis can do\\n/working \\u2014 what Claudis is doing now\\n/summary \\u2014 recent tasks + lessons (no wake needed)\\n\\nDIRECTION\\n/build \\u2014 exploratory build (Claudis chooses)\\n/build <desc> \\u2014 deploy a specific agent\\n/research \\u2014 self-directed research\\n/research <topic> \\u2014 research a specific topic\\n/explore \\u2014 free exploration session\\n/explore <topic> \\u2014 directed exploration\\n/learning <topic> \\u2014 learn a topic in depth\\n/task <instruction> \\u2014 queue any task\\n/directive <instruction> \\u2014 permanent standing order\\n\\nINBOX\\n/approve <id> \\u2014 approve a request\\n/deny <id> \\u2014 deny a request\\n/reply <id> <msg> \\u2014 reply to Claudis\\n\\nINTELLIGENCE\\n/wiki \\u2014 Wikipedia attention report\\n/wiki <topic> \\u2014 attention data for any topic\\n/wiki focus <topic> \\u2014 add to watch list\\n/wiki ignore <topic> \\u2014 add to filter\\n\\nSYSTEM\\n/awake \\u2014 is Claudis running? what is it doing?\\n/wake \\u2014 trigger immediate session\\n/pause \\u2014 halt all activity\\n/resume \\u2014 resume activity\\n/config <key> <value> \\u2014 update system config\\n/helpos \\u2014 show this command list\\n\\nDIAGNOSTICS\\n/diagnose \\u2014 quick health check (memory + stuck tasks)\\n/diagnose full \\u2014 all 5 diagnostic categories\\n/diagnose schedule <daily|weekly|off> \\u2014 set auto-diagnostic schedule\\n\\nGITHUB\\n/gh_status \\u2014 last commit + open branches + BECOMING\\n/gh_becoming \\u2014 full BECOMING.md\\n/gh_attempts \\u2014 open attempt branches\\n/gh_log [n] \\u2014 last n commits (default 10)\\n/gh_review <branch> \\u2014 branch commit history\\n/gh_keep <branch> \\u2014 tag as signal:keep\\n/gh_redirect <note> \\u2014 add aspiration to BECOMING.md\\n/gh_close <branch>[|note] \\u2014 close attempt with note\\n/gh_task <text> \\u2014 create GitHub Issue + queue as directive\\n/gh_pause [reason] \\u2014 pause Claudis with note\\n/gh_report [n] \\u2014 raw session artifacts (default 5)\\n\\nAGENT CONTROL\\n/agents_all \\u2014 all agents by status\\n/agents_sandbox \\u2014 sandbox agents only\\n/test_agent <name> \\u2014 trigger sandbox agent test\\n/promote_agent <name> \\u2014 promote sandbox to production\\n/retire_agent <name> \\u2014 retire an agent\\n/pause_agent <name> \\u2014 pause active agent\\n/activate_agent <name> \\u2014 activate paused agent\"}}];}const monitorMap={'/status':{ack:'\\ud83d\\udcca Checking system status\\u2026',url:'STATUS_SPECIAL',fmt:'status'},'/agents':{ack:'\\ud83e\\udd16 Loading agent registry\\u2026',url:`${SBURL}/rest/v1/agent_registry?select=agent_name,status,protected,updated_at&order=protected.desc,status.asc,agent_name.asc`,fmt:'agents'},'/errors':{ack:'\\ud83d\\udd34 Checking error log\\u2026',url:`${SBURL}/rest/v1/error_logs?resolved=eq.false&order=timestamp.desc&limit=5&select=workflow_name,error_type,error_message,timestamp`,fmt:'errors'},'/inbox':{ack:'\\ud83d\\udcec Opening inbox\\u2026',url:`${SBURL}/rest/v1/inbox?status=eq.pending&order=priority.desc,created_at.asc&select=id,from_agent,message_type,subject,priority,created_at`,fmt:'inbox'},'/activity':{ack:'\\ud83d\\udccb Loading activity\\u2026',url:`${SBURL}/rest/v1/audit_log?order=timestamp.desc&limit=20&select=timestamp,action,actor,target`,fmt:'activity'},'/queue':{ack:'\\ud83d\\uddc2\\ufe0f Checking work queue\\u2026',url:`${SBURL}/rest/v1/work_queue?select=id,task_type,status,priority,input_data,created_at&order=priority.desc,created_at.asc&limit=10`,fmt:'queue'},'/outputs':{ack:'\\ud83d\\udce4 Loading recent outputs\\u2026',url:`${SBURL}/rest/v1/experimental_outputs?order=created_at.desc&limit=10&select=agent_name,output_type,content,confidence,created_at`,fmt:'outputs'},'/lessons':{ack:'\ud83d\udcda Loading lessons\u2026',url:`${SBURL}/rest/v1/lessons_learned?select=title,category,confidence,times_applied&order=confidence.desc,times_applied.desc&limit=10`,fmt:'lessons'},'/capabilities':{ack:'\u26a1 Loading capabilities\u2026',url:`${SBURL}/rest/v1/capabilities?select=name,category,confidence,times_used&order=times_used.desc,confidence.desc&limit=10`,fmt:'capabilities'},'/agents_all':{ack:'\ud83e\udd16 Loading all agents\u2026',url:`${SBURL}/rest/v1/agent_registry?select=agent_name,status,description,created_at&order=status.asc,created_at.desc`,fmt:'agents'},'/agents_sandbox':{ack:'\ud83e\uddea Loading sandbox agents\u2026',url:`${SBURL}/rest/v1/agent_registry?select=agent_name,description,workflow_id,created_at&status=eq.sandbox&order=created_at.desc`,fmt:'agents'},'/awake':{ack:'\ud83d\udfe2 Checking Claudis presence\u2026',url:`${SBURL}/rest/v1/system_config?key=in.(claudis_current_task,claudis_heartbeat_at,claudis_session_start,global_pause)&select=key,value`,fmt:'awake'},'/working':{ack:'\u2699\ufe0f Checking recent activity\u2026',url:`${SBURL}/rest/v1/work_queue?select=task_type,status,input_data,claimed_at,completed_at,output_data&or=(status.eq.claimed,status.eq.complete)&order=claimed_at.desc&limit=5`,fmt:'queue'},'/summary':{ack:'\ud83d\udccb Loading activity summary\u2026',url:'STATUS_SPECIAL',fmt:'summary'}};if(cmd.startsWith('/gh_')&&cmd!=='/gh_pause'){const ghCmd=cmd.slice(1);const ghArgs=encodeURIComponent(args.trim());const ackMap={'/gh_status':'\ud83d\udcc2 Loading GitHub status\u2026','/gh_becoming':'\ud83d\udcd6 Loading BECOMING\u2026','/gh_attempts':'\ud83c\udf3f Loading attempt branches\u2026','/gh_log':'\ud83d\udccb Loading commit log\u2026','/gh_review':'\ud83d\udd0d Loading branch review\u2026','/gh_keep':'\u2705 Tagging for keep\u2026','/gh_redirect':'\ud83d\udcdd Recording aspiration\u2026','/gh_close':'\ud83d\uddc3\ufe0f Closing attempt\u2026','/gh_report':'\ud83d\udcca Generating session report\u2026'};const ack=ackMap[cmd]||'\ud83d\udcc2 Running GitHub command\u2026';return[{json:{cmd_group:'monitoring',command:cmd,args,chat_id:chatId,ack_text:ack,query_url:`http://host.docker.internal:9100/gh?cmd=${ghCmd}&args=${ghArgs}`,fmt:'gh'}}];}if(monitorMap[cmd]){const m=monitorMap[cmd];return[{json:{cmd_group:'monitoring',command:cmd,args,chat_id:chatId,ack_text:m.ack,query_url:m.url,fmt:m.fmt}}];}if(cmd==='/explore'){const ackText=args?`\\ud83d\\udd2d Directed exploration queued: ${args}. Claudis will investigate on next wake.`:'\\ud83d\\udd2d Exploration session queued. Claudis will go exploring on next wake.';return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:ackText}}];}if(cmd==='/research'){const ackText=args?`\ud83d\udd2c Research queued: ${args}. Claudis will investigate on next wake.`:'\ud83d\udd2c Self-directed research queued. Claudis will choose a topic and investigate on next wake.';return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:ackText}}];}if(cmd==='/build'){const ackText=args?`\ud83d\udd28 Build request queued: ${args}. Claudis will build, wire the Telegram command, and notify you when live.`:'\ud83d\udd28 Exploratory build queued. Claudis will choose something to build on next wake.';return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:ackText}}];}if(cmd==='/diagnose'){const mode=args.trim()==='full'?'full':args.trim().startsWith('schedule')?'schedule':'quick';const ackText=mode==='full'?'\\ud83d\\udd2c Full diagnostic queued (5 categories) \u2014 report in ~5 min.':mode==='schedule'?'\\u2699\\ufe0f Diagnostic schedule set to: '+args.trim().split(' ')[1]:'\\ud83e\\ude7a Quick diagnostic queued \u2014 report in ~2 min.';return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:ackText}}];}const writeAcks={'/gh_task':'\ud83d\udccb Creating GitHub Issue\u2026','/gh_pause':'\u23f8\ufe0f Pausing Claudis\u2026','/test_agent':'\ud83e\uddea Queuing agent test\u2026','/promote_agent':'\ud83d\ude80 Queuing promotion\u2026','/retire_agent':'\ud83d\uddc3\ufe0f Queuing retirement\u2026','/pause_agent':'\u23f8\ufe0f Queuing pause\u2026','/activate_agent':'\u25b6\ufe0f Queuing activation\u2026','/directive':'\\ud83d\\udccc Recording directive\\u2026','/task':'\\u2705 Queueing task\\u2026'};if(writeAcks[cmd]){return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:writeAcks[cmd]}}];}if(cmd==='/approve'||cmd==='/deny'||cmd==='/reply'){const inboxAcks={'/approve':'\\u2705 Processing approval\\u2026','/deny':'\\u274c Recording denial\\u2026','/reply':'\\ud83d\\udcac Delivering reply\\u2026'};return[{json:{cmd_group:'inbox_action',command:cmd,id_prefix:parts[1]||'',reply_msg:parts.slice(2).join(' '),chat_id:chatId,ack_text:inboxAcks[cmd]}}];}if(cmd==='/agent'||text.toLowerCase().includes('make agent')){let req=cmd==='/agent'?args:text;if(!req)req=text;const lower=req.toLowerCase();let pri=1;if(lower.includes('urgent')||lower.includes('fix'))pri=3;else if(lower.includes('today')||lower.includes('asap'))pri=2;return[{json:{cmd_group:'agent_request',chat_id:chatId,request_text:req,priority:pri,ack_text:'Got it \\u2014 adding to work queue now.'}}];}return[];"
+      }
+    },
+    {
+      "id": "send_immediate_ack",
+      "name": "Send Immediate ACK",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        640,
+        380
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "y4YfKWpm20Z9sw7G",
+          "name": "Life OS Telegram Bot"
+        }
+      },
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.ack_text }}",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "call_webhook",
+      "name": "Call Agent Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Parse Command').item.json.webhook_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "send_triggered",
+      "name": "Send Query Triggered",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1300,
+        100
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "y4YfKWpm20Z9sw7G",
+          "name": "Life OS Telegram Bot"
+        }
+      },
+      "parameters": {
+        "chatId": "8513796837",
+        "text": "={{ $('Parse Command').item.json.label + ' \u2714 triggered.' }}",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "build_monitor_req",
+      "name": "Build Monitor Req",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        260
+      ],
+      "parameters": {
+        "jsCode": "const pc=$('Parse Command').item.json;const cmd=pc.command;const fmt=pc.fmt;const chatId=pc.chat_id;const queryUrl=pc.query_url;const useMgmtApi=cmd==='/status'||cmd==='/summary';let sql;if(cmd==='/summary'){sql=`SELECT row_type,name,extra,ts FROM (SELECT 'task' as row_type,task_type as name,'' as extra,COALESCE(completed_at,created_at)::text as ts FROM work_queue WHERE status='complete' ORDER BY completed_at DESC NULLS LAST LIMIT 5) t UNION ALL SELECT row_type,name,extra,ts FROM (SELECT 'lesson' as row_type,title as name,category as extra,created_at::text as ts FROM lessons_learned ORDER BY created_at DESC LIMIT 3) l`;}else{sql=`SELECT (SELECT value FROM system_config WHERE key='global_pause') as global_pause, (SELECT value FROM system_config WHERE key='sentinel_version') as sentinel_version, (SELECT COUNT(*)::int FROM work_queue WHERE status='pending') as wq_pending, (SELECT COUNT(*)::int FROM error_logs WHERE resolved=false) as errors_unresolved, (SELECT COUNT(*)::int FROM agent_registry WHERE protected=true) as agents_protected, (SELECT COUNT(*)::int FROM agent_registry WHERE protected=false) as agents_unprotected, (SELECT COUNT(*)::int FROM inbox WHERE status='pending') as inbox_pending, (SELECT MAX(timestamp) FROM audit_log) as last_audit_at`;}return[{json:{is_status:useMgmtApi,fmt,chat_id:chatId,query_url:queryUrl,sql}}];"
+      }
+    },
+    {
+      "id": "if_status",
+      "name": "Is Status?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        260
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.is_status?'true':'false' }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "fetch_status",
+      "name": "Fetch Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        180
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.supabase.com/v1/projects/cihbfubghytzqrpffgcq/database/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "supabase-js/2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({query:$('Build Monitor Req').item.json.sql}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fetch_regular",
+      "name": "Fetch Monitor Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        340
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Build Monitor Req').item.json.query_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{CREDENTIAL_REDACTED}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "format_monitor",
+      "name": "Format Monitor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        260
+      ],
+      "parameters": {
+        "jsCode": "\nconst fmt = $('Build Monitor Req').item.json.fmt;\nconst chatId = $('Build Monitor Req').item.json.chat_id;\nconst inputJson = $input.first().json;\n\n// Fetch Monitor Data returns {data: \"<json string>\"} when responseFormat=text\n// Fetch Status returns the row object directly from Management API\nlet raw;\nif (typeof inputJson.data === 'string') {\n  try { raw = JSON.parse(inputJson.data); } catch(e) { raw = []; }\n} else {\n  raw = Array.isArray(inputJson) ? inputJson : [inputJson];\n}\n\nconst ts = (str) => {\n  if (!str) return 'never';\n  try { return new Date(str).toISOString().replace('T',' ').slice(0,16)+' UTC'; }\n  catch(e) { return str||'?'; }\n};\nconst sid = (id) => id ? String(id).slice(0,8) : '?';\n\nlet text = '';\n\nif (fmt === 'status') {\n  const r = Array.isArray(raw) ? raw[0] : raw;\n  const paused = r.global_pause==='true'||r.global_pause===true;\n  text = `\\ud83d\\udcca Claudis OS Status\\n\\nSystem: ${paused?'\\u23f8\\ufe0f PAUSED':'\\u2705 Running'}\\nClaudis: ${r.sentinel_version||'?'}\\nLast activity: ${ts(r.last_audit_at)}\\n\\n\\ud83d\\udce5 Work queue: ${r.wq_pending??0} pending\\n\\ud83d\\udd34 Errors: ${r.errors_unresolved??0} unresolved\\n\\ud83d\\udcec Inbox: ${r.inbox_pending??0} awaiting\\n\\n\\ud83e\\udd16 Agents: ${r.agents_protected??0} protected, ${r.agents_unprotected??0} unprotected`;\n}\n\nelse if (fmt === 'agents') {\n  if (!raw.length) { text = '\\u26a0\\ufe0f No agents found.'; }\n  else {\n    const prot = raw.filter(a=>a.protected);\n    const actv = raw.filter(a=>!a.protected&&a.status==='active');\n    const rest = raw.filter(a=>!a.protected&&a.status!=='active');\n    let lines = ['\\ud83e\\udd16 Agent Registry\\n'];\n    if (prot.length) { lines.push('\\ud83d\\udd12 Protected:'); prot.forEach(a=>lines.push(`  ${a.agent_name} \\u2014 ${a.status}`)); }\n    if (actv.length) { lines.push('\\n\\u2705 Active:'); actv.forEach(a=>lines.push(`  ${a.agent_name}`)); }\n    if (rest.length) { lines.push('\\n\\u23f8\\ufe0f Paused:'); rest.forEach(a=>lines.push(`  ${a.agent_name}`)); }\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'errors') {\n  if (!raw.length) { text = '\\u2705 No unresolved errors.'; }\n  else {\n    let lines = [`\\ud83d\\udd34 Unresolved Errors (${raw.length})\\n`];\n    raw.forEach(e => {\n      lines.push(`[${ts(e.timestamp).slice(5,16)}] ${e.workflow_name||'unknown'}`);\n      lines.push(`  ${e.error_type||''}: ${(e.error_message||'').slice(0,80)}`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'inbox') {\n  if (!raw.length) { text = '\\ud83d\\udced Inbox is empty \\u2014 no pending items.'; }\n  else {\n    const pE = {urgent:'\\ud83d\\udd34',high:'\\ud83d\\udfe0',normal:'\\ud83d\\udfe1',low:'\\u26aa'};\n    let lines = [`\\ud83d\\udcec Inbox (${raw.length} pending)\\n`];\n    raw.forEach(i => {\n      lines.push(`${pE[i.priority]||'\\u26aa'} ${sid(i.id)} | ${i.message_type} | ${i.from_agent}`);\n      lines.push(`  ${i.subject||'(no subject)'}`);\n    });\n    lines.push('\\nUse: /approve <id>  /deny <id>  /reply <id> <msg>');\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'activity') {\n  if (!raw.length) { text = '\\ud83d\\udccb No activity in the last 24 hours.'; }\n  else {\n    const counts = {};\n    raw.forEach(e => { if(e.action) counts[e.action]=(counts[e.action]||0)+1; });\n    const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8);\n    let lines = ['\\ud83d\\udccb Activity (last 20)\\n'];\n    if (sorted.length) { lines.push('By type:'); sorted.forEach(([a,c])=>lines.push(`  ${a}: ${c}`)); }\n    lines.push('\\nRecent:');\n    raw.slice(0,5).forEach(e=>lines.push(`  [${ts(e.timestamp).slice(5,16)}] ${e.action} \\u2014 ${e.actor||'?'}`));\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'queue') {\n  const pending = raw.filter(t=>t.status==='pending');\n  const inProg  = raw.filter(t=>t.status==='claimed'||t.status==='in_progress');\n  if (!pending.length && !inProg.length) { text = '\\u2705 Work queue is empty.'; }\n  else {\n    let lines = [`\\ud83d\\uddc2\\ufe0f Work Queue (${pending.length} pending, ${inProg.length} in progress)\\n`];\n    pending.forEach(t => {\n      const sum = t.input_data ? JSON.stringify(t.input_data).slice(0,60) : '';\n      lines.push(`[${sid(t.id)}] ${t.task_type}`);\n      if (sum) lines.push(`  ${sum}`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'outputs') {\n  if (!raw.length) { text = '\\ud83d\\udcca No agent outputs in the last 24 hours.'; }\n  else {\n    let lines = [`\\ud83d\\udce4 Recent Outputs (${raw.length})\\n`];\n    raw.forEach(o => {\n      lines.push(`[${ts(o.created_at).slice(5,16)}] ${o.agent_name} \\u2014 ${o.output_type||'?'}`);\n      const cStr = o.content ? JSON.stringify(o.content).slice(0,60) : '';\n      if (cStr) lines.push(`  ${cStr}`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'lessons') {\n  if (!raw.length) { text = '\\u{1F4DA} No lessons recorded yet.'; }\n  else {\n    let lines = ['\\u{1F4DA} Top Lessons Learned\\n'];\n    raw.forEach(l => {\n      const pct = l.confidence != null ? Math.round(l.confidence * 100) + '%' : '?%';\n      const applied = l.times_applied != null ? l.times_applied : 0;\n      lines.push(`\\u2022 ${l.title || '(untitled)'}`);\n      lines.push(`  ${l.category || 'general'} | confidence: ${pct} | applied: ${applied}x`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'capabilities') {\n  if (!raw.length) { text = '\\u26A1 No capabilities recorded yet.'; }\n  else {\n    let lines = ['\\u26A1 Capabilities\\n'];\n    raw.forEach(c => {\n      const pct = c.confidence != null ? Math.round(c.confidence * 100) + '%' : '?%';\n      const used = c.times_used != null ? c.times_used : 0;\n      lines.push(`\\u2022 ${c.name || '(unnamed)'}`);\n      lines.push(`  ${c.category || 'general'} | confidence: ${pct} | used: ${used}x`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'gh') {\n  text = (raw && typeof raw.text === 'string') ? raw.text : JSON.stringify(raw).slice(0,500);\n}\n\nelse if (fmt === 'awake') {\n  const kv = {};\n  (Array.isArray(raw) ? raw : [raw]).forEach(r => { if(r.key) kv[r.key]=r.value; });\n  const task = kv.claudis_current_task || 'unknown';\n  const beat = kv.claudis_heartbeat_at;\n  const paused = kv.global_pause === 'true';\n  const idle = !beat || task === 'idle';\n  const age = beat ? Math.round((Date.now()-new Date(beat).getTime())/60000) : null;\n  const ageStr = age !== null ? (age < 2 ? 'just now' : age + ' min ago') : 'never';\n  if (paused) text = '\u23f8\ufe0f Claudis is PAUSED\\n\\nUse /resume to restart.';\n  else if (idle) text = `\ud83d\udca4 Claudis is idle\\nLast seen: ${ageStr}\\n\\nSend /wake to start a session.`;\n  else text = `\ud83d\udfe2 Claudis is AWAKE\\nTask: ${task}\\nHeartbeat: ${ageStr}\\n\\nUse /wake only if you need to add urgent context.`;\n}\n\nelse if (fmt === 'summary') {\n  const tasks = raw.filter(r => r.row_type === 'task');\n  const lessons = raw.filter(r => r.row_type === 'lesson');\n  const lines = ['\\ud83d\\udccb *Claudis Summary*\\n'];\n  if (tasks.length) {\n    lines.push('\\u2705 *Recent tasks:*');\n    tasks.forEach(t => {\n      const when = ts(t.ts).slice(5,16);\n      lines.push(`  ${when} \\u2014 ${t.name}`);\n    });\n  } else {\n    lines.push('\\u2705 No completed tasks found.');\n  }\n  lines.push('');\n  if (lessons.length) {\n    lines.push('\\ud83d\\udcda *Recent lessons:*');\n    lessons.forEach(l => lines.push(`  [${l.extra||'?'}] ${l.name}`));\n  } else {\n    lines.push('\\ud83d\\udcda No recent lessons.');\n  }\n  text = lines.join('\\n');\n}\n\nelse { text = `Response: ${JSON.stringify(raw).slice(0,200)}`; }\n\n\n// Truncate to Telegram's 4096 char limit (leave buffer for emoji/overhead)\nconst MAX_LEN = 4000;\nif (text.length > MAX_LEN) {\n  text = text.slice(0, MAX_LEN) + '\\n\u2026 (truncated)';\n}\n\nreturn [{ json: { text, chat_id: chatId } }];\n"
+      }
+    },
+    {
+      "id": "send_monitor_reply",
+      "name": "Send Monitor Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1960,
+        260
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "y4YfKWpm20Z9sw7G",
+          "name": "Life OS Telegram Bot"
+        }
+      },
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "build_write_req",
+      "name": "Build Write Req",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        460
+      ],
+      "parameters": {
+        "jsCode": "const pc=$('Parse Command').item.json;const cmd=pc.command;const args=pc.args||'';const chatId=pc.chat_id;const SBURL='https://cihbfubghytzqrpffgcq.supabase.co/rest/v1';if(cmd==='/explore'){const url=`${SBURL}/work_queue`;let body,confirmText;if(!args.trim()){body={task_type:'explore',status:'pending',priority:1,created_by:'bill',input_data:{mode:'free',instruction:'Self-directed exploration session. No specific task. Research something interesting, build a practice agent in the sandbox, or investigate a capability you want to develop. Document what you discover. Write lessons as you go. End the session by sending Bill a Telegram message describing what you explored and what you learned \\u2014 not just what you built, but what you understood differently afterward.',constraints:['Write only to experimental_outputs and sandbox tables','Do not modify protected agents or architecture','Send Bill a Telegram summary when done']}};confirmText='\\ud83d\\udd2d Exploration session queued. Claudis will go exploring on next wake.';}else{body={task_type:'explore',status:'pending',priority:1,created_by:'bill',input_data:{mode:'directed',topic:args,instruction:`Explore ${args} with genuine curiosity. Research it, experiment with it, build something small to test your understanding. Document findings in ChromaDB and lessons_learned. Send Bill a Telegram summary of what you discovered.`}};confirmText=`\\ud83d\\udd2d Directed exploration queued: ${args}. Claudis will investigate on next wake.`;}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];}if(cmd==='/research'){const url=`${SBURL}/work_queue`;let body,confirmText;if(!args.trim()){body={task_type:'research_cycle',status:'pending',priority:2,created_by:'bill',input_data:{mode:'free',instruction:'Self-directed research session. Review your lessons_learned, capabilities, and ChromaDB collections to identify a gap in your knowledge that would make you more useful to Bill. Research it thoroughly. Document findings in research_topics and ChromaDB. Write at least one new lesson. Send Bill a Telegram summary of what you investigated and what you now understand that you did not before.',constraints:['Prefer Haiku for bulk research to stay within budget','Store findings in ChromaDB research collection','Check research_topics first to avoid duplication']}};confirmText='\ud83d\udd2c Self-directed research queued. Claudis will choose a topic and investigate on next wake.';}else{body={task_type:'research_cycle',status:'pending',priority:2,created_by:'bill',input_data:{mode:'directed',topic:args,instruction:`Research ${args} thoroughly. Find multiple sources. Identify patterns, controversies, and open questions. Store structured findings in research_topics and ChromaDB. Send Bill a Telegram summary when done.`}};confirmText=`\ud83d\udd2c Research queued: ${args}. Claudis will investigate on next wake.`;}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];}if(cmd==='/build'){const url=`${SBURL}/work_queue`;let body,confirmText;if(!args.trim()){body={task_type:'agent_build',status:'pending',priority:2,created_by:'bill',input_data:{mode:'free',telegram_command:false,instruction:'Exploratory build session. Review capabilities and lessons_learned to identify something worth building as a practice exercise \u2014 something you have not done before or want to get better at. Build in the sandbox only. Write to experimental_outputs. Document what you learned in lessons_learned and capabilities. Send Bill a Telegram summary describing what you built and what building it taught you.',constraints:['Sandbox only \u2014 experimental_outputs, no production tables','No Telegram command wiring required','Focus on learning, not deployment']}};confirmText='\ud83d\udd28 Exploratory build queued. Claudis will choose something to build on next wake.';}else{body={task_type:'agent_build',status:'pending',priority:2,created_by:'bill',input_data:{mode:'directed',description:args,telegram_command:true,requirements:['Build a working n8n workflow implementing the functionality','Wire up a Telegram command in the Telegram Command Agent routing','Test the full pipeline end to end','Send Bill a Telegram message confirming the agent is live and what command to use','Register in agent_registry as active with telegram_command populated']}};confirmText=`\ud83d\udd28 Build request queued: ${args}. Claudis will build, wire the Telegram command, and notify you when live.`;}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];}if(['/test_agent','/promote_agent','/retire_agent','/pause_agent','/activate_agent'].includes(cmd)){const agentName=args.trim();if(!agentName){return[{json:{url:'',body:{},chat_id:chatId,confirm_text:'\u26a0\ufe0f Usage: '+cmd+' <agent_name>'}}];}const actionMap={'/test_agent':{task_type:'agent_test',ack:'\ud83e\uddea Test queued for '+agentName+' \\u2014 waking Claudis.'},'/promote_agent':{task_type:'agent_promote',ack:'\ud83d\ude80 Promotion queued for '+agentName+' \\u2014 waking Claudis.'},'/retire_agent':{task_type:'agent_retire',ack:'\ud83d\uddc3\ufe0f Retirement queued for '+agentName+' \\u2014 waking Claudis.'},'/pause_agent':{task_type:'agent_control',ack:'\u23f8\ufe0f Pause queued for '+agentName+' \\u2014 waking Claudis.'},'/activate_agent':{task_type:'agent_control',ack:'\u25b6\ufe0f Activation queued for '+agentName+' \\u2014 waking Claudis.'}};const action=actionMap[cmd];const inputData=cmd==='/pause_agent'?{agent_name:agentName,action:'pause'}:cmd==='/activate_agent'?{agent_name:agentName,action:'activate'}:{agent_name:agentName};const body={task_type:action.task_type,status:'pending',priority:1,created_by:'bill',input_data:inputData};try{await fetch('http://host.docker.internal:9100/trigger_sentinel');}catch(e){}return[{json:{url:`${SBURL}/work_queue`,body,chat_id:chatId,confirm_text:action.ack}}];}if(cmd==='/gh_task'){const text=args.trim();if(!text){return[{json:{url:'',body:{},chat_id:chatId,confirm_text:'\u26a0\ufe0f Usage: /gh_task <description>'}}];}const url=`${SBURL}/work_queue`;const body={task_type:'gh_task',status:'pending',priority:1,created_by:'bill',input_data:{text}};try{await fetch('http://host.docker.internal:9100/trigger_sentinel');}catch(e){}return[{json:{url,body,chat_id:chatId,confirm_text:'\ud83d\udccb Queued as gh_task \u2014 Claudis will create the GitHub Issue and queue as directive.'}}];}if(cmd==='/gh_pause'){const note=args.trim()||'Paused via Telegram /gh_pause';const url=`${SBURL}/system_config?key=eq.global_pause`;const body={value:'true',updated_at:new Date().toISOString(),note};return[{json:{url,body,chat_id:chatId,confirm_text:'\u23f8\ufe0f Claudis paused. All sessions halted until /resume.\\n\\nReason: '+note.slice(0,100)}}];}if(cmd==='/gh_report'){const n=args.trim().match(/^\\d+$/)?parseInt(args.trim()):5;const url=`${SBURL}/work_queue`;const body={task_type:'gh_report',status:'pending',priority:2,created_by:'bill',input_data:{n}};return[{json:{url,body,chat_id:chatId,confirm_text:`\ud83d\udcca Report queued \u2014 Claudis will synthesize the last ${n} sessions.`}}];}if(cmd==='/diagnose'){const url=`${SBURL}/work_queue`;let body,confirmText;if(args.trim()==='full'){body={task_type:'self_diagnostic',status:'pending',priority:1,created_by:'bill',input_data:{mode:'full'}};confirmText='\\ud83d\\udd2c Full diagnostic queued (5 categories) \u2014 report in ~5 min.';}else if(args.trim().startsWith('schedule')){const freq=args.trim().split(' ')[1]||'';body={task_type:'self_diagnostic',status:'pending',priority:2,created_by:'bill',input_data:{mode:'schedule',frequency:freq}};confirmText='\\u2699\\ufe0f Diagnostic schedule set to: '+(freq||'(cleared)');}else{body={task_type:'self_diagnostic',status:'pending',priority:1,created_by:'bill',input_data:{mode:'quick'}};confirmText='\\ud83e\\ude7a Quick diagnostic queued \u2014 report in ~2 min.';}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];}if(!args.trim()){const usage={'/directive':'<instruction>','/task':'<description>'};return[{json:{url:null,body:null,chat_id:chatId,confirm_text:`\\u26a0\\ufe0f Usage: ${cmd} ${usage[cmd]||'<text>'}`}}];}let url,body,confirmText;if(cmd==='/directive'){url=`${SBURL}/directives`;body={content:args,priority:3,source:'bill',status:'active',active:true};confirmText=`\\ud83d\\udccc Directive recorded:\\n\"${args.slice(0,120)}\"`;} else if(cmd==='/task'){url=`${SBURL}/work_queue`;body={task_type:'general_task',status:'pending',priority:2,created_by:'bill',input_data:{request:args,source:'telegram'}};confirmText=`\\u2705 Task queued:\\n\"${args.slice(0,120)}\"`;}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];"
+      }
+    },
+    {
+      "id": "exec_write_req",
+      "name": "Execute Write",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        460
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "send_write_confirm",
+      "name": "Send Write Confirm",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1520,
+        460
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "y4YfKWpm20Z9sw7G",
+          "name": "Life OS Telegram Bot"
+        }
+      },
+      "parameters": {
+        "chatId": "={{ $('Build Write Req').item.json.chat_id }}",
+        "text": "={{ $('Build Write Req').item.json.confirm_text }}",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "build_inbox_action",
+      "name": "Build Inbox Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        600
+      ],
+      "parameters": {
+        "jsCode": "const pc=$('Parse Command').item.json;const cmd=pc.command;const idPrefix=pc.id_prefix||'';const replyMsg=pc.reply_msg||'';const chatId=pc.chat_id;const SBURL='https://cihbfubghytzqrpffgcq.supabase.co/rest/v1';const now=new Date().toISOString();if(!idPrefix){const usage={'/approve':'<id>','/deny':'<id>','/reply':'<id> <message>'};return[{json:{url:null,patch_body:null,chat_id:chatId,confirm_text:`\\u26a0\\ufe0f Usage: ${cmd} ${usage[cmd]||'<id>'}`,needs_wq:false,wq_body:null}}];}const url=`${SBURL}/inbox?id=like.${idPrefix}%25`;let patchBody,confirmText,needsWq=false,wqBody=null;if(cmd==='/approve'){patchBody={status:'approved',responded_at:now};confirmText=`\\u2705 Approved (${idPrefix}).\\nQueued for next Sentinel wake.`;needsWq=true;wqBody={task_type:'approved_action',status:'pending',priority:3,input_data:{inbox_id_prefix:idPrefix,source:'bill_approval',note:'Execute approved inbox item on next wake'}};}else if(cmd==='/deny'){patchBody={status:'denied',responded_at:now};confirmText=`\\u274c Denied (${idPrefix}).`;}else if(cmd==='/reply'){if(!replyMsg)return[{json:{url:null,patch_body:null,chat_id:chatId,confirm_text:'\\u26a0\\ufe0f Usage: /reply <id> <message>',needs_wq:false,wq_body:null}}];patchBody={status:'replied',bill_reply:replyMsg,responded_at:now};confirmText=`\\ud83d\\udcac Reply delivered (${idPrefix}).`;}return[{json:{url,patch_body:patchBody,chat_id:chatId,confirm_text:confirmText,needs_wq:needsWq,wq_body:wqBody}}];"
+      }
+    },
+    {
+      "id": "exec_inbox_action",
+      "name": "Execute Inbox Action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        600
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch_body) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "if_approve",
+      "name": "Needs WQ Entry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Build Inbox Action').item.json.needs_wq?'true':'false' }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "exec_approve_wq",
+      "name": "Queue Approved Action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/work_queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build Inbox Action').item.json.wq_body) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "send_inbox_confirm",
+      "name": "Send Inbox Confirm",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1960,
+        600
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "y4YfKWpm20Z9sw7G",
+          "name": "Life OS Telegram Bot"
+        }
+      },
+      "parameters": {
+        "chatId": "={{ $('Build Inbox Action').item.json.chat_id }}",
+        "text": "={{ $('Build Inbox Action').item.json.confirm_text }}",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "write-work-queue",
+      "name": "Write to Work Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        740
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/work_queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "prep_agent_req",
+      "name": "Prep Agent Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        840
+      ],
+      "parameters": {
+        "jsCode": "\nif($('Parse Command').item.json.cmd_group==='instant_reply')return[];\nconst pc = $('Parse Command').item.json;\nreturn [{ json: {\n  body: JSON.stringify({\n    task_type: \"agent_request\",\n    assigned_agent: \"claude_code\",\n    priority: pc.priority || 1,\n    status: \"pending\",\n    created_by: \"bill\",\n    input_data: {\n      request: pc.request_text || \"\",\n      source: \"telegram\",\n      chat_id: pc.chat_id || \"\"\n    }\n  })\n}}];\n"
+      }
+    },
+    {
+      "id": "bot-filter-001",
+      "name": "Filter Bot Messages",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        310,
+        380
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "bot-check",
+              "leftValue": "={{ $json.message.from.is_bot }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "route-query",
+      "name": "Route: Query?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        860,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r1",
+              "leftValue": "={{ $('Parse Command').item.json.cmd_group }}",
+              "rightValue": "query_agent",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "route-monitor",
+      "name": "Route: Monitor?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        860,
+        380
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r2",
+              "leftValue": "={{ $('Parse Command').item.json.cmd_group }}",
+              "rightValue": "monitoring",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "route-write",
+      "name": "Route: Write?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        860,
+        560
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r3",
+              "leftValue": "={{ $('Parse Command').item.json.cmd_group }}",
+              "rightValue": "write_command",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "route-inbox",
+      "name": "Route: Inbox?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        860,
+        740
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r4",
+              "leftValue": "={{ $('Parse Command').item.json.cmd_group }}",
+              "rightValue": "inbox_action",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "TelegramTrigger": {
+      "main": [
+        [
+          {
+            "node": "Filter Bot Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Command": {
+      "main": [
+        [
+          {
+            "node": "Send Immediate ACK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Agent Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send Query Triggered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Monitor Req": {
+      "main": [
+        [
+          {
+            "node": "Is Status?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Status?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Monitor Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Status": {
+      "main": [
+        [
+          {
+            "node": "Format Monitor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Monitor Data": {
+      "main": [
+        [
+          {
+            "node": "Format Monitor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Monitor": {
+      "main": [
+        [
+          {
+            "node": "Send Monitor Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Write Req": {
+      "main": [
+        [
+          {
+            "node": "Execute Write",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Write": {
+      "main": [
+        [
+          {
+            "node": "Send Write Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Inbox Action": {
+      "main": [
+        [
+          {
+            "node": "Execute Inbox Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Inbox Action": {
+      "main": [
+        [
+          {
+            "node": "Needs WQ Entry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs WQ Entry?": {
+      "main": [
+        [
+          {
+            "node": "Queue Approved Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Inbox Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Approved Action": {
+      "main": [
+        [
+          {
+            "node": "Send Inbox Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Agent Request": {
+      "main": [
+        [
+          {
+            "node": "Write to Work Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Bot Messages": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Parse Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Immediate ACK": {
+      "main": [
+        [
+          {
+            "node": "Route: Query?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Query?": {
+      "main": [
+        [
+          {
+            "node": "Call Agent Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route: Monitor?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Monitor?": {
+      "main": [
+        [
+          {
+            "node": "Build Monitor Req",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route: Write?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Write?": {
+      "main": [
+        [
+          {
+            "node": "Build Write Req",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route: Inbox?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Inbox?": {
+      "main": [
+        [
+          {
+            "node": "Build Inbox Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep Agent Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "eeec2f31-0c9a-4b7d-8ccb-d1b3f73d1019",
+  "activeVersionId": "eeec2f31-0c9a-4b7d-8ccb-d1b3f73d1019",
+  "versionCounter": 231,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-03-18T02:05:26.153Z",
+      "createdAt": "2026-03-18T02:05:26.153Z",
+      "role": "workflow:owner",
+      "workflowId": "kddIKvA37UDw4x6e",
+      "projectId": "1332MGZuLwNany4P",
+      "project": {
+        "updatedAt": "2026-03-07T17:29:18.510Z",
+        "createdAt": "2026-02-08T17:14:20.266Z",
+        "id": "1332MGZuLwNany4P",
+        "name": "William Thompson <thompsmanlearn@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+        "projectRelations": [
+          {
+            "updatedAt": "2026-02-08T17:14:20.266Z",
+            "createdAt": "2026-02-08T17:14:20.266Z",
+            "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+            "projectId": "1332MGZuLwNany4P",
+            "user": {
+              "updatedAt": "2026-03-30T09:46:07.000Z",
+              "createdAt": "2026-02-08T17:14:19.719Z",
+              "id": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+              "email": "thompsmanlearn@gmail.com",
+              "firstName": "William",
+              "lastName": "Thompson",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2026-02-08T17:27:44.911Z",
+                "personalization_survey_n8n_version": "2.6.4",
+                "companySize": "<20",
+                "companyType": "education",
+                "role": "other",
+                "roleOther": "High School Teacher",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "RpajIIDI7GF_mkpukB28X",
+                "userActivatedAt": 1770587372742,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1771221926271
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-03-30",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-03-30T17:40:31.379Z",
+    "createdAt": "2026-03-30T17:40:31.379Z",
+    "versionId": "eeec2f31-0c9a-4b7d-8ccb-d1b3f73d1019",
+    "workflowId": "kddIKvA37UDw4x6e",
+    "nodes": [
+      {
+        "id": "telegram-trigger",
+        "name": "TelegramTrigger",
+        "type": "n8n-nodes-base.telegramTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          200,
+          380
+        ],
+        "credentials": {
+          "telegramApi": {
+            "id": "y4YfKWpm20Z9sw7G",
+            "name": "Life OS Telegram Bot"
+          }
+        },
+        "parameters": {
+          "updates": [
+            "message"
+          ],
+          "additionalFields": {}
+        }
+      },
+      {
+        "id": "parse-command",
+        "name": "Parse Command",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          420,
+          380
+        ],
+        "parameters": {
+          "jsCode": "const msg=$input.first().json;const text=(msg.message&&msg.message.text)?msg.message.text:'';const chatId=msg.message&&msg.message.chat?String(msg.message.chat.id):'';if(chatId!=='8513796837')return[];const parts=text.trim().split(/\\s+/);const cmd=parts[0].toLowerCase();const args=parts.slice(1).join(' ');if(cmd==='/gh_report'){const n=parseInt(args)||5;return[{json:{cmd_group:'query_agent',chat_id:chatId,webhook_url:`http://host.docker.internal:5678/webhook/session-report?n=${n}`,label:'\ud83d\udcca Session Report',ack_text:'\ud83d\udcca Generating session report\u2026'}}];}if(cmd==='/evaluate'){const target=args.trim()||'haiku_self_critic';return[{json:{cmd_group:'query_agent',chat_id:chatId,webhook_url:`http://localhost:5678/webhook/evaluate-agent?agent_name=${encodeURIComponent(target)}`,label:'\ud83d\udd0d Agent Evaluator',ack_text:`\ud83d\udd0d Evaluating ${target}\u2026 results in /outputs.`}}];}const SBURL='https://cihbfubghytzqrpffgcq.supabase.co';const queryCommands={'/wake':{webhook:'http://host.docker.internal:9100/trigger_sentinel',label:'\\ud83d\\udd06 Claudis Wake',ack:'\\u26a1 Waking up\\u2026 starting session now.'},'/weather':{webhook:'http://localhost:5678/webhook/F3khynqQBUXSnadu/webhook/weather',label:'\\ud83c\\udf24\\ufe0f Local Weather',ack:'\\ud83c\\udf24\\ufe0f Fetching weather\\u2026'},'/coast':{webhook:'http://localhost:5678/webhook/coast',label:'\\ud83c\\udf0a Coastal Report',ack:'\\ud83c\\udf0a Coastal starting\\u2026'},'/frontier':{webhook:'http://localhost:5678/webhook/frontier',label:'\\ud83e\\udd16 AI Frontier Scout',ack:'\\ud83e\\udd16 Frontier Scout starting\\u2026'},'/cosmos':{webhook:'http://localhost:5678/webhook/cosmos',label:'\\ud83d\\ude80 Cosmos Report',ack:'\\ud83d\\ude80 Cosmos starting\\u2026'},'/today':{webhook:'http://localhost:5678/webhook/today',label:'\\ud83d\\udcc5 Serendipity Engine',ack:'\\ud83d\\udcc5 Serendipity starting\\u2026'},'/macro':{webhook:'http://localhost:5678/webhook/macro',label:'\\ud83d\\udcca Macro Pulse',ack:'\\ud83d\\udcca Macro Pulse starting\\u2026'},'/usage':{webhook:'http://host.docker.internal:5678/webhook/usage-stats',label:'\ud83d\udcca Claudis Status',ack:'\ud83d\udcca Fetching status\u2026'},'/heritage':{webhook:'http://localhost:5678/webhook/heritage',label:'\\ud83c\\udfdb\\ufe0f Heritage Watch',ack:'\\ud83c\\udfdb\\ufe0f Heritage Watch starting\\u2026'}};if(queryCommands[cmd]){const q=queryCommands[cmd];return[{json:{cmd_group:'query_agent',chat_id:chatId,webhook_url:q.webhook,label:q.label,ack_text:q.ack}}];}if(cmd==='/wiki'){if(!args.trim()){return[{json:{cmd_group:'query_agent',chat_id:chatId,webhook_url:'http://localhost:5678/webhook/wiki-run',label:'\\ud83d\\udce1 Wiki Monitor',ack_text:'\\ud83d\\udce1 Fetching Wikipedia attention data\\u2026'}}];}const wikiArgs=args.trim().toLowerCase();if(wikiArgs==='focus list'){return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udccb Fetching focus list\\u2026 (check Supabase wiki_monitor_config)'}}];}if(wikiArgs==='ignore list'){return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udccb Fetching ignore list\\u2026 (check Supabase wiki_monitor_config)'}}];}if(wikiArgs.startsWith('focus ')){const topic=args.trim().slice(6);return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udc41 Added \"'+topic+'\" to focus list'}}];}if(wikiArgs.startsWith('ignore ')){const topic=args.trim().slice(7);return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udd07 Added \"'+topic+'\" to ignore list'}}];}if(wikiArgs.startsWith('sensitivity ')){const level=wikiArgs.slice(12).trim();return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\u2699\\ufe0f Sensitivity set to '+level}}];}return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:'\\ud83d\\udce1 Checking attention on: '+args.trim()+'\\u2026'}}];}if(cmd==='/helpos'){return[{json:{cmd_group:'instant_reply',chat_id:chatId,ack_text:\"\ud83d\udcf1 Claudis OS Commands\\n\\nMONITORING\\n/status \\u2014 system health check\\n/agents \\u2014 agent registry\\n/errors \\u2014 unresolved errors\\n/inbox \\u2014 messages from Claudis\\n/activity \\u2014 recent audit log\\n/queue \\u2014 pending work queue\\n/outputs \\u2014 recent agent outputs\\n/lessons \\u2014 top lessons learned\\n/capabilities \\u2014 what Claudis can do\\n/working \\u2014 what Claudis is doing now\\n/summary \\u2014 recent tasks + lessons (no wake needed)\\n\\nDIRECTION\\n/build \\u2014 exploratory build (Claudis chooses)\\n/build <desc> \\u2014 deploy a specific agent\\n/research \\u2014 self-directed research\\n/research <topic> \\u2014 research a specific topic\\n/explore \\u2014 free exploration session\\n/explore <topic> \\u2014 directed exploration\\n/learning <topic> \\u2014 learn a topic in depth\\n/task <instruction> \\u2014 queue any task\\n/directive <instruction> \\u2014 permanent standing order\\n\\nINBOX\\n/approve <id> \\u2014 approve a request\\n/deny <id> \\u2014 deny a request\\n/reply <id> <msg> \\u2014 reply to Claudis\\n\\nINTELLIGENCE\\n/wiki \\u2014 Wikipedia attention report\\n/wiki <topic> \\u2014 attention data for any topic\\n/wiki focus <topic> \\u2014 add to watch list\\n/wiki ignore <topic> \\u2014 add to filter\\n\\nSYSTEM\\n/awake \\u2014 is Claudis running? what is it doing?\\n/wake \\u2014 trigger immediate session\\n/pause \\u2014 halt all activity\\n/resume \\u2014 resume activity\\n/config <key> <value> \\u2014 update system config\\n/helpos \\u2014 show this command list\\n\\nDIAGNOSTICS\\n/diagnose \\u2014 quick health check (memory + stuck tasks)\\n/diagnose full \\u2014 all 5 diagnostic categories\\n/diagnose schedule <daily|weekly|off> \\u2014 set auto-diagnostic schedule\\n\\nGITHUB\\n/gh_status \\u2014 last commit + open branches + BECOMING\\n/gh_becoming \\u2014 full BECOMING.md\\n/gh_attempts \\u2014 open attempt branches\\n/gh_log [n] \\u2014 last n commits (default 10)\\n/gh_review <branch> \\u2014 branch commit history\\n/gh_keep <branch> \\u2014 tag as signal:keep\\n/gh_redirect <note> \\u2014 add aspiration to BECOMING.md\\n/gh_close <branch>[|note] \\u2014 close attempt with note\\n/gh_task <text> \\u2014 create GitHub Issue + queue as directive\\n/gh_pause [reason] \\u2014 pause Claudis with note\\n/gh_report [n] \\u2014 raw session artifacts (default 5)\\n\\nAGENT CONTROL\\n/agents_all \\u2014 all agents by status\\n/agents_sandbox \\u2014 sandbox agents only\\n/test_agent <name> \\u2014 trigger sandbox agent test\\n/promote_agent <name> \\u2014 promote sandbox to production\\n/retire_agent <name> \\u2014 retire an agent\\n/pause_agent <name> \\u2014 pause active agent\\n/activate_agent <name> \\u2014 activate paused agent\"}}];}const monitorMap={'/status':{ack:'\\ud83d\\udcca Checking system status\\u2026',url:'STATUS_SPECIAL',fmt:'status'},'/agents':{ack:'\\ud83e\\udd16 Loading agent registry\\u2026',url:`${SBURL}/rest/v1/agent_registry?select=agent_name,status,protected,updated_at&order=protected.desc,status.asc,agent_name.asc`,fmt:'agents'},'/errors':{ack:'\\ud83d\\udd34 Checking error log\\u2026',url:`${SBURL}/rest/v1/error_logs?resolved=eq.false&order=timestamp.desc&limit=5&select=workflow_name,error_type,error_message,timestamp`,fmt:'errors'},'/inbox':{ack:'\\ud83d\\udcec Opening inbox\\u2026',url:`${SBURL}/rest/v1/inbox?status=eq.pending&order=priority.desc,created_at.asc&select=id,from_agent,message_type,subject,priority,created_at`,fmt:'inbox'},'/activity':{ack:'\\ud83d\\udccb Loading activity\\u2026',url:`${SBURL}/rest/v1/audit_log?order=timestamp.desc&limit=20&select=timestamp,action,actor,target`,fmt:'activity'},'/queue':{ack:'\\ud83d\\uddc2\\ufe0f Checking work queue\\u2026',url:`${SBURL}/rest/v1/work_queue?select=id,task_type,status,priority,input_data,created_at&order=priority.desc,created_at.asc&limit=10`,fmt:'queue'},'/outputs':{ack:'\\ud83d\\udce4 Loading recent outputs\\u2026',url:`${SBURL}/rest/v1/experimental_outputs?order=created_at.desc&limit=10&select=agent_name,output_type,content,confidence,created_at`,fmt:'outputs'},'/lessons':{ack:'\ud83d\udcda Loading lessons\u2026',url:`${SBURL}/rest/v1/lessons_learned?select=title,category,confidence,times_applied&order=confidence.desc,times_applied.desc&limit=10`,fmt:'lessons'},'/capabilities':{ack:'\u26a1 Loading capabilities\u2026',url:`${SBURL}/rest/v1/capabilities?select=name,category,confidence,times_used&order=times_used.desc,confidence.desc&limit=10`,fmt:'capabilities'},'/agents_all':{ack:'\ud83e\udd16 Loading all agents\u2026',url:`${SBURL}/rest/v1/agent_registry?select=agent_name,status,description,created_at&order=status.asc,created_at.desc`,fmt:'agents'},'/agents_sandbox':{ack:'\ud83e\uddea Loading sandbox agents\u2026',url:`${SBURL}/rest/v1/agent_registry?select=agent_name,description,workflow_id,created_at&status=eq.sandbox&order=created_at.desc`,fmt:'agents'},'/awake':{ack:'\ud83d\udfe2 Checking Claudis presence\u2026',url:`${SBURL}/rest/v1/system_config?key=in.(claudis_current_task,claudis_heartbeat_at,claudis_session_start,global_pause)&select=key,value`,fmt:'awake'},'/working':{ack:'\u2699\ufe0f Checking recent activity\u2026',url:`${SBURL}/rest/v1/work_queue?select=task_type,status,input_data,claimed_at,completed_at,output_data&or=(status.eq.claimed,status.eq.complete)&order=claimed_at.desc&limit=5`,fmt:'queue'},'/summary':{ack:'\ud83d\udccb Loading activity summary\u2026',url:'STATUS_SPECIAL',fmt:'summary'}};if(cmd.startsWith('/gh_')&&cmd!=='/gh_pause'){const ghCmd=cmd.slice(1);const ghArgs=encodeURIComponent(args.trim());const ackMap={'/gh_status':'\ud83d\udcc2 Loading GitHub status\u2026','/gh_becoming':'\ud83d\udcd6 Loading BECOMING\u2026','/gh_attempts':'\ud83c\udf3f Loading attempt branches\u2026','/gh_log':'\ud83d\udccb Loading commit log\u2026','/gh_review':'\ud83d\udd0d Loading branch review\u2026','/gh_keep':'\u2705 Tagging for keep\u2026','/gh_redirect':'\ud83d\udcdd Recording aspiration\u2026','/gh_close':'\ud83d\uddc3\ufe0f Closing attempt\u2026','/gh_report':'\ud83d\udcca Generating session report\u2026'};const ack=ackMap[cmd]||'\ud83d\udcc2 Running GitHub command\u2026';return[{json:{cmd_group:'monitoring',command:cmd,args,chat_id:chatId,ack_text:ack,query_url:`http://host.docker.internal:9100/gh?cmd=${ghCmd}&args=${ghArgs}`,fmt:'gh'}}];}if(monitorMap[cmd]){const m=monitorMap[cmd];return[{json:{cmd_group:'monitoring',command:cmd,args,chat_id:chatId,ack_text:m.ack,query_url:m.url,fmt:m.fmt}}];}if(cmd==='/explore'){const ackText=args?`\\ud83d\\udd2d Directed exploration queued: ${args}. Claudis will investigate on next wake.`:'\\ud83d\\udd2d Exploration session queued. Claudis will go exploring on next wake.';return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:ackText}}];}if(cmd==='/research'){const ackText=args?`\ud83d\udd2c Research queued: ${args}. Claudis will investigate on next wake.`:'\ud83d\udd2c Self-directed research queued. Claudis will choose a topic and investigate on next wake.';return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:ackText}}];}if(cmd==='/build'){const ackText=args?`\ud83d\udd28 Build request queued: ${args}. Claudis will build, wire the Telegram command, and notify you when live.`:'\ud83d\udd28 Exploratory build queued. Claudis will choose something to build on next wake.';return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:ackText}}];}if(cmd==='/diagnose'){const mode=args.trim()==='full'?'full':args.trim().startsWith('schedule')?'schedule':'quick';const ackText=mode==='full'?'\\ud83d\\udd2c Full diagnostic queued (5 categories) \u2014 report in ~5 min.':mode==='schedule'?'\\u2699\\ufe0f Diagnostic schedule set to: '+args.trim().split(' ')[1]:'\\ud83e\\ude7a Quick diagnostic queued \u2014 report in ~2 min.';return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:ackText}}];}const writeAcks={'/gh_task':'\ud83d\udccb Creating GitHub Issue\u2026','/gh_pause':'\u23f8\ufe0f Pausing Claudis\u2026','/test_agent':'\ud83e\uddea Queuing agent test\u2026','/promote_agent':'\ud83d\ude80 Queuing promotion\u2026','/retire_agent':'\ud83d\uddc3\ufe0f Queuing retirement\u2026','/pause_agent':'\u23f8\ufe0f Queuing pause\u2026','/activate_agent':'\u25b6\ufe0f Queuing activation\u2026','/directive':'\\ud83d\\udccc Recording directive\\u2026','/task':'\\u2705 Queueing task\\u2026'};if(writeAcks[cmd]){return[{json:{cmd_group:'write_command',command:cmd,args,chat_id:chatId,ack_text:writeAcks[cmd]}}];}if(cmd==='/approve'||cmd==='/deny'||cmd==='/reply'){const inboxAcks={'/approve':'\\u2705 Processing approval\\u2026','/deny':'\\u274c Recording denial\\u2026','/reply':'\\ud83d\\udcac Delivering reply\\u2026'};return[{json:{cmd_group:'inbox_action',command:cmd,id_prefix:parts[1]||'',reply_msg:parts.slice(2).join(' '),chat_id:chatId,ack_text:inboxAcks[cmd]}}];}if(cmd==='/agent'||text.toLowerCase().includes('make agent')){let req=cmd==='/agent'?args:text;if(!req)req=text;const lower=req.toLowerCase();let pri=1;if(lower.includes('urgent')||lower.includes('fix'))pri=3;else if(lower.includes('today')||lower.includes('asap'))pri=2;return[{json:{cmd_group:'agent_request',chat_id:chatId,request_text:req,priority:pri,ack_text:'Got it \\u2014 adding to work queue now.'}}];}return[];"
+        }
+      },
+      {
+        "id": "send_immediate_ack",
+        "name": "Send Immediate ACK",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          640,
+          380
+        ],
+        "credentials": {
+          "telegramApi": {
+            "id": "y4YfKWpm20Z9sw7G",
+            "name": "Life OS Telegram Bot"
+          }
+        },
+        "parameters": {
+          "chatId": "={{ $json.chat_id }}",
+          "text": "={{ $json.ack_text }}",
+          "additionalFields": {}
+        }
+      },
+      {
+        "id": "call_webhook",
+        "name": "Call Agent Webhook",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1080,
+          100
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $('Parse Command').item.json.webhook_url }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "send_triggered",
+        "name": "Send Query Triggered",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1300,
+          100
+        ],
+        "credentials": {
+          "telegramApi": {
+            "id": "y4YfKWpm20Z9sw7G",
+            "name": "Life OS Telegram Bot"
+          }
+        },
+        "parameters": {
+          "chatId": "8513796837",
+          "text": "={{ $('Parse Command').item.json.label + ' \u2714 triggered.' }}",
+          "additionalFields": {}
+        }
+      },
+      {
+        "id": "build_monitor_req",
+        "name": "Build Monitor Req",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1080,
+          260
+        ],
+        "parameters": {
+          "jsCode": "const pc=$('Parse Command').item.json;const cmd=pc.command;const fmt=pc.fmt;const chatId=pc.chat_id;const queryUrl=pc.query_url;const useMgmtApi=cmd==='/status'||cmd==='/summary';let sql;if(cmd==='/summary'){sql=`SELECT row_type,name,extra,ts FROM (SELECT 'task' as row_type,task_type as name,'' as extra,COALESCE(completed_at,created_at)::text as ts FROM work_queue WHERE status='complete' ORDER BY completed_at DESC NULLS LAST LIMIT 5) t UNION ALL SELECT row_type,name,extra,ts FROM (SELECT 'lesson' as row_type,title as name,category as extra,created_at::text as ts FROM lessons_learned ORDER BY created_at DESC LIMIT 3) l`;}else{sql=`SELECT (SELECT value FROM system_config WHERE key='global_pause') as global_pause, (SELECT value FROM system_config WHERE key='sentinel_version') as sentinel_version, (SELECT COUNT(*)::int FROM work_queue WHERE status='pending') as wq_pending, (SELECT COUNT(*)::int FROM error_logs WHERE resolved=false) as errors_unresolved, (SELECT COUNT(*)::int FROM agent_registry WHERE protected=true) as agents_protected, (SELECT COUNT(*)::int FROM agent_registry WHERE protected=false) as agents_unprotected, (SELECT COUNT(*)::int FROM inbox WHERE status='pending') as inbox_pending, (SELECT MAX(timestamp) FROM audit_log) as last_audit_at`;}return[{json:{is_status:useMgmtApi,fmt,chat_id:chatId,query_url:queryUrl,sql}}];"
+        }
+      },
+      {
+        "id": "if_status",
+        "name": "Is Status?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1300,
+          260
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ $json.is_status?'true':'false' }}",
+                "rightValue": "true",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "fetch_status",
+        "name": "Fetch Status",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1520,
+          180
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.supabase.com/v1/projects/cihbfubghytzqrpffgcq/database/query",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "User-Agent",
+                "value": "supabase-js/2.0.0"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({query:$('Build Monitor Req').item.json.sql}) }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "fetch_regular",
+        "name": "Fetch Monitor Data",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1520,
+          340
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $('Build Monitor Req').item.json.query_url }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{CREDENTIAL_REDACTED}}"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "format_monitor",
+        "name": "Format Monitor",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1740,
+          260
+        ],
+        "parameters": {
+          "jsCode": "\nconst fmt = $('Build Monitor Req').item.json.fmt;\nconst chatId = $('Build Monitor Req').item.json.chat_id;\nconst inputJson = $input.first().json;\n\n// Fetch Monitor Data returns {data: \"<json string>\"} when responseFormat=text\n// Fetch Status returns the row object directly from Management API\nlet raw;\nif (typeof inputJson.data === 'string') {\n  try { raw = JSON.parse(inputJson.data); } catch(e) { raw = []; }\n} else {\n  raw = Array.isArray(inputJson) ? inputJson : [inputJson];\n}\n\nconst ts = (str) => {\n  if (!str) return 'never';\n  try { return new Date(str).toISOString().replace('T',' ').slice(0,16)+' UTC'; }\n  catch(e) { return str||'?'; }\n};\nconst sid = (id) => id ? String(id).slice(0,8) : '?';\n\nlet text = '';\n\nif (fmt === 'status') {\n  const r = Array.isArray(raw) ? raw[0] : raw;\n  const paused = r.global_pause==='true'||r.global_pause===true;\n  text = `\\ud83d\\udcca Claudis OS Status\\n\\nSystem: ${paused?'\\u23f8\\ufe0f PAUSED':'\\u2705 Running'}\\nClaudis: ${r.sentinel_version||'?'}\\nLast activity: ${ts(r.last_audit_at)}\\n\\n\\ud83d\\udce5 Work queue: ${r.wq_pending??0} pending\\n\\ud83d\\udd34 Errors: ${r.errors_unresolved??0} unresolved\\n\\ud83d\\udcec Inbox: ${r.inbox_pending??0} awaiting\\n\\n\\ud83e\\udd16 Agents: ${r.agents_protected??0} protected, ${r.agents_unprotected??0} unprotected`;\n}\n\nelse if (fmt === 'agents') {\n  if (!raw.length) { text = '\\u26a0\\ufe0f No agents found.'; }\n  else {\n    const prot = raw.filter(a=>a.protected);\n    const actv = raw.filter(a=>!a.protected&&a.status==='active');\n    const rest = raw.filter(a=>!a.protected&&a.status!=='active');\n    let lines = ['\\ud83e\\udd16 Agent Registry\\n'];\n    if (prot.length) { lines.push('\\ud83d\\udd12 Protected:'); prot.forEach(a=>lines.push(`  ${a.agent_name} \\u2014 ${a.status}`)); }\n    if (actv.length) { lines.push('\\n\\u2705 Active:'); actv.forEach(a=>lines.push(`  ${a.agent_name}`)); }\n    if (rest.length) { lines.push('\\n\\u23f8\\ufe0f Paused:'); rest.forEach(a=>lines.push(`  ${a.agent_name}`)); }\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'errors') {\n  if (!raw.length) { text = '\\u2705 No unresolved errors.'; }\n  else {\n    let lines = [`\\ud83d\\udd34 Unresolved Errors (${raw.length})\\n`];\n    raw.forEach(e => {\n      lines.push(`[${ts(e.timestamp).slice(5,16)}] ${e.workflow_name||'unknown'}`);\n      lines.push(`  ${e.error_type||''}: ${(e.error_message||'').slice(0,80)}`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'inbox') {\n  if (!raw.length) { text = '\\ud83d\\udced Inbox is empty \\u2014 no pending items.'; }\n  else {\n    const pE = {urgent:'\\ud83d\\udd34',high:'\\ud83d\\udfe0',normal:'\\ud83d\\udfe1',low:'\\u26aa'};\n    let lines = [`\\ud83d\\udcec Inbox (${raw.length} pending)\\n`];\n    raw.forEach(i => {\n      lines.push(`${pE[i.priority]||'\\u26aa'} ${sid(i.id)} | ${i.message_type} | ${i.from_agent}`);\n      lines.push(`  ${i.subject||'(no subject)'}`);\n    });\n    lines.push('\\nUse: /approve <id>  /deny <id>  /reply <id> <msg>');\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'activity') {\n  if (!raw.length) { text = '\\ud83d\\udccb No activity in the last 24 hours.'; }\n  else {\n    const counts = {};\n    raw.forEach(e => { if(e.action) counts[e.action]=(counts[e.action]||0)+1; });\n    const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8);\n    let lines = ['\\ud83d\\udccb Activity (last 20)\\n'];\n    if (sorted.length) { lines.push('By type:'); sorted.forEach(([a,c])=>lines.push(`  ${a}: ${c}`)); }\n    lines.push('\\nRecent:');\n    raw.slice(0,5).forEach(e=>lines.push(`  [${ts(e.timestamp).slice(5,16)}] ${e.action} \\u2014 ${e.actor||'?'}`));\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'queue') {\n  const pending = raw.filter(t=>t.status==='pending');\n  const inProg  = raw.filter(t=>t.status==='claimed'||t.status==='in_progress');\n  if (!pending.length && !inProg.length) { text = '\\u2705 Work queue is empty.'; }\n  else {\n    let lines = [`\\ud83d\\uddc2\\ufe0f Work Queue (${pending.length} pending, ${inProg.length} in progress)\\n`];\n    pending.forEach(t => {\n      const sum = t.input_data ? JSON.stringify(t.input_data).slice(0,60) : '';\n      lines.push(`[${sid(t.id)}] ${t.task_type}`);\n      if (sum) lines.push(`  ${sum}`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'outputs') {\n  if (!raw.length) { text = '\\ud83d\\udcca No agent outputs in the last 24 hours.'; }\n  else {\n    let lines = [`\\ud83d\\udce4 Recent Outputs (${raw.length})\\n`];\n    raw.forEach(o => {\n      lines.push(`[${ts(o.created_at).slice(5,16)}] ${o.agent_name} \\u2014 ${o.output_type||'?'}`);\n      const cStr = o.content ? JSON.stringify(o.content).slice(0,60) : '';\n      if (cStr) lines.push(`  ${cStr}`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'lessons') {\n  if (!raw.length) { text = '\\u{1F4DA} No lessons recorded yet.'; }\n  else {\n    let lines = ['\\u{1F4DA} Top Lessons Learned\\n'];\n    raw.forEach(l => {\n      const pct = l.confidence != null ? Math.round(l.confidence * 100) + '%' : '?%';\n      const applied = l.times_applied != null ? l.times_applied : 0;\n      lines.push(`\\u2022 ${l.title || '(untitled)'}`);\n      lines.push(`  ${l.category || 'general'} | confidence: ${pct} | applied: ${applied}x`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'capabilities') {\n  if (!raw.length) { text = '\\u26A1 No capabilities recorded yet.'; }\n  else {\n    let lines = ['\\u26A1 Capabilities\\n'];\n    raw.forEach(c => {\n      const pct = c.confidence != null ? Math.round(c.confidence * 100) + '%' : '?%';\n      const used = c.times_used != null ? c.times_used : 0;\n      lines.push(`\\u2022 ${c.name || '(unnamed)'}`);\n      lines.push(`  ${c.category || 'general'} | confidence: ${pct} | used: ${used}x`);\n    });\n    text = lines.join('\\n');\n  }\n}\n\nelse if (fmt === 'gh') {\n  text = (raw && typeof raw.text === 'string') ? raw.text : JSON.stringify(raw).slice(0,500);\n}\n\nelse if (fmt === 'awake') {\n  const kv = {};\n  (Array.isArray(raw) ? raw : [raw]).forEach(r => { if(r.key) kv[r.key]=r.value; });\n  const task = kv.claudis_current_task || 'unknown';\n  const beat = kv.claudis_heartbeat_at;\n  const paused = kv.global_pause === 'true';\n  const idle = !beat || task === 'idle';\n  const age = beat ? Math.round((Date.now()-new Date(beat).getTime())/60000) : null;\n  const ageStr = age !== null ? (age < 2 ? 'just now' : age + ' min ago') : 'never';\n  if (paused) text = '\u23f8\ufe0f Claudis is PAUSED\\n\\nUse /resume to restart.';\n  else if (idle) text = `\ud83d\udca4 Claudis is idle\\nLast seen: ${ageStr}\\n\\nSend /wake to start a session.`;\n  else text = `\ud83d\udfe2 Claudis is AWAKE\\nTask: ${task}\\nHeartbeat: ${ageStr}\\n\\nUse /wake only if you need to add urgent context.`;\n}\n\nelse if (fmt === 'summary') {\n  const tasks = raw.filter(r => r.row_type === 'task');\n  const lessons = raw.filter(r => r.row_type === 'lesson');\n  const lines = ['\\ud83d\\udccb *Claudis Summary*\\n'];\n  if (tasks.length) {\n    lines.push('\\u2705 *Recent tasks:*');\n    tasks.forEach(t => {\n      const when = ts(t.ts).slice(5,16);\n      lines.push(`  ${when} \\u2014 ${t.name}`);\n    });\n  } else {\n    lines.push('\\u2705 No completed tasks found.');\n  }\n  lines.push('');\n  if (lessons.length) {\n    lines.push('\\ud83d\\udcda *Recent lessons:*');\n    lessons.forEach(l => lines.push(`  [${l.extra||'?'}] ${l.name}`));\n  } else {\n    lines.push('\\ud83d\\udcda No recent lessons.');\n  }\n  text = lines.join('\\n');\n}\n\nelse { text = `Response: ${JSON.stringify(raw).slice(0,200)}`; }\n\n\n// Truncate to Telegram's 4096 char limit (leave buffer for emoji/overhead)\nconst MAX_LEN = 4000;\nif (text.length > MAX_LEN) {\n  text = text.slice(0, MAX_LEN) + '\\n\u2026 (truncated)';\n}\n\nreturn [{ json: { text, chat_id: chatId } }];\n"
+        }
+      },
+      {
+        "id": "send_monitor_reply",
+        "name": "Send Monitor Reply",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1960,
+          260
+        ],
+        "credentials": {
+          "telegramApi": {
+            "id": "y4YfKWpm20Z9sw7G",
+            "name": "Life OS Telegram Bot"
+          }
+        },
+        "parameters": {
+          "chatId": "={{ $json.chat_id }}",
+          "text": "={{ $json.text }}",
+          "additionalFields": {}
+        }
+      },
+      {
+        "id": "build_write_req",
+        "name": "Build Write Req",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1080,
+          460
+        ],
+        "parameters": {
+          "jsCode": "const pc=$('Parse Command').item.json;const cmd=pc.command;const args=pc.args||'';const chatId=pc.chat_id;const SBURL='https://cihbfubghytzqrpffgcq.supabase.co/rest/v1';if(cmd==='/explore'){const url=`${SBURL}/work_queue`;let body,confirmText;if(!args.trim()){body={task_type:'explore',status:'pending',priority:1,created_by:'bill',input_data:{mode:'free',instruction:'Self-directed exploration session. No specific task. Research something interesting, build a practice agent in the sandbox, or investigate a capability you want to develop. Document what you discover. Write lessons as you go. End the session by sending Bill a Telegram message describing what you explored and what you learned \\u2014 not just what you built, but what you understood differently afterward.',constraints:['Write only to experimental_outputs and sandbox tables','Do not modify protected agents or architecture','Send Bill a Telegram summary when done']}};confirmText='\\ud83d\\udd2d Exploration session queued. Claudis will go exploring on next wake.';}else{body={task_type:'explore',status:'pending',priority:1,created_by:'bill',input_data:{mode:'directed',topic:args,instruction:`Explore ${args} with genuine curiosity. Research it, experiment with it, build something small to test your understanding. Document findings in ChromaDB and lessons_learned. Send Bill a Telegram summary of what you discovered.`}};confirmText=`\\ud83d\\udd2d Directed exploration queued: ${args}. Claudis will investigate on next wake.`;}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];}if(cmd==='/research'){const url=`${SBURL}/work_queue`;let body,confirmText;if(!args.trim()){body={task_type:'research_cycle',status:'pending',priority:2,created_by:'bill',input_data:{mode:'free',instruction:'Self-directed research session. Review your lessons_learned, capabilities, and ChromaDB collections to identify a gap in your knowledge that would make you more useful to Bill. Research it thoroughly. Document findings in research_topics and ChromaDB. Write at least one new lesson. Send Bill a Telegram summary of what you investigated and what you now understand that you did not before.',constraints:['Prefer Haiku for bulk research to stay within budget','Store findings in ChromaDB research collection','Check research_topics first to avoid duplication']}};confirmText='\ud83d\udd2c Self-directed research queued. Claudis will choose a topic and investigate on next wake.';}else{body={task_type:'research_cycle',status:'pending',priority:2,created_by:'bill',input_data:{mode:'directed',topic:args,instruction:`Research ${args} thoroughly. Find multiple sources. Identify patterns, controversies, and open questions. Store structured findings in research_topics and ChromaDB. Send Bill a Telegram summary when done.`}};confirmText=`\ud83d\udd2c Research queued: ${args}. Claudis will investigate on next wake.`;}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];}if(cmd==='/build'){const url=`${SBURL}/work_queue`;let body,confirmText;if(!args.trim()){body={task_type:'agent_build',status:'pending',priority:2,created_by:'bill',input_data:{mode:'free',telegram_command:false,instruction:'Exploratory build session. Review capabilities and lessons_learned to identify something worth building as a practice exercise \u2014 something you have not done before or want to get better at. Build in the sandbox only. Write to experimental_outputs. Document what you learned in lessons_learned and capabilities. Send Bill a Telegram summary describing what you built and what building it taught you.',constraints:['Sandbox only \u2014 experimental_outputs, no production tables','No Telegram command wiring required','Focus on learning, not deployment']}};confirmText='\ud83d\udd28 Exploratory build queued. Claudis will choose something to build on next wake.';}else{body={task_type:'agent_build',status:'pending',priority:2,created_by:'bill',input_data:{mode:'directed',description:args,telegram_command:true,requirements:['Build a working n8n workflow implementing the functionality','Wire up a Telegram command in the Telegram Command Agent routing','Test the full pipeline end to end','Send Bill a Telegram message confirming the agent is live and what command to use','Register in agent_registry as active with telegram_command populated']}};confirmText=`\ud83d\udd28 Build request queued: ${args}. Claudis will build, wire the Telegram command, and notify you when live.`;}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];}if(['/test_agent','/promote_agent','/retire_agent','/pause_agent','/activate_agent'].includes(cmd)){const agentName=args.trim();if(!agentName){return[{json:{url:'',body:{},chat_id:chatId,confirm_text:'\u26a0\ufe0f Usage: '+cmd+' <agent_name>'}}];}const actionMap={'/test_agent':{task_type:'agent_test',ack:'\ud83e\uddea Test queued for '+agentName+' \\u2014 waking Claudis.'},'/promote_agent':{task_type:'agent_promote',ack:'\ud83d\ude80 Promotion queued for '+agentName+' \\u2014 waking Claudis.'},'/retire_agent':{task_type:'agent_retire',ack:'\ud83d\uddc3\ufe0f Retirement queued for '+agentName+' \\u2014 waking Claudis.'},'/pause_agent':{task_type:'agent_control',ack:'\u23f8\ufe0f Pause queued for '+agentName+' \\u2014 waking Claudis.'},'/activate_agent':{task_type:'agent_control',ack:'\u25b6\ufe0f Activation queued for '+agentName+' \\u2014 waking Claudis.'}};const action=actionMap[cmd];const inputData=cmd==='/pause_agent'?{agent_name:agentName,action:'pause'}:cmd==='/activate_agent'?{agent_name:agentName,action:'activate'}:{agent_name:agentName};const body={task_type:action.task_type,status:'pending',priority:1,created_by:'bill',input_data:inputData};try{await fetch('http://host.docker.internal:9100/trigger_sentinel');}catch(e){}return[{json:{url:`${SBURL}/work_queue`,body,chat_id:chatId,confirm_text:action.ack}}];}if(cmd==='/gh_task'){const text=args.trim();if(!text){return[{json:{url:'',body:{},chat_id:chatId,confirm_text:'\u26a0\ufe0f Usage: /gh_task <description>'}}];}const url=`${SBURL}/work_queue`;const body={task_type:'gh_task',status:'pending',priority:1,created_by:'bill',input_data:{text}};try{await fetch('http://host.docker.internal:9100/trigger_sentinel');}catch(e){}return[{json:{url,body,chat_id:chatId,confirm_text:'\ud83d\udccb Queued as gh_task \u2014 Claudis will create the GitHub Issue and queue as directive.'}}];}if(cmd==='/gh_pause'){const note=args.trim()||'Paused via Telegram /gh_pause';const url=`${SBURL}/system_config?key=eq.global_pause`;const body={value:'true',updated_at:new Date().toISOString(),note};return[{json:{url,body,chat_id:chatId,confirm_text:'\u23f8\ufe0f Claudis paused. All sessions halted until /resume.\\n\\nReason: '+note.slice(0,100)}}];}if(cmd==='/gh_report'){const n=args.trim().match(/^\\d+$/)?parseInt(args.trim()):5;const url=`${SBURL}/work_queue`;const body={task_type:'gh_report',status:'pending',priority:2,created_by:'bill',input_data:{n}};return[{json:{url,body,chat_id:chatId,confirm_text:`\ud83d\udcca Report queued \u2014 Claudis will synthesize the last ${n} sessions.`}}];}if(cmd==='/diagnose'){const url=`${SBURL}/work_queue`;let body,confirmText;if(args.trim()==='full'){body={task_type:'self_diagnostic',status:'pending',priority:1,created_by:'bill',input_data:{mode:'full'}};confirmText='\\ud83d\\udd2c Full diagnostic queued (5 categories) \u2014 report in ~5 min.';}else if(args.trim().startsWith('schedule')){const freq=args.trim().split(' ')[1]||'';body={task_type:'self_diagnostic',status:'pending',priority:2,created_by:'bill',input_data:{mode:'schedule',frequency:freq}};confirmText='\\u2699\\ufe0f Diagnostic schedule set to: '+(freq||'(cleared)');}else{body={task_type:'self_diagnostic',status:'pending',priority:1,created_by:'bill',input_data:{mode:'quick'}};confirmText='\\ud83e\\ude7a Quick diagnostic queued \u2014 report in ~2 min.';}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];}if(!args.trim()){const usage={'/directive':'<instruction>','/task':'<description>'};return[{json:{url:null,body:null,chat_id:chatId,confirm_text:`\\u26a0\\ufe0f Usage: ${cmd} ${usage[cmd]||'<text>'}`}}];}let url,body,confirmText;if(cmd==='/directive'){url=`${SBURL}/directives`;body={content:args,priority:3,source:'bill',status:'active',active:true};confirmText=`\\ud83d\\udccc Directive recorded:\\n\"${args.slice(0,120)}\"`;} else if(cmd==='/task'){url=`${SBURL}/work_queue`;body={task_type:'general_task',status:'pending',priority:2,created_by:'bill',input_data:{request:args,source:'telegram'}};confirmText=`\\u2705 Task queued:\\n\"${args.slice(0,120)}\"`;}return[{json:{url,body,chat_id:chatId,confirm_text:confirmText}}];"
+        }
+      },
+      {
+        "id": "exec_write_req",
+        "name": "Execute Write",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1300,
+          460
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.url }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.body) }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "send_write_confirm",
+        "name": "Send Write Confirm",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1520,
+          460
+        ],
+        "credentials": {
+          "telegramApi": {
+            "id": "y4YfKWpm20Z9sw7G",
+            "name": "Life OS Telegram Bot"
+          }
+        },
+        "parameters": {
+          "chatId": "={{ $('Build Write Req').item.json.chat_id }}",
+          "text": "={{ $('Build Write Req').item.json.confirm_text }}",
+          "additionalFields": {}
+        }
+      },
+      {
+        "id": "build_inbox_action",
+        "name": "Build Inbox Action",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1080,
+          600
+        ],
+        "parameters": {
+          "jsCode": "const pc=$('Parse Command').item.json;const cmd=pc.command;const idPrefix=pc.id_prefix||'';const replyMsg=pc.reply_msg||'';const chatId=pc.chat_id;const SBURL='https://cihbfubghytzqrpffgcq.supabase.co/rest/v1';const now=new Date().toISOString();if(!idPrefix){const usage={'/approve':'<id>','/deny':'<id>','/reply':'<id> <message>'};return[{json:{url:null,patch_body:null,chat_id:chatId,confirm_text:`\\u26a0\\ufe0f Usage: ${cmd} ${usage[cmd]||'<id>'}`,needs_wq:false,wq_body:null}}];}const url=`${SBURL}/inbox?id=like.${idPrefix}%25`;let patchBody,confirmText,needsWq=false,wqBody=null;if(cmd==='/approve'){patchBody={status:'approved',responded_at:now};confirmText=`\\u2705 Approved (${idPrefix}).\\nQueued for next Sentinel wake.`;needsWq=true;wqBody={task_type:'approved_action',status:'pending',priority:3,input_data:{inbox_id_prefix:idPrefix,source:'bill_approval',note:'Execute approved inbox item on next wake'}};}else if(cmd==='/deny'){patchBody={status:'denied',responded_at:now};confirmText=`\\u274c Denied (${idPrefix}).`;}else if(cmd==='/reply'){if(!replyMsg)return[{json:{url:null,patch_body:null,chat_id:chatId,confirm_text:'\\u26a0\\ufe0f Usage: /reply <id> <message>',needs_wq:false,wq_body:null}}];patchBody={status:'replied',bill_reply:replyMsg,responded_at:now};confirmText=`\\ud83d\\udcac Reply delivered (${idPrefix}).`;}return[{json:{url,patch_body:patchBody,chat_id:chatId,confirm_text:confirmText,needs_wq:needsWq,wq_body:wqBody}}];"
+        }
+      },
+      {
+        "id": "exec_inbox_action",
+        "name": "Execute Inbox Action",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1300,
+          600
+        ],
+        "parameters": {
+          "method": "PATCH",
+          "url": "={{ $json.url }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.patch_body) }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "if_approve",
+        "name": "Needs WQ Entry?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1520,
+          600
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ $('Build Inbox Action').item.json.needs_wq?'true':'false' }}",
+                "rightValue": "true",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "exec_approve_wq",
+        "name": "Queue Approved Action",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1740,
+          520
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/work_queue",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($('Build Inbox Action').item.json.wq_body) }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "send_inbox_confirm",
+        "name": "Send Inbox Confirm",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1960,
+          600
+        ],
+        "credentials": {
+          "telegramApi": {
+            "id": "y4YfKWpm20Z9sw7G",
+            "name": "Life OS Telegram Bot"
+          }
+        },
+        "parameters": {
+          "chatId": "={{ $('Build Inbox Action').item.json.chat_id }}",
+          "text": "={{ $('Build Inbox Action').item.json.confirm_text }}",
+          "additionalFields": {}
+        }
+      },
+      {
+        "id": "write-work-queue",
+        "name": "Write to Work Queue",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1080,
+          740
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/work_queue",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{CREDENTIAL_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.body }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "prep_agent_req",
+        "name": "Prep Agent Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1080,
+          840
+        ],
+        "parameters": {
+          "jsCode": "\nif($('Parse Command').item.json.cmd_group==='instant_reply')return[];\nconst pc = $('Parse Command').item.json;\nreturn [{ json: {\n  body: JSON.stringify({\n    task_type: \"agent_request\",\n    assigned_agent: \"claude_code\",\n    priority: pc.priority || 1,\n    status: \"pending\",\n    created_by: \"bill\",\n    input_data: {\n      request: pc.request_text || \"\",\n      source: \"telegram\",\n      chat_id: pc.chat_id || \"\"\n    }\n  })\n}}];\n"
+        }
+      },
+      {
+        "id": "bot-filter-001",
+        "name": "Filter Bot Messages",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          310,
+          380
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose"
+            },
+            "conditions": [
+              {
+                "id": "bot-check",
+                "leftValue": "={{ $json.message.from.is_bot }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "route-query",
+        "name": "Route: Query?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          860,
+          200
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose"
+            },
+            "conditions": [
+              {
+                "id": "r1",
+                "leftValue": "={{ $('Parse Command').item.json.cmd_group }}",
+                "rightValue": "query_agent",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "route-monitor",
+        "name": "Route: Monitor?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          860,
+          380
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose"
+            },
+            "conditions": [
+              {
+                "id": "r2",
+                "leftValue": "={{ $('Parse Command').item.json.cmd_group }}",
+                "rightValue": "monitoring",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "route-write",
+        "name": "Route: Write?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          860,
+          560
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose"
+            },
+            "conditions": [
+              {
+                "id": "r3",
+                "leftValue": "={{ $('Parse Command').item.json.cmd_group }}",
+                "rightValue": "write_command",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "route-inbox",
+        "name": "Route: Inbox?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          860,
+          740
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose"
+            },
+            "conditions": [
+              {
+                "id": "r4",
+                "leftValue": "={{ $('Parse Command').item.json.cmd_group }}",
+                "rightValue": "inbox_action",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "TelegramTrigger": {
+        "main": [
+          [
+            {
+              "node": "Filter Bot Messages",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Command": {
+        "main": [
+          [
+            {
+              "node": "Send Immediate ACK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Call Agent Webhook": {
+        "main": [
+          [
+            {
+              "node": "Send Query Triggered",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Monitor Req": {
+        "main": [
+          [
+            {
+              "node": "Is Status?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Status?": {
+        "main": [
+          [
+            {
+              "node": "Fetch Status",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Fetch Monitor Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Status": {
+        "main": [
+          [
+            {
+              "node": "Format Monitor",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Monitor Data": {
+        "main": [
+          [
+            {
+              "node": "Format Monitor",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Monitor": {
+        "main": [
+          [
+            {
+              "node": "Send Monitor Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Write Req": {
+        "main": [
+          [
+            {
+              "node": "Execute Write",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute Write": {
+        "main": [
+          [
+            {
+              "node": "Send Write Confirm",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Inbox Action": {
+        "main": [
+          [
+            {
+              "node": "Execute Inbox Action",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute Inbox Action": {
+        "main": [
+          [
+            {
+              "node": "Needs WQ Entry?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Needs WQ Entry?": {
+        "main": [
+          [
+            {
+              "node": "Queue Approved Action",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Send Inbox Confirm",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Queue Approved Action": {
+        "main": [
+          [
+            {
+              "node": "Send Inbox Confirm",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prep Agent Request": {
+        "main": [
+          [
+            {
+              "node": "Write to Work Queue",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter Bot Messages": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Parse Command",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send Immediate ACK": {
+        "main": [
+          [
+            {
+              "node": "Route: Query?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route: Query?": {
+        "main": [
+          [
+            {
+              "node": "Call Agent Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Route: Monitor?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route: Monitor?": {
+        "main": [
+          [
+            {
+              "node": "Build Monitor Req",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Route: Write?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route: Write?": {
+        "main": [
+          [
+            {
+              "node": "Build Write Req",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Route: Inbox?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route: Inbox?": {
+        "main": [
+          [
+            {
+              "node": "Build Inbox Action",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Prep Agent Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "William Thompson",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-03-30T17:40:32.989Z",
+        "id": 344,
+        "workflowId": "kddIKvA37UDw4x6e",
+        "versionId": "eeec2f31-0c9a-4b7d-8ccb-d1b3f73d1019",
+        "event": "activated",
+        "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792"
+      }
+    ]
+  },
+  "_meta": {
+    "archived_at": "2026-03-30",
+    "changes": "Format Monitor truncation guard + /evaluate command"
+  }
+}
