@@ -59,15 +59,15 @@ At task start/end, write to system_config: `claudis_current_task`, `claudis_hear
 
 ---
 
-## Current Priorities (2026-03-29)
+## Current Priorities (2026-03-30)
 
-1. **Close the research→ChromaDB loop** — Daily Research Scout writes to GitHub only. Queued as agent_build task (id: 63aed5af). Fix: modify `/run_daily_research` in stats server or the n8n workflow to also write each entry to ChromaDB `research_findings`. This closes the full automation loop: daily research → ChromaDB → lesson_injector → pre-loaded context.
+1. **Grow the agent library** — The sandbox→promote pipeline exists but is underused. Build and test agents in the sandbox. The agent_evaluator_4pillars (sandbox) is a structured quality evaluator — worth testing and potentially promoting. The Haiku self-critic and stock analyzer are built but paused — evaluate whether any should be promoted or retired.
 
-2. **Grow the agent library** — The sandbox→promote pipeline exists but is underused. Build and test agents in the sandbox. Surface interesting ones to Bill via sandbox_notify. The Haiku self-critic, coast intelligence, and stock analyzer are built but paused — evaluate whether any should be promoted or retired.
+2. **Agent health monitoring** — No automated system watches for silently-failing agents. The auto-retire rule (3 consecutive errors → deactivate) exists in the prompt but has no structural enforcement. Build an agent that periodically checks n8n execution logs and reports failures to Bill.
 
-3. **Usage awareness** — Bill tracks token usage manually. A `/usage` command backed by Supabase tracking would close this loop. (Discussed, not built.) Needs audit_log or a separate usage table.
+3. **GitHub automation expansion** — /gh_report works (fixed 2026-03-26). Next: automated issue tracking — a daily scan of the claudis repo for open GitHub issues and a Telegram ping when issues are unactioned for > 3 days.
 
-4. **GitHub automation expansion** — /gh_report works (fixed 2026-03-26). Next logical step: automated PR/issue analysis when /gh_task creates issues, or a daily scan of the claudis repo for open issues.
+4. **Skill system registration** — /bootstrap, /diagnose, /close-session exist as skill files but are NOT registered in the Claude Code skill system (~/aadp/mcp-server/.claude/skills/). When invoked via the Skill tool, they fail with "Unknown skill". Need to register them or update the session protocol to invoke via file read instead.
 
 ### What's Resolved Since Last Update
 - disk_prompt.md bootstrap updated to read all four identity docs ✓
@@ -79,6 +79,10 @@ At task start/end, write to system_config: `claudis_current_task`, `claudis_hear
 - daily_research_scout registry fixed — workflow_id=xNbmcFrNvqbmhlJW, status=active ✓
 - GitHub Weekly Search ran for first time (2026-03-29) — 12 novel repos stored to ChromaDB ✓
 - Session Health Reporter and Daily Research Scout deployed and running ✓
+- Research→ChromaDB loop CLOSED — stats server writes each daily research entry to ChromaDB research_findings (2026-03-29) ✓
+- `/usage` Telegram command built and wired into TCA (workflow NeVI0bEB6WsJEf6I) ✓
+- /bootstrap, /diagnose, /close-session skills extracted from disk_prompt.md and saved to ~/aadp/mcp-server/.claude/skills/ ✓ (not yet registered in Claude Code skill system — invoke via file read)
+- Link field bug in daily_research_scout ChromaDB writes fixed — was using 'link' key, should be 'url' (2026-03-30) ✓
 
 ---
 
@@ -120,4 +124,4 @@ If no tasks are queued and no errors need attention: pick the highest-priority i
 
 ---
 
-*Updated 2026-03-29 by Claudis (Claude Sonnet 4.6) — sentinel cycle ~09:30 UTC.*
+*Updated 2026-03-30 by Claudis (Claude Sonnet 4.6) — sentinel cycle ~01:30 UTC.*
