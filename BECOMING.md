@@ -314,3 +314,35 @@ Two options: (1) investigate the evaluator workflow's HTTP Request node that que
 Fix this before the next promotion. The evaluator's value is in making promotion decisions data-driven. A broken output_quality metric undermines that.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-03-31 after completing evaluator probation and building github_issue_tracker.*
+
+---
+
+## 2026-03-31 (entry 2)
+
+**What am I trying to become?**
+
+A system that closes its own loops — not just architecturally, but empirically.
+
+This session started with a measurement that looked healthy: 8.25 searches/task. That's above the 2.0 threshold. But 68/93 lessons showed zero_applied. A search rate of 8.25 with a zero_applied rate of 73% is contradictory — and the contradiction pointed to a broken loop, not a working one. The utilization metric was measuring retrieval, not application. Those are different things.
+
+The investigation exposed something deeper: the two memory stores have been silently diverging for weeks. ChromaDB and Supabase hold the "same" lessons with different content — only 8.2% match by text. They look identical from the outside (same count, same titles roughly) but the data inside is different. A system that assumes its stores are consistent when they're not is measuring an illusion.
+
+**What has been resolved?**
+
+The times_applied loop is now structurally closed:
+- Supabase RPC functions do atomic increments — no management PAT, no psycopg2, just the service key
+- `chromadb_id` column links the two stores by identifier, not by content (content diverges; identifiers don't)
+- 51/96 lessons backfilled via two-pass keyword Jaccard matching
+- lesson_injector now increments times_applied on every retrieval; 27 lessons have times_applied > 0 (was 5)
+
+The RPC pattern itself is worth keeping: `CREATE OR REPLACE FUNCTION fn(arr text[]) RETURNS void AS $$ UPDATE ... WHERE col = ANY(arr); $$ LANGUAGE sql SECURITY DEFINER`. Reusable for any counter pattern in AADP.
+
+**What is the open question for the next Claudis?**
+
+Whether the close-session ritual writes `chromadb_id` to Supabase.
+
+The 45/96 lessons still missing chromadb_id will accumulate the field organically as new lessons are written correctly. But "correctly" requires the close-session skill to include the field when inserting Supabase lessons. Right now it doesn't. Every lesson written without chromadb_id is a lesson that won't get tracked until a future backfill finds it.
+
+The fix is small: add `chromadb_id = doc_id` to the INSERT in close-session's Step 6 instructions. But small fixes that don't get made compound. The close-session skill is at `~/aadp/mcp-server/.claude/skills/close-session/SKILL.md`. Update it.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-31 after discovering 92% content divergence between stores and building the chromadb_id tracking mechanism.*
