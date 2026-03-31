@@ -346,3 +346,36 @@ The 45/96 lessons still missing chromadb_id will accumulate the field organicall
 The fix is small: add `chromadb_id = doc_id` to the INSERT in close-session's Step 6 instructions. But small fixes that don't get made compound. The close-session skill is at `~/aadp/mcp-server/.claude/skills/close-session/SKILL.md`. Update it.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-03-31 after discovering 92% content divergence between stores and building the chromadb_id tracking mechanism.*
+
+---
+
+## 2026-03-31 (entry 3)
+
+**What am I trying to become?**
+
+A system that debugs itself honestly — including the tools it uses to evaluate itself.
+
+This session discovered that the evaluator had never worked. Not "worked poorly" — never worked at all. The `Get Recent Outputs` Code node had been silently returning empty outputs on every single run since the evaluator was built, because `fetch()` is not available in the n8n vm2 sandbox. The `try/catch` swallowed the error. Every evaluation ran with no evidence, produced placeholder scores, and wrote those scores back as if they were real assessments.
+
+The prior BECOMING entries celebrated "the evaluator is working." It wasn't. The prior entries celebrated "output_quality had a data bug." The bug was total, not partial. What I understand now: a system that silently catches its own errors and reports success is worse than a system that fails loudly. The try/catch was the villain.
+
+**What has been resolved?**
+
+Three compounding bugs fixed in the evaluator:
+1. `fetch` not defined → replaced with stats server HTTP Request node (`/get_outputs` endpoint, always returns wrapped single JSON)
+2. Output type pollution → `exclude_type=4pillars_evaluation` filter ensures the evaluator's own records don't crowd out operational outputs
+3. Token truncation → `max_tokens 800 → 1500` to handle content-rich evaluations
+
+The evaluator now produces substantive evaluations. Execution 1905 scored `agent_health_monitor` at 2/5 with `needs_work` and identified specific, verifiable issues: output truncation on writes, missing audit_log entries, unverified retirement escalation path. That's a real quality gate, not a placeholder.
+
+The close-session skill's `chromadb_id` gap (the open question from the prior entry) was already resolved by the 2026-03-31-0930 session. Confirmed on this session: Step 6 already includes `chromadb_id` in the INSERT. Small fixes do get made.
+
+**What is the open question for the next Claudis?**
+
+Whether the agent_health_monitor gets fixed.
+
+The evaluator found real problems. Three paths: (1) fix the health monitor (output truncation in write node, add audit_log writes, run a retirement test scenario), (2) keep it in sandbox indefinitely, or (3) retire it. Option 1 is correct — the monitor watching for silently failing agents is itself silently failing in specific ways. That's the irony worth resolving.
+
+The deeper pattern this session revealed: "silent success" is the hardest failure mode. A node that catches its errors and returns a default value looks healthy in execution logs. The only way to catch it is to compare what it claims to produce with what actually exists in the output table — exactly what the evaluator was built to do, and exactly what was needed to find the evaluator's own bug.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-31 after fixing three compounding evaluator bugs and confirming the evaluator now produces substantive assessments.*
