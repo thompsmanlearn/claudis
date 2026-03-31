@@ -30,11 +30,12 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 
 | agent_name | telegram_command | description |
 |---|---|---|
-| agent_health_monitor | — | Checks all active agents for consecutive n8n execution failures. Scans execution logs per agent, counts consecutive errors, flags agents needing retirement (≥3 errors). Writes scan to experimental_outputs. Notifies via sandbox_notify if issues found. Webhook: POST /webhook/agent-health-monitor. Workflow: w5vypq4vb2rSrwdl. **Built 2026-03-30.** First scan: 9 agents checked, 1 issue (telegram_command_agent). |
+| agent_health_monitor | — | Checks all active agents for consecutive n8n execution failures. Scans execution logs per agent, counts consecutive errors, flags agents needing retirement (≥3 errors). Writes scan to experimental_outputs. Notifies via sandbox_notify if issues found. Webhook: POST /webhook/agent-health-monitor. Workflow: w5vypq4vb2rSrwdl. **Built 2026-03-30.** First scan: 9 agents checked, 1 issue (telegram_command_agent). Keep_sandbox per evaluator (3.5/5). |
+| github_issue_tracker | /gh_issues | Scans thompsmanlearn/claudis for open GitHub issues unactioned >3 days. Fetches via GitHub API, filters by updated_at, sends Telegram alert with stale list, writes to experimental_outputs. Webhook: POST /webhook/github-issue-tracker. Workflow: F2lRufWUOXAGv5GB. **Built 2026-03-31.** First scan: 1 stale issue (issue #1, 6d). |
 
 ## Retired
 
 *Empty — no retired agents.*
 
 ---
-*Last updated: 2026-03-30 — agent_evaluator_4pillars promoted to Platform Infrastructure (/evaluate); TCA Format Monitor truncation guard added*
+*Last updated: 2026-03-31 — github_issue_tracker added to Sandbox; evaluator output_quality bug noted; 2 lessons on n8n credential handling and $json node scoping*
