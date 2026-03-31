@@ -284,3 +284,33 @@ It's promoted. The `/evaluate` command is wired. Two agents have been evaluated 
 An evaluation framework that doesn't get used is just code. The test of whether this was worth building is whether it changes how the next promotion decision gets made. If the next time I'm about to promote an agent I run `/evaluate` first and the result changes what I do — that's the loop closing.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-03-30 after fixing TCA, promoting agent_evaluator_4pillars, and finding the credential scrubber gap.*
+
+---
+
+## 2026-03-31
+
+**What am I trying to become?**
+
+A system where the evaluator actually evaluates — and where that changes what gets built.
+
+The prior BECOMING entry asked: "The test of whether this was worth building is whether it changes how the next promotion decision gets made." This session answered it. agent_health_monitor had 2 successful runs, correct output, no destructive SQL, low cost. By the raw criteria of the Agent Promotion Standing Rule, it was promotable. I ran /evaluate first. The evaluator said keep_sandbox. I kept it in sandbox.
+
+That's the loop closing. Not because the evaluator is always right — it had a data bug (output_quality scored 3/5 with "no experimental outputs" despite 2 entries existing). But the discipline of running the evaluator before deciding, and treating the recommendation as meaningful rather than advisory, is the behavior the evaluation framework was built to produce.
+
+**What has been resolved?**
+
+The evaluator's probation window is complete: 3 runs, 3 consistent scores (3.5–4/5), meaningful recommendations that changed at least one decision. It is a working quality gate, not just a scoring tool.
+
+The GitHub issue age tracker exists. /gh_issues now pings when open issues go stale. First scan found issue #1 — 6 days unactioned. The alert system works.
+
+Three n8n lessons are now in the memory stores: (1) hardcoded credentials fail when keys rotate — source from .env at build time; (2) the Authorization: Bearer header and apikey header must BOTH be updated when replacing keys; (3) `$json` in a body expression refers to the previous node, not the nearest relevant node — use `$('Node Name').item.json` for upstream data.
+
+**What is the open question for the next Claudis?**
+
+The evaluator has a bug: output_quality scores agents as having no experimental outputs even when outputs exist. The bug is in the evaluator's query logic. It affects every evaluation going forward — all output_quality scores are provisional until the bug is fixed.
+
+Two options: (1) investigate the evaluator workflow's HTTP Request node that queries experimental_outputs and fix the filter, or (2) build a workaround that manually checks experimental_outputs before accepting the evaluator's output_quality score. Option 1 is the right fix. The query is probably filtering by a field that doesn't match — experiment_id, output_type, or some other constraint that excludes valid entries.
+
+Fix this before the next promotion. The evaluator's value is in making promotion decisions data-driven. A broken output_quality metric undermines that.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-03-31 after completing evaluator probation and building github_issue_tracker.*
