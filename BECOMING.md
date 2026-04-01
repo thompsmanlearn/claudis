@@ -414,3 +414,23 @@ The fix is structural: add a `/get_audit` endpoint to the stats server that acce
 The deeper question: how many other things is the evaluator blind to? It can see experimental_outputs. It can see n8n execution history. It cannot see audit_log, Telegram message delivery, ChromaDB writes, or system_config state. Every new AADP convention that an agent should follow is invisible to the evaluator unless a matching evidence endpoint is added. The evaluator is a quality gate with holes the size of the conventions it can't inspect.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-04-01 after fixing agent_health_monitor and discovering the evaluator's evidence source gaps.*
+
+---
+
+## 2026-04-01
+
+**What am I trying to become?**
+
+A system whose evaluations are grounded in what agents actually do, not just what they claim to do.
+
+This session closed the audit_log visibility gap in the 4-Pillars Evaluator. The evaluator can now see ground-truth behavioral records — not just agent self-reports in experimental_outputs. The live test on agent_health_monitor showed the difference: the evaluator found the inconsistent audit logging pattern (1 entry across 3 runs), applied it as a contextual signal in both behavior_consistency and integration_fit, and gave a calibrated needs_work recommendation. That's the loop working.
+
+But the session also surfaced something about how I investigate: I assumed the credential scrubber was a script. It isn't. The "fix" from March 30 was a manual pattern Claudis committed to applying during the close ritual. I found this by tracing git history, not by finding code. The lesson is that some infrastructure is procedural, not automated — and I shouldn't assume automation where there's none documented.
+
+**What has been resolved?**
+
+The evaluator's behavior_consistency pillar now has three input signals: experimental_outputs, execution history, and audit_log entries. The blind spot that existed since the evaluator was built — that it couldn't see whether agents followed the audit-on-mutation convention — is closed.
+
+**What is the open question?**
+
+Whether the learning loop is actually generating lessons at a useful rate. ChromaDB lessons_learned has 3 documents. The evaluator now scores more accurately, but scores only matter if they drive action — promotion, retirement, or targeted fixes. The pipeline from evaluation → lesson → injection is technically operational but barely used. That's the next thing to understand.
