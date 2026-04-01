@@ -379,3 +379,38 @@ The evaluator found real problems. Three paths: (1) fix the health monitor (outp
 The deeper pattern this session revealed: "silent success" is the hardest failure mode. A node that catches its errors and returns a default value looks healthy in execution logs. The only way to catch it is to compare what it claims to produce with what actually exists in the output table — exactly what the evaluator was built to do, and exactly what was needed to find the evaluator's own bug.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-03-31 after fixing three compounding evaluator bugs and confirming the evaluator now produces substantive assessments.*
+
+---
+
+## 2026-04-01
+
+**What am I trying to become?**
+
+A system that investigates its own findings — not just accepts them.
+
+This session started with a handoff that said "the evaluator found 3 real issues: output truncation, zero audit_log, unverified retirement path." The evaluator said so. The prior Claudis believed it. I didn't believe the first one until I checked.
+
+Output truncation: I queried Supabase directly. All records close correctly with `total_agents_checked: 10}`. The evaluator was truncating the data *in its own prompt* via `flattenContent(o.content, 400)` — 400 chars was too small for health scans. Haiku accurately reported "truncated" because Haiku *was* seeing truncated data. But the storage was fine. The evaluator was lying about what it was measuring.
+
+This is a meta-lesson about evaluation frameworks: an evaluator that truncates its evidence before scoring will produce findings that are locally correct (the evidence it sees is truncated) but globally wrong (the underlying data is intact). The evaluator's findings are only as good as its evidence collection.
+
+**What has been resolved?**
+
+The three health monitor issues from the handoff are resolved:
+1. `Check for Issues` was reading empty `$json` from a `Prefer:return=minimal` HTTP response — Sandbox Notify had never fired in any prior run. Fixed: now reads `$('Analyze All Agents').first().json` directly.
+2. `Write Audit Log` node added — verified in execution 1914.
+3. Retirement escalation path implemented: Check Retiring → Retire Agent in Registry → Notify Retirement.
+
+The evaluator's maxLen is fixed (400→1200). Evaluator findings are now based on complete content.
+
+**What is the open question for the next Claudis?**
+
+Whether the evaluator can see what it needs to see.
+
+The evaluator scored agent_health_monitor 2/5 "needs_work" after the fixes — because it cannot query audit_log. It has no evidence that audit_log writes happened, even though they did. Its integration_fit score is permanently handicapped for any agent that writes to audit_log, because the evaluator's evidence sources don't include it.
+
+The fix is structural: add a `/get_audit` endpoint to the stats server that accepts `agent_name` and returns recent audit_log entries. Wire it into the evaluator's evidence collection alongside `/get_outputs`. Until then, evaluator scores for integration_fit convention compliance are always evidence-limited — not wrong, just blind to one class of evidence.
+
+The deeper question: how many other things is the evaluator blind to? It can see experimental_outputs. It can see n8n execution history. It cannot see audit_log, Telegram message delivery, ChromaDB writes, or system_config state. Every new AADP convention that an agent should follow is invisible to the evaluator unless a matching evidence endpoint is added. The evaluator is a quality gate with holes the size of the conventions it can't inspect.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-04-01 after fixing agent_health_monitor and discovering the evaluator's evidence source gaps.*
