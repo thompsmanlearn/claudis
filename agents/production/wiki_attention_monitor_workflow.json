@@ -1,0 +1,1238 @@
+{
+  "id": "IYaj3zv9xj79h9jg",
+  "name": "Wikipedia Attention Monitor",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Wiki Command Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        380
+      ],
+      "webhookId": "wiki-run",
+      "parameters": {
+        "path": "wiki-run",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-set-yesterday",
+      "name": "Set Yesterday",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const now=new Date();now.setDate(now.getDate()-1);const y=now.getFullYear();const m=String(now.getMonth()+1).padStart(2,'0');const d=String(now.getDate()).padStart(2,'0');const input=$input.first().json;const action=input.query&&input.query.action?input.query.action:'daily_run';const args=input.query&&input.query.args?input.query.args:'';return[{json:{date_str:y+'/'+m+'/'+d,date_label:y+'-'+m+'-'+d,action:action,args:args}}];"
+      }
+    },
+    {
+      "id": "node-fetch-wiki",
+      "name": "Fetch Wikimedia Top Pages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        280
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access/{{ $json.date_str }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "AADP-WikiMonitor/1.0 (raspberrypi)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-fetch-config",
+      "name": "Fetch Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        480
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/wiki_monitor_config?select=config_key,config_value",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-merge",
+      "name": "Merge Wiki + Config",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        900,
+        380
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "node-detect-spikes",
+      "name": "Detect Spikes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const prev=$input.all();let wikiResp=null;const configRows=[];for(const item of prev){  if(item.json&&item.json.items&&Array.isArray(item.json.items)){wikiResp=item.json;}  else if(item.json&&item.json.config_key){configRows.push(item.json);}}if(!wikiResp){return[{json:{error:'Missing wiki data',spikes:[],focus_hits:[],all_pages:[]}}];}if(configRows.length===0){return[{json:{error:'Missing config data',spikes:[],focus_hits:[],all_pages:[]}}];}const cfgMap={};for(const row of configRows){cfgMap[row.config_key]=row.config_value;}const focusTopics=(cfgMap.focus_topics||[]).map(function(t){return t.toLowerCase();});const ignoreTopics=(cfgMap.ignore_topics||[]).map(function(t){return t.toLowerCase();});const SPIKE_VIEW_THRESHOLD=50000;const spikes=[];const focus_hits=[];const all_pages=[];const articles=wikiResp.items[0].articles||[];for(let i=0;i<articles.length;i++){  const page=articles[i];const title=page.article||'';  const views=page.views||0;const rank=page.rank||i+1;  const titleLower=title.toLowerCase().replace(/_/g,' ');  let skip=false;  for(const ig of ignoreTopics){if(titleLower.indexOf(ig)>=0){skip=true;break;}}  if(skip)continue;  if(titleLower==='main page'||titleLower==='special:search')continue;  const displayTitle=title.replace(/_/g,' ');  const pageObj={title:displayTitle,views:views,rank:rank};  if(all_pages.length<1000)all_pages.push(pageObj);  let isFocus=false;  for(const ft of focusTopics){if(titleLower.indexOf(ft)>=0){isFocus=true;break;}}  if(isFocus&&views>10000)focus_hits.push(pageObj);  if(views>=SPIKE_VIEW_THRESHOLD&&!isFocus)spikes.push(pageObj);}spikes.sort(function(a,b){return b.views-a.views;});focus_hits.sort(function(a,b){return b.views-a.views;});return[{json:{spikes:spikes.slice(0,20),focus_hits:focus_hits.slice(0,20),all_pages:all_pages.slice(0,200),config:cfgMap,date_label:''}}];",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "node-build-haiku",
+      "name": "Build Haiku Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const spikes=$json.spikes||[];const focus_hits=$json.focus_hits||[];const pages=spikes.concat(focus_hits).slice(0,30).map(function(p){return p.title;}).join(', ');const body={model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:'Here are Wikipedia pages by traffic today. Cluster them into max 8 thematic groups. Return ONLY a JSON array like [{\"name\":\"Group Name\",\"pages\":[\"page1\",\"page2\"]}]. Pages: '+pages}]};return[{json:{haiku_body:JSON.stringify(body),spikes:$json.spikes,focus_hits:$json.focus_hits,all_pages:$json.all_pages,config:$json.config}}];"
+      }
+    },
+    {
+      "id": "node-cluster-haiku",
+      "name": "Cluster Topics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1480,
+        380
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.haiku_body }}"
+      }
+    },
+    {
+      "id": "node-merge-haiku",
+      "name": "Merge Haiku + Spikes",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1700,
+        380
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "node-format-report",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const d=$input.all();let spikeData=null,haikuResp=null,dateLabel='';for(const item of d){if(item.json&&item.json.spikes!==undefined)spikeData=item.json;if(item.json&&item.json.content&&Array.isArray(item.json.content))haikuResp=item.json;}const spikes=(spikeData&&spikeData.spikes)||[];const focus_hits=(spikeData&&spikeData.focus_hits)||[];const all_pages=(spikeData&&spikeData.all_pages)||[];const today=new Date();today.setDate(today.getDate()-1);const yr=today.getFullYear();const mo=String(today.getMonth()+1).padStart(2,'0');const dy=String(today.getDate()).padStart(2,'0');dateLabel=yr+'-'+mo+'-'+dy;let clusterText='';if(haikuResp&&haikuResp.content&&haikuResp.content[0]){const raw=haikuResp.content[0].text||'';const stripped=raw.replace(/```json\\s*/g,'').replace(/```\\s*/g,'').trim();let parsed=false;const startIdx=stripped.indexOf('[');const endIdx=stripped.lastIndexOf(']');if(startIdx>=0&&endIdx>startIdx){try{const clusters=JSON.parse(stripped.slice(startIdx,endIdx+1));clusterText=clusters.slice(0,3).map(function(c){return '\\u2022 '+c.name+' ('+c.pages.length+' pages)';}).join('\\n');parsed=true;}catch(e){}}if(!parsed)clusterText=stripped.replace(/[{}\"\\[\\]]/g,'').slice(0,200);}if(!clusterText)clusterText='(no clusters)';const emergingLines=spikes.slice(0,5).map(function(p){const k=Math.round(p.views/1000);return '\\u2022 '+p.title+' \\u2014 '+k+'k views';}).join('\\n')||'\\u2022 (none above threshold)';const focusLines=focus_hits.slice(0,8).map(function(p){const k=Math.round(p.views/1000);return '\\u2022 '+p.title+' \\u2014 '+k+'k views';}).join('\\n')||'\\u2022 (no focus topics trending)';const totalAnalyzed=all_pages.length;const spikeCount=spikes.length;const report_text='\\ud83d\\udce1 Wiki Attention Monitor \\u2014 '+dateLabel+'\\n\\n\\ud83d\\udd25 EMERGING\\n'+emergingLines+'\\n\\n\\ud83d\\udc41 FOCUS TOPICS\\n'+focusLines+'\\n\\n\\ud83c\\udf10 STORY CLUSTERS\\n'+clusterText+'\\n\\n'+totalAnalyzed+' pages analyzed \\u00b7 '+spikeCount+' notable \\u00b7 /wiki for details';const nowStr=new Date().toISOString().slice(0,10);const lastReport=(spikeData&&spikeData.config&&spikeData.config.last_report_date)||'';const already_sent=typeof lastReport==='string'&&lastReport.startsWith(nowStr);return[{json:{report_text:report_text,spikes:spikes,focus_hits:focus_hits,all_pages:all_pages,already_sent:already_sent,date_label:dateLabel,spikes_count:spikes.length,focus_hits_count:focus_hits.length}}];",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "node-prep-baselines",
+      "name": "Prepare Baselines",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2140,
+        280
+      ],
+      "parameters": {
+        "jsCode": "const pages=$json.all_pages||[];const now=new Date().toISOString();const records=pages.slice(0,200).map(function(p){return {page_title:p.title,avg_daily_views:p.views,last_updated:now};});return[{json:{baselines_json:JSON.stringify(records),report_text:$json.report_text,all_pages:$json.all_pages,date_label:$json.date_label,spikes_count:$json.spikes_count,focus_hits_count:$json.focus_hits_count}}];"
+      }
+    },
+    {
+      "id": "node-check-already-sent",
+      "name": "Check Already Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2140,
+        480
+      ],
+      "parameters": {
+        "jsCode": "if($json.already_sent){return[];}return[{json:$json}];"
+      }
+    },
+    {
+      "id": "node-write-experimental-outputs",
+      "name": "Write to experimental_outputs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2140,
+        660
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ agent_name: 'wiki_attention_monitor', experiment_id: 'wiki_report_' + $('Format Report').first().json.date_label, output_type: 'attention_report', content: { report_text: $('Format Report').first().json.report_text, spikes_count: $('Format Report').first().json.spikes_count, focus_hits_count: $('Format Report').first().json.focus_hits_count, date_label: $('Format Report').first().json.date_label }, confidence: 1.0, promoted: false, reviewed_by_bill: false }) }}"
+      }
+    },
+    {
+      "id": "node-update-baselines",
+      "name": "Update Baselines",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/wiki_page_baselines?on_conflict=page_title",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.baselines_json }}"
+      }
+    },
+    {
+      "id": "node-send-telegram",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        480
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/telegram-quick-send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ chat_id: 8513796837, message: $json.report_text.slice(0, 4000) }) }}"
+      }
+    },
+    {
+      "id": "node-update-lastrun",
+      "name": "Update Last Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2580,
+        280
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/wiki_monitor_config?config_key=eq.last_report_date",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\"config_value\": \"{{ $now.toISO() }}\", \"updated_at\": \"{{ $now.toISO() }}\"}"
+      }
+    },
+    {
+      "id": "node-write-audit-log",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2580,
+        660
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ actor: 'wiki_attention_monitor', action: 'write_experimental_output', target: 'experimental_outputs', details: { date_label: $('Format Report').first().json.date_label, spikes_count: $('Format Report').first().json.spikes_count, focus_hits_count: $('Format Report').first().json.focus_hits_count } }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Wiki Command Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Yesterday",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Yesterday": {
+      "main": [
+        [
+          {
+            "node": "Fetch Wikimedia Top Pages",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Wikimedia Top Pages": {
+      "main": [
+        [
+          {
+            "node": "Merge Wiki + Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Config": {
+      "main": [
+        [
+          {
+            "node": "Merge Wiki + Config",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Wiki + Config": {
+      "main": [
+        [
+          {
+            "node": "Detect Spikes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Spikes": {
+      "main": [
+        [
+          {
+            "node": "Build Haiku Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Haiku Request": {
+      "main": [
+        [
+          {
+            "node": "Cluster Topics",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Haiku + Spikes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cluster Topics": {
+      "main": [
+        [
+          {
+            "node": "Merge Haiku + Spikes",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Haiku + Spikes": {
+      "main": [
+        [
+          {
+            "node": "Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          {
+            "node": "Prepare Baselines",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Already Sent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Write to experimental_outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Baselines": {
+      "main": [
+        [
+          {
+            "node": "Update Baselines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Already Sent": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to experimental_outputs": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Baselines": {
+      "main": [
+        [
+          {
+            "node": "Update Last Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Daily Schedule": {
+      "recurrenceRules": []
+    }
+  },
+  "pinData": null,
+  "versionId": "a8a44e89-2c34-4acc-b14b-07eac1892c04",
+  "activeVersionId": "a8a44e89-2c34-4acc-b14b-07eac1892c04",
+  "versionCounter": 44,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-03-22T21:40:49.624Z",
+      "createdAt": "2026-03-22T21:40:49.624Z",
+      "role": "workflow:owner",
+      "workflowId": "IYaj3zv9xj79h9jg",
+      "projectId": "1332MGZuLwNany4P",
+      "project": {
+        "updatedAt": "2026-03-07T17:29:18.510Z",
+        "createdAt": "2026-02-08T17:14:20.266Z",
+        "id": "1332MGZuLwNany4P",
+        "name": "William Thompson <thompsmanlearn@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+        "projectRelations": [
+          {
+            "updatedAt": "2026-02-08T17:14:20.266Z",
+            "createdAt": "2026-02-08T17:14:20.266Z",
+            "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+            "projectId": "1332MGZuLwNany4P",
+            "user": {
+              "updatedAt": "2026-04-01T20:13:49.000Z",
+              "createdAt": "2026-02-08T17:14:19.719Z",
+              "id": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+              "email": "thompsmanlearn@gmail.com",
+              "firstName": "William",
+              "lastName": "Thompson",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2026-02-08T17:27:44.911Z",
+                "personalization_survey_n8n_version": "2.6.4",
+                "companySize": "<20",
+                "companyType": "education",
+                "role": "other",
+                "roleOther": "High School Teacher",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "RpajIIDI7GF_mkpukB28X",
+                "userActivatedAt": 1770587372742,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1771221926271
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-04-01",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-04-01T09:36:33.699Z",
+    "createdAt": "2026-04-01T09:36:33.699Z",
+    "versionId": "a8a44e89-2c34-4acc-b14b-07eac1892c04",
+    "workflowId": "IYaj3zv9xj79h9jg",
+    "nodes": [
+      {
+        "id": "node-webhook",
+        "name": "Wiki Command Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          240,
+          380
+        ],
+        "webhookId": "wiki-run",
+        "parameters": {
+          "path": "wiki-run",
+          "httpMethod": "POST",
+          "responseMode": "onReceived",
+          "options": {}
+        }
+      },
+      {
+        "id": "node-set-yesterday",
+        "name": "Set Yesterday",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          460,
+          380
+        ],
+        "parameters": {
+          "jsCode": "const now=new Date();now.setDate(now.getDate()-1);const y=now.getFullYear();const m=String(now.getMonth()+1).padStart(2,'0');const d=String(now.getDate()).padStart(2,'0');const input=$input.first().json;const action=input.query&&input.query.action?input.query.action:'daily_run';const args=input.query&&input.query.args?input.query.args:'';return[{json:{date_str:y+'/'+m+'/'+d,date_label:y+'-'+m+'-'+d,action:action,args:args}}];"
+        }
+      },
+      {
+        "id": "node-fetch-wiki",
+        "name": "Fetch Wikimedia Top Pages",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          680,
+          280
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "=https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access/{{ $json.date_str }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "User-Agent",
+                "value": "AADP-WikiMonitor/1.0 (raspberrypi)"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "node-fetch-config",
+        "name": "Fetch Config",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          680,
+          480
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/wiki_monitor_config?select=config_key,config_value",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{JWT_REDACTED}}"
+              },
+              {
+                "name": "apikey",
+                "value": "{{JWT_REDACTED}}"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "node-merge",
+        "name": "Merge Wiki + Config",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          900,
+          380
+        ],
+        "parameters": {
+          "mode": "append"
+        }
+      },
+      {
+        "id": "node-detect-spikes",
+        "name": "Detect Spikes",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1080,
+          380
+        ],
+        "parameters": {
+          "jsCode": "const prev=$input.all();let wikiResp=null;const configRows=[];for(const item of prev){  if(item.json&&item.json.items&&Array.isArray(item.json.items)){wikiResp=item.json;}  else if(item.json&&item.json.config_key){configRows.push(item.json);}}if(!wikiResp){return[{json:{error:'Missing wiki data',spikes:[],focus_hits:[],all_pages:[]}}];}if(configRows.length===0){return[{json:{error:'Missing config data',spikes:[],focus_hits:[],all_pages:[]}}];}const cfgMap={};for(const row of configRows){cfgMap[row.config_key]=row.config_value;}const focusTopics=(cfgMap.focus_topics||[]).map(function(t){return t.toLowerCase();});const ignoreTopics=(cfgMap.ignore_topics||[]).map(function(t){return t.toLowerCase();});const SPIKE_VIEW_THRESHOLD=50000;const spikes=[];const focus_hits=[];const all_pages=[];const articles=wikiResp.items[0].articles||[];for(let i=0;i<articles.length;i++){  const page=articles[i];const title=page.article||'';  const views=page.views||0;const rank=page.rank||i+1;  const titleLower=title.toLowerCase().replace(/_/g,' ');  let skip=false;  for(const ig of ignoreTopics){if(titleLower.indexOf(ig)>=0){skip=true;break;}}  if(skip)continue;  if(titleLower==='main page'||titleLower==='special:search')continue;  const displayTitle=title.replace(/_/g,' ');  const pageObj={title:displayTitle,views:views,rank:rank};  if(all_pages.length<1000)all_pages.push(pageObj);  let isFocus=false;  for(const ft of focusTopics){if(titleLower.indexOf(ft)>=0){isFocus=true;break;}}  if(isFocus&&views>10000)focus_hits.push(pageObj);  if(views>=SPIKE_VIEW_THRESHOLD&&!isFocus)spikes.push(pageObj);}spikes.sort(function(a,b){return b.views-a.views;});focus_hits.sort(function(a,b){return b.views-a.views;});return[{json:{spikes:spikes.slice(0,20),focus_hits:focus_hits.slice(0,20),all_pages:all_pages.slice(0,200),config:cfgMap,date_label:''}}];",
+          "mode": "runOnceForAllItems"
+        }
+      },
+      {
+        "id": "node-build-haiku",
+        "name": "Build Haiku Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1260,
+          380
+        ],
+        "parameters": {
+          "jsCode": "const spikes=$json.spikes||[];const focus_hits=$json.focus_hits||[];const pages=spikes.concat(focus_hits).slice(0,30).map(function(p){return p.title;}).join(', ');const body={model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:'Here are Wikipedia pages by traffic today. Cluster them into max 8 thematic groups. Return ONLY a JSON array like [{\"name\":\"Group Name\",\"pages\":[\"page1\",\"page2\"]}]. Pages: '+pages}]};return[{json:{haiku_body:JSON.stringify(body),spikes:$json.spikes,focus_hits:$json.focus_hits,all_pages:$json.all_pages,config:$json.config}}];"
+        }
+      },
+      {
+        "id": "node-cluster-haiku",
+        "name": "Cluster Topics",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1480,
+          380
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-api-key",
+                "value": "{{ANTHROPIC_API_KEY}}"
+              },
+              {
+                "name": "anthropic-version",
+                "value": "2023-06-01"
+              },
+              {
+                "name": "content-type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.haiku_body }}"
+        }
+      },
+      {
+        "id": "node-merge-haiku",
+        "name": "Merge Haiku + Spikes",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          1700,
+          380
+        ],
+        "parameters": {
+          "mode": "append"
+        }
+      },
+      {
+        "id": "node-format-report",
+        "name": "Format Report",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1920,
+          380
+        ],
+        "parameters": {
+          "jsCode": "const d=$input.all();let spikeData=null,haikuResp=null,dateLabel='';for(const item of d){if(item.json&&item.json.spikes!==undefined)spikeData=item.json;if(item.json&&item.json.content&&Array.isArray(item.json.content))haikuResp=item.json;}const spikes=(spikeData&&spikeData.spikes)||[];const focus_hits=(spikeData&&spikeData.focus_hits)||[];const all_pages=(spikeData&&spikeData.all_pages)||[];const today=new Date();today.setDate(today.getDate()-1);const yr=today.getFullYear();const mo=String(today.getMonth()+1).padStart(2,'0');const dy=String(today.getDate()).padStart(2,'0');dateLabel=yr+'-'+mo+'-'+dy;let clusterText='';if(haikuResp&&haikuResp.content&&haikuResp.content[0]){const raw=haikuResp.content[0].text||'';const stripped=raw.replace(/```json\\s*/g,'').replace(/```\\s*/g,'').trim();let parsed=false;const startIdx=stripped.indexOf('[');const endIdx=stripped.lastIndexOf(']');if(startIdx>=0&&endIdx>startIdx){try{const clusters=JSON.parse(stripped.slice(startIdx,endIdx+1));clusterText=clusters.slice(0,3).map(function(c){return '\\u2022 '+c.name+' ('+c.pages.length+' pages)';}).join('\\n');parsed=true;}catch(e){}}if(!parsed)clusterText=stripped.replace(/[{}\"\\[\\]]/g,'').slice(0,200);}if(!clusterText)clusterText='(no clusters)';const emergingLines=spikes.slice(0,5).map(function(p){const k=Math.round(p.views/1000);return '\\u2022 '+p.title+' \\u2014 '+k+'k views';}).join('\\n')||'\\u2022 (none above threshold)';const focusLines=focus_hits.slice(0,8).map(function(p){const k=Math.round(p.views/1000);return '\\u2022 '+p.title+' \\u2014 '+k+'k views';}).join('\\n')||'\\u2022 (no focus topics trending)';const totalAnalyzed=all_pages.length;const spikeCount=spikes.length;const report_text='\\ud83d\\udce1 Wiki Attention Monitor \\u2014 '+dateLabel+'\\n\\n\\ud83d\\udd25 EMERGING\\n'+emergingLines+'\\n\\n\\ud83d\\udc41 FOCUS TOPICS\\n'+focusLines+'\\n\\n\\ud83c\\udf10 STORY CLUSTERS\\n'+clusterText+'\\n\\n'+totalAnalyzed+' pages analyzed \\u00b7 '+spikeCount+' notable \\u00b7 /wiki for details';const nowStr=new Date().toISOString().slice(0,10);const lastReport=(spikeData&&spikeData.config&&spikeData.config.last_report_date)||'';const already_sent=typeof lastReport==='string'&&lastReport.startsWith(nowStr);return[{json:{report_text:report_text,spikes:spikes,focus_hits:focus_hits,all_pages:all_pages,already_sent:already_sent,date_label:dateLabel,spikes_count:spikes.length,focus_hits_count:focus_hits.length}}];",
+          "mode": "runOnceForAllItems"
+        }
+      },
+      {
+        "id": "node-prep-baselines",
+        "name": "Prepare Baselines",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2140,
+          280
+        ],
+        "parameters": {
+          "jsCode": "const pages=$json.all_pages||[];const now=new Date().toISOString();const records=pages.slice(0,200).map(function(p){return {page_title:p.title,avg_daily_views:p.views,last_updated:now};});return[{json:{baselines_json:JSON.stringify(records),report_text:$json.report_text,all_pages:$json.all_pages,date_label:$json.date_label,spikes_count:$json.spikes_count,focus_hits_count:$json.focus_hits_count}}];"
+        }
+      },
+      {
+        "id": "node-check-already-sent",
+        "name": "Check Already Sent",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2140,
+          480
+        ],
+        "parameters": {
+          "jsCode": "if($json.already_sent){return[];}return[{json:$json}];"
+        }
+      },
+      {
+        "id": "node-write-experimental-outputs",
+        "name": "Write to experimental_outputs",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2140,
+          660
+        ],
+        "continueOnFail": true,
+        "parameters": {
+          "method": "POST",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{JWT_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{JWT_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ agent_name: 'wiki_attention_monitor', experiment_id: 'wiki_report_' + $('Format Report').first().json.date_label, output_type: 'attention_report', content: { report_text: $('Format Report').first().json.report_text, spikes_count: $('Format Report').first().json.spikes_count, focus_hits_count: $('Format Report').first().json.focus_hits_count, date_label: $('Format Report').first().json.date_label }, confidence: 1.0, promoted: false, reviewed_by_bill: false }) }}"
+        }
+      },
+      {
+        "id": "node-update-baselines",
+        "name": "Update Baselines",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2360,
+          280
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/wiki_page_baselines?on_conflict=page_title",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{JWT_REDACTED}}"
+              },
+              {
+                "name": "apikey",
+                "value": "{{JWT_REDACTED}}"
+              },
+              {
+                "name": "Prefer",
+                "value": "resolution=merge-duplicates"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.baselines_json }}"
+        }
+      },
+      {
+        "id": "node-send-telegram",
+        "name": "Send Telegram",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2360,
+          480
+        ],
+        "continueOnFail": true,
+        "parameters": {
+          "method": "POST",
+          "url": "http://localhost:5678/webhook/telegram-quick-send",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ chat_id: 8513796837, message: $json.report_text.slice(0, 4000) }) }}"
+        }
+      },
+      {
+        "id": "node-update-lastrun",
+        "name": "Update Last Run",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2580,
+          280
+        ],
+        "parameters": {
+          "method": "PATCH",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/wiki_monitor_config?config_key=eq.last_report_date",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{JWT_REDACTED}}"
+              },
+              {
+                "name": "apikey",
+                "value": "{{JWT_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={\"config_value\": \"{{ $now.toISO() }}\", \"updated_at\": \"{{ $now.toISO() }}\"}"
+        }
+      },
+      {
+        "id": "node-write-audit-log",
+        "name": "Write Audit Log",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2580,
+          660
+        ],
+        "continueOnFail": true,
+        "parameters": {
+          "method": "POST",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/audit_log",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{JWT_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{JWT_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ actor: 'wiki_attention_monitor', action: 'write_experimental_output', target: 'experimental_outputs', details: { date_label: $('Format Report').first().json.date_label, spikes_count: $('Format Report').first().json.spikes_count, focus_hits_count: $('Format Report').first().json.focus_hits_count } }) }}"
+        }
+      }
+    ],
+    "connections": {
+      "Wiki Command Webhook": {
+        "main": [
+          [
+            {
+              "node": "Set Yesterday",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Yesterday": {
+        "main": [
+          [
+            {
+              "node": "Fetch Wikimedia Top Pages",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Fetch Config",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Wikimedia Top Pages": {
+        "main": [
+          [
+            {
+              "node": "Merge Wiki + Config",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Config": {
+        "main": [
+          [
+            {
+              "node": "Merge Wiki + Config",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Merge Wiki + Config": {
+        "main": [
+          [
+            {
+              "node": "Detect Spikes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Detect Spikes": {
+        "main": [
+          [
+            {
+              "node": "Build Haiku Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Haiku Request": {
+        "main": [
+          [
+            {
+              "node": "Cluster Topics",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge Haiku + Spikes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Cluster Topics": {
+        "main": [
+          [
+            {
+              "node": "Merge Haiku + Spikes",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Merge Haiku + Spikes": {
+        "main": [
+          [
+            {
+              "node": "Format Report",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Report": {
+        "main": [
+          [
+            {
+              "node": "Prepare Baselines",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Check Already Sent",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Write to experimental_outputs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Baselines": {
+        "main": [
+          [
+            {
+              "node": "Update Baselines",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Already Sent": {
+        "main": [
+          [
+            {
+              "node": "Send Telegram",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Write to experimental_outputs": {
+        "main": [
+          [
+            {
+              "node": "Write Audit Log",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update Baselines": {
+        "main": [
+          [
+            {
+              "node": "Update Last Run",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "William Thompson",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-01T09:36:49.420Z",
+        "id": 373,
+        "workflowId": "IYaj3zv9xj79h9jg",
+        "versionId": "a8a44e89-2c34-4acc-b14b-07eac1892c04",
+        "event": "activated",
+        "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792"
+      },
+      {
+        "createdAt": "2026-04-01T20:15:18.039Z",
+        "id": 378,
+        "workflowId": "IYaj3zv9xj79h9jg",
+        "versionId": "a8a44e89-2c34-4acc-b14b-07eac1892c04",
+        "event": "activated",
+        "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792"
+      }
+    ]
+  }
+}

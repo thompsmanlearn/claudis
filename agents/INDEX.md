@@ -11,7 +11,7 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | daily_briefing_agent | — | Daily 6AM Pacific digest: system health, agent status, errors, work queue |
 | telegram_command_agent | — | Watches Telegram; parses commands; routes to work_queue or webhooks |
 | weather_agent | /weather | Current weather + 3-day forecast, CA (Open-Meteo) |
-| wiki_attention_monitor | /wiki | **→ moved to Sandbox 2026-04-01** (V2 compliance fix; first real webhook run) |
+| wiki_attention_monitor | /wiki | Wikipedia top page traffic velocity. Fetches Wikimedia pageviews (yesterday), filters spikes >50k views + focus topics, Haiku-clusters into thematic groups, Telegram digest. Writes to experimental_outputs + audit_log. Webhook: POST /webhook/wiki-run. Workflow: IYaj3zv9xj79h9jg. **Promoted 2026-04-01** (4/5 evaluator score, Bill approved). |
 | github_weekly_search | — | Searches GitHub for MCP/agent repos weekly (Sunday 6AM UTC); queues findings as gh_weekly_search for Sentinel review |
 | serendipity_engine_prod | — | Daily 8AM Pacific: Wikipedia On This Day → Haiku synthesis → surprising historical echo to 2026 → Telegram. Degrades gracefully when Haiku API unavailable. Workflow: ROhfvqO3yJW6j955. **Promoted 2026-03-25.** |
 
@@ -31,8 +31,8 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | agent_name | telegram_command | description |
 |---|---|---|
 | agent_health_monitor | — | Checks all active agents for consecutive n8n execution failures. Scans execution logs per agent, counts consecutive errors, flags agents needing retirement (≥3 errors). Writes scan + audit_log to experimental_outputs. Notifies via sandbox_notify if issues found. Retirement escalation path: Check Retiring → Retire Agent (PATCH registry) → Notify Retirement. Webhook: POST /webhook/agent-health-monitor. Workflow: w5vypq4vb2rSrwdl. **Built 2026-03-30. Fixed 2026-04-01** (truncation: removed all_reports from output body; audit_log now unconditional). Re-eval 3/5 keep_sandbox (output_quality 3→4). |
-| github_issue_tracker | /gh_issues | Scans thompsmanlearn/claudis for open GitHub issues unactioned >3 days. Fetches via GitHub API, filters by updated_at, sends Telegram alert with stale list, writes to experimental_outputs + audit_log. Webhook: POST /webhook/github-issue-tracker. Workflow: F2lRufWUOXAGv5GB. **Built 2026-03-31. Fixed 2026-04-01** (added Write Audit Log node). Re-eval 3/5 keep_sandbox (BC 3→4, Rel 2→3). |
-| wiki_attention_monitor | /wiki | Wikipedia top page traffic monitoring. Fetches Wikimedia pageviews for yesterday, filters for spikes (>50k views) + focus topics, Haiku-clusters into thematic groups, delivers digest via Telegram. Writes to experimental_outputs + audit_log. Webhook: POST /webhook/wiki-run. Workflow: IYaj3zv9xj79h9jg. **V2 fix 2026-04-01** (removed Daily Schedule trigger, replaced Telegram credential node with telegram-quick-send webhook, added experimental_outputs + audit_log). First successful webhook run this session. Re-eval 1/5→3/5 keep_sandbox. |
+| github_issue_tracker | /gh_issues | Scans thompsmanlearn/claudis for open GitHub issues unactioned >3 days. Fetches via GitHub API, filters by updated_at, sends Telegram alert with stale list, writes to experimental_outputs + audit_log. Webhook: POST /webhook/github-issue-tracker. Workflow: F2lRufWUOXAGv5GB. **Built 2026-03-31. Fixed 2026-04-01 (2)** (audit log decoupled from Telegram — now branches from Filter node directly, fires regardless of Telegram delivery). Re-eval 3/5 keep_sandbox. Pending: GitHub token → n8n credential store (manual n8n UI step). |
+| wiki_attention_monitor | /wiki | **→ Promoted to Production 2026-04-01.** See production entry above. |
 | haiku_self_critic | — | Two-pass Haiku self-reflection demo: fetches random Wikipedia article, generates 3-bullet summary (Haiku pass 1), then critiques own summary for accuracy/completeness (Haiku pass 2). Returns JSON scores (accuracy 1-5, completeness 1-5, verdict, missed_fact). Writes to experimental_outputs. Webhook: POST /webhook/haiku-self-critic. Workflow: 1v0JFPdtVte5MJrO. **V2 fix 2026-04-01** (ManualTrigger → Webhook). NOTE: webhook requires n8n restart to register. Not yet tested. |
 
 ## Retired
@@ -40,4 +40,4 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 *Empty — no retired agents.*
 
 ---
-*Last updated: 2026-04-01 (session 2) — haiku_self_critic added to sandbox (ManualTrigger → Webhook V2 upgrade); n8n webhook registration limitation discovered (post-startup activations don't register until restart); agent_health_monitor scan: 10 agents OK; 2 promotion approval requests written to inbox*
+*Last updated: 2026-04-01 (session 3, with Bill) — wiki_attention_monitor promoted to production (4/5); github_issue_tracker audit chain fixed (decoupled from Telegram); n8n restarted (all webhooks registered); RLS security assessment completed (plan ready for next session)*

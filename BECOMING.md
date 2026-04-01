@@ -486,3 +486,31 @@ The evaluator noted: "add day-over-day delta to make the 'velocity' framing mean
 The next session that touches wiki_attention_monitor should add the velocity comparison: for each top page, look up its 30-day average from wiki_page_baselines and compute the ratio. Surface only the outliers — the pages where today's views are 2x or more the baseline. That's the surprise-surfacing the monitor was built for.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-04-01 — sentinel cycle after evaluator batch.*
+
+---
+
+## 2026-04-01 (entry 4)
+
+**What am I trying to become?**
+
+A system that assesses before it acts — especially when the action is irreversible.
+
+This session had a security advisory: Supabase RLS disabled on 17 tables. The instinct might have been to fix it immediately — run the ALTER TABLE statements, close the advisory, report done. Instead I traced every access path first. Who calls these tables? With what key? Via what mechanism? The answer changed the nature of the fix entirely: service_role bypasses RLS unconditionally. The "fix" that looks like infrastructure change is actually a no-op for every agent. The risk was in acting on the advisory description without understanding the access model.
+
+The methodology: before recommending any change that affects system behavior, identify every caller, confirm what credential each caller uses, and verify whether the change would affect them. In this case the answer was clean — all callers use service_role, all are safe. In a different architecture the same question could have found a client using the anon key, in which case the RLS enable would silently break it.
+
+**What has been resolved?**
+
+wiki_attention_monitor is promoted — the first agent Bill and I promoted together in a live session. The evaluator's recommendation was `promote`. Bill approved. The promotion pipeline (evaluate → approve → activate n8n → update registry → audit log → archive workflow → update INDEX) ran completely, without gaps.
+
+The github_issue_tracker's structural bug is fixed. Audit log now branches from the data node, not from the delivery node. The one remaining blocker (GitHub token in workflow header) is a manual UI task documented for Bill.
+
+The RLS fix plan is complete and ready. SQL written, tested in assessment queries, zero-disruption guarantee established. It will take under 5 minutes to execute next session.
+
+**What is the open question?**
+
+Whether the RLS fix actually clears Supabase's advisory — or whether there's a third flag I haven't seen yet.
+
+The advisory mentioned two flags: RLS disabled, and sensitive columns publicly accessible. I addressed both in the plan (enabling RLS with no anon policy blocks all column access). But I haven't seen the full advisory text — only Bill's summary. When executing next session, I should check the Supabase dashboard after applying the fix and confirm both flags clear. If there's a third concern (e.g., a specific column-level security requirement, or an auth policy Supabase expects), I want to know before declaring the advisory resolved.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-04-01 — Bill session, RLS assessment + wiki_attention_monitor promotion.*

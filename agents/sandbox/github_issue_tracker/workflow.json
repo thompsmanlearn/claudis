@@ -1,14 +1,588 @@
 {
+  "id": "F2lRufWUOXAGv5GB",
   "name": "GitHub Issue Age Tracker",
-  "workflow_id": "F2lRufWUOXAGv5GB",
-  "last_updated": "2026-04-01",
-  "changes": "Added Write Audit Log node (audit_log on every experimental_outputs write). Now logs stale_count, total_open, scan_date.",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
-    "Webhook (POST /webhook/github-issue-tracker)",
-    "Fetch GitHub Issues",
-    "Filter Stale Issues",
-    "Send Telegram (telegram-quick-send webhook)",
-    "Write to experimental_outputs",
-    "Write Audit Log (NEW 2026-04-01)"
-  ]
+    {
+      "id": "trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "webhookId": "github-issue-tracker",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "path": "github-issue-tracker",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
+      }
+    },
+    {
+      "id": "fetch_issues",
+      "name": "Fetch GitHub Issues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/repos/thompsmanlearn/claudis/issues",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "state",
+              "value": "open"
+            },
+            {
+              "name": "per_page",
+              "value": "50"
+            },
+            {
+              "name": "sort",
+              "value": "updated"
+            },
+            {
+              "name": "direction",
+              "value": "asc"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "AADP-Claudis/1.0"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "filter_stale",
+      "name": "Filter Stale Issues",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const issues = $input.all();\nconst now = new Date();\nconst THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;\n\nlet allIssues = [];\nfor (const item of issues) {\n  const data = item.json;\n  if (Array.isArray(data)) {\n    allIssues = allIssues.concat(data);\n  } else if (data && data.number) {\n    allIssues.push(data);\n  }\n}\n\nconst openIssues = allIssues.filter(i => !i.pull_request);\nconst stale = openIssues.filter(issue => {\n  const updated = new Date(issue.updated_at);\n  return (now - updated) > THREE_DAYS_MS;\n});\n\nconst total_open = openIssues.length;\n\nif (stale.length === 0) {\n  return [{ json: { stale_count: 0, total_open, stale_issues: [], message: `\u2705 GitHub issues: ${total_open} open, all active (updated <3d).` } }];\n}\n\nconst formatted = stale.map(issue => {\n  const updated = new Date(issue.updated_at);\n  const days_stale = Math.floor((now - updated) / (24 * 60 * 60 * 1000));\n  return {\n    number: issue.number,\n    title: issue.title,\n    url: issue.html_url,\n    days_stale,\n    labels: (issue.labels || []).map(l => l.name).join(', ')\n  };\n});\n\nconst lines = [`\u26a0\ufe0f ${stale.length} stale GitHub issue${stale.length > 1 ? 's' : ''} (>3d no activity):`];\nfor (const i of formatted) {\n  lines.push(`#${i.number} (${i.days_stale}d) \u2014 ${i.title.slice(0,55)}`);\n  lines.push(`  ${i.url}`);\n}\nlines.push(`\\nTotal open: ${total_open}`);\n\nreturn [{ json: { stale_count: stale.length, total_open, stale_issues: formatted, message: lines.join('\\n') } }];"
+      }
+    },
+    {
+      "id": "send_telegram",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/telegram-quick-send",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({chat_id: 8513796837, message: $json.message}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "write_output",
+      "name": "Write to experimental_outputs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ agent_name: 'github_issue_tracker', experiment_id: 'scan_' + new Date().toISOString().slice(0,10), output_type: 'issue_scan', content: $('Filter Stale Issues').item.json, confidence: 1.0, promoted: false, reviewed_by_bill: false }) }}"
+      }
+    },
+    {
+      "id": "write_audit_log",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "{{CREDENTIAL_REDACTED}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ actor: 'github_issue_tracker', action: 'write_experimental_output', target: 'experimental_outputs', details: { stale_count: $('Filter Stale Issues').item.json.stale_count, total_open: $('Filter Stale Issues').item.json.total_open, scan_date: new Date().toISOString().slice(0, 10) } }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch GitHub Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch GitHub Issues": {
+      "main": [
+        [
+          {
+            "node": "Filter Stale Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Stale Issues": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Write to experimental_outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram": {
+      "main": [
+        []
+      ]
+    },
+    "Write to experimental_outputs": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": null,
+  "versionId": "424d0889-3b7b-4cbd-90a0-ee6ccd746926",
+  "activeVersionId": "424d0889-3b7b-4cbd-90a0-ee6ccd746926",
+  "versionCounter": 26,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-03-31T01:33:10.263Z",
+      "createdAt": "2026-03-31T01:33:10.263Z",
+      "role": "workflow:owner",
+      "workflowId": "F2lRufWUOXAGv5GB",
+      "projectId": "1332MGZuLwNany4P",
+      "project": {
+        "updatedAt": "2026-03-07T17:29:18.510Z",
+        "createdAt": "2026-02-08T17:14:20.266Z",
+        "id": "1332MGZuLwNany4P",
+        "name": "William Thompson <thompsmanlearn@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+        "projectRelations": [
+          {
+            "updatedAt": "2026-02-08T17:14:20.266Z",
+            "createdAt": "2026-02-08T17:14:20.266Z",
+            "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+            "projectId": "1332MGZuLwNany4P",
+            "user": {
+              "updatedAt": "2026-04-01T20:13:49.000Z",
+              "createdAt": "2026-02-08T17:14:19.719Z",
+              "id": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+              "email": "thompsmanlearn@gmail.com",
+              "firstName": "William",
+              "lastName": "Thompson",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2026-02-08T17:27:44.911Z",
+                "personalization_survey_n8n_version": "2.6.4",
+                "companySize": "<20",
+                "companyType": "education",
+                "role": "other",
+                "roleOther": "High School Teacher",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "RpajIIDI7GF_mkpukB28X",
+                "userActivatedAt": 1770587372742,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1771221926271
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-04-01",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-04-01T20:17:35.394Z",
+    "createdAt": "2026-04-01T20:17:35.394Z",
+    "versionId": "424d0889-3b7b-4cbd-90a0-ee6ccd746926",
+    "workflowId": "F2lRufWUOXAGv5GB",
+    "nodes": [
+      {
+        "id": "trigger",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "webhookId": "github-issue-tracker",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "path": "github-issue-tracker",
+          "httpMethod": "POST",
+          "responseMode": "onReceived",
+          "responseData": "allEntries"
+        }
+      },
+      {
+        "id": "fetch_issues",
+        "name": "Fetch GitHub Issues",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          220,
+          0
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "https://api.github.com/repos/thompsmanlearn/claudis/issues",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "state",
+                "value": "open"
+              },
+              {
+                "name": "per_page",
+                "value": "50"
+              },
+              {
+                "name": "sort",
+                "value": "updated"
+              },
+              {
+                "name": "direction",
+                "value": "asc"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{GITHUB_PAT}}"
+              },
+              {
+                "name": "Accept",
+                "value": "application/vnd.github.v3+json"
+              },
+              {
+                "name": "User-Agent",
+                "value": "AADP-Claudis/1.0"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "filter_stale",
+        "name": "Filter Stale Issues",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          440,
+          0
+        ],
+        "parameters": {
+          "jsCode": "const issues = $input.all();\nconst now = new Date();\nconst THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;\n\nlet allIssues = [];\nfor (const item of issues) {\n  const data = item.json;\n  if (Array.isArray(data)) {\n    allIssues = allIssues.concat(data);\n  } else if (data && data.number) {\n    allIssues.push(data);\n  }\n}\n\nconst openIssues = allIssues.filter(i => !i.pull_request);\nconst stale = openIssues.filter(issue => {\n  const updated = new Date(issue.updated_at);\n  return (now - updated) > THREE_DAYS_MS;\n});\n\nconst total_open = openIssues.length;\n\nif (stale.length === 0) {\n  return [{ json: { stale_count: 0, total_open, stale_issues: [], message: `\u2705 GitHub issues: ${total_open} open, all active (updated <3d).` } }];\n}\n\nconst formatted = stale.map(issue => {\n  const updated = new Date(issue.updated_at);\n  const days_stale = Math.floor((now - updated) / (24 * 60 * 60 * 1000));\n  return {\n    number: issue.number,\n    title: issue.title,\n    url: issue.html_url,\n    days_stale,\n    labels: (issue.labels || []).map(l => l.name).join(', ')\n  };\n});\n\nconst lines = [`\u26a0\ufe0f ${stale.length} stale GitHub issue${stale.length > 1 ? 's' : ''} (>3d no activity):`];\nfor (const i of formatted) {\n  lines.push(`#${i.number} (${i.days_stale}d) \u2014 ${i.title.slice(0,55)}`);\n  lines.push(`  ${i.url}`);\n}\nlines.push(`\\nTotal open: ${total_open}`);\n\nreturn [{ json: { stale_count: stale.length, total_open, stale_issues: formatted, message: lines.join('\\n') } }];"
+        }
+      },
+      {
+        "id": "send_telegram",
+        "name": "Send Telegram",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          660,
+          0
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://localhost:5678/webhook/telegram-quick-send",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({chat_id: 8513796837, message: $json.message}) }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "write_output",
+        "name": "Write to experimental_outputs",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          880,
+          0
+        ],
+        "continueOnFail": true,
+        "parameters": {
+          "method": "POST",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{JWT_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{JWT_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ agent_name: 'github_issue_tracker', experiment_id: 'scan_' + new Date().toISOString().slice(0,10), output_type: 'issue_scan', content: $('Filter Stale Issues').item.json, confidence: 1.0, promoted: false, reviewed_by_bill: false }) }}"
+        }
+      },
+      {
+        "id": "write_audit_log",
+        "name": "Write Audit Log",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1100,
+          0
+        ],
+        "continueOnFail": true,
+        "parameters": {
+          "method": "POST",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/audit_log",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{JWT_REDACTED}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{JWT_REDACTED}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ actor: 'github_issue_tracker', action: 'write_experimental_output', target: 'experimental_outputs', details: { stale_count: $('Filter Stale Issues').item.json.stale_count, total_open: $('Filter Stale Issues').item.json.total_open, scan_date: new Date().toISOString().slice(0, 10) } }) }}"
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Fetch GitHub Issues",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch GitHub Issues": {
+        "main": [
+          [
+            {
+              "node": "Filter Stale Issues",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter Stale Issues": {
+        "main": [
+          [
+            {
+              "node": "Send Telegram",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Write to experimental_outputs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send Telegram": {
+        "main": [
+          []
+        ]
+      },
+      "Write to experimental_outputs": {
+        "main": [
+          [
+            {
+              "node": "Write Audit Log",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "William Thompson",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-01T20:17:35.499Z",
+        "id": 379,
+        "workflowId": "F2lRufWUOXAGv5GB",
+        "versionId": "424d0889-3b7b-4cbd-90a0-ee6ccd746926",
+        "event": "activated",
+        "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792"
+      }
+    ]
+  }
 }
