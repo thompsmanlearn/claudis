@@ -11,7 +11,7 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | daily_briefing_agent | — | Daily 6AM Pacific digest: system health, agent status, errors, work queue |
 | telegram_command_agent | — | Watches Telegram; parses commands; routes to work_queue or webhooks |
 | weather_agent | /weather | Current weather + 3-day forecast, CA (Open-Meteo) |
-| wiki_attention_monitor | /wiki | Wikipedia page traffic velocity; detects emerging topics; daily 7AM Pacific |
+| wiki_attention_monitor | /wiki | **→ moved to Sandbox 2026-04-01** (V2 compliance fix; first real webhook run) |
 | github_weekly_search | — | Searches GitHub for MCP/agent repos weekly (Sunday 6AM UTC); queues findings as gh_weekly_search for Sentinel review |
 | serendipity_engine_prod | — | Daily 8AM Pacific: Wikipedia On This Day → Haiku synthesis → surprising historical echo to 2026 → Telegram. Degrades gracefully when Haiku API unavailable. Workflow: ROhfvqO3yJW6j955. **Promoted 2026-03-25.** |
 
@@ -30,12 +30,13 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 
 | agent_name | telegram_command | description |
 |---|---|---|
-| agent_health_monitor | — | Checks all active agents for consecutive n8n execution failures. Scans execution logs per agent, counts consecutive errors, flags agents needing retirement (≥3 errors). Writes scan + audit_log to experimental_outputs. Notifies via sandbox_notify if issues found. Retirement escalation path: Check Retiring → Retire Agent (PATCH registry) → Notify Retirement. Webhook: POST /webhook/agent-health-monitor. Workflow: w5vypq4vb2rSrwdl. **Built 2026-03-30. Fixed 2026-04-01** (3 bugs: Sandbox Notify never fired due to empty $json passthrough; zero audit_log writes; retirement path missing). Evaluator score 2/5 due to evidence-source gaps — evaluator cannot query audit_log. |
-| github_issue_tracker | /gh_issues | Scans thompsmanlearn/claudis for open GitHub issues unactioned >3 days. Fetches via GitHub API, filters by updated_at, sends Telegram alert with stale list, writes to experimental_outputs. Webhook: POST /webhook/github-issue-tracker. Workflow: F2lRufWUOXAGv5GB. **Built 2026-03-31.** First scan: 1 stale issue (issue #1, 6d). |
+| agent_health_monitor | — | Checks all active agents for consecutive n8n execution failures. Scans execution logs per agent, counts consecutive errors, flags agents needing retirement (≥3 errors). Writes scan + audit_log to experimental_outputs. Notifies via sandbox_notify if issues found. Retirement escalation path: Check Retiring → Retire Agent (PATCH registry) → Notify Retirement. Webhook: POST /webhook/agent-health-monitor. Workflow: w5vypq4vb2rSrwdl. **Built 2026-03-30. Fixed 2026-04-01** (truncation: removed all_reports from output body; audit_log now unconditional). Re-eval 3/5 keep_sandbox (output_quality 3→4). |
+| github_issue_tracker | /gh_issues | Scans thompsmanlearn/claudis for open GitHub issues unactioned >3 days. Fetches via GitHub API, filters by updated_at, sends Telegram alert with stale list, writes to experimental_outputs + audit_log. Webhook: POST /webhook/github-issue-tracker. Workflow: F2lRufWUOXAGv5GB. **Built 2026-03-31. Fixed 2026-04-01** (added Write Audit Log node). Re-eval 3/5 keep_sandbox (BC 3→4, Rel 2→3). |
+| wiki_attention_monitor | /wiki | Wikipedia top page traffic monitoring. Fetches Wikimedia pageviews for yesterday, filters for spikes (>50k views) + focus topics, Haiku-clusters into thematic groups, delivers digest via Telegram. Writes to experimental_outputs + audit_log. Webhook: POST /webhook/wiki-run. Workflow: IYaj3zv9xj79h9jg. **V2 fix 2026-04-01** (removed Daily Schedule trigger, replaced Telegram credential node with telegram-quick-send webhook, added experimental_outputs + audit_log). First successful webhook run this session. Re-eval 1/5→3/5 keep_sandbox. |
 
 ## Retired
 
 *Empty — no retired agents.*
 
 ---
-*Last updated: 2026-04-01 — agent_health_monitor fixed (3 bugs: empty $json passthrough, missing audit_log, missing retirement path); evaluator maxLen 400→1200*
+*Last updated: 2026-04-01 — evaluator batch run (4 agents); github_issue_tracker + agent_health_monitor + wiki_attention_monitor fixed and re-evaluated (all 3/5 keep_sandbox); wiki_attention_monitor moved from paused to sandbox after first successful webhook run*

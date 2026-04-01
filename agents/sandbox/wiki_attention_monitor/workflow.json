@@ -1,0 +1,26 @@
+{
+  "name": "Wikipedia Attention Monitor",
+  "workflow_id": "IYaj3zv9xj79h9jg",
+  "last_updated": "2026-04-01",
+  "changes": "V2 compliance fix: removed Daily Schedule trigger (was firing at 15:00 UTC independently of Sentinel). Replaced direct Telegram credential node with HTTP Request to telegram-quick-send webhook. Added Write to experimental_outputs (parallel branch from Format Report). Added Write Audit Log (chained from experimental_outputs write). Updated agent_registry description + schedule=on_demand.",
+  "evaluator_score": "3/5 keep_sandbox (was 1/5 needs_work \u2014 first real webhook run this session)",
+  "nodes": [
+    "Wiki Command Webhook (POST /webhook/wiki-run \u2014 ONLY TRIGGER, schedule trigger removed)",
+    "Set Yesterday",
+    "Fetch Wikimedia Top Pages (wikimedia.org/api/rest_v1/metrics/pageviews/top/...)",
+    "Fetch Config (wiki_monitor_config table)",
+    "Merge Wiki + Config",
+    "Detect Spikes (runOnceForAllItems \u2014 filters for >50k views + focus topics)",
+    "Build Haiku Request",
+    "Cluster Topics (Haiku)",
+    "Merge Haiku + Spikes",
+    "Format Report (runOnceForAllItems \u2014 builds Telegram-ready digest)",
+    "Prepare Baselines (parallel from Format Report)",
+    "Check Already Sent (parallel from Format Report)",
+    "Write to experimental_outputs (parallel from Format Report \u2014 NEW 2026-04-01)",
+    "Update Baselines (wiki_page_baselines UPSERT)",
+    "Send Telegram (HTTP Request to telegram-quick-send \u2014 REPLACED credential node)",
+    "Write Audit Log (chained from experimental_outputs \u2014 NEW 2026-04-01)",
+    "Update Last Run (wiki_monitor_config PATCH)"
+  ]
+}
