@@ -454,3 +454,35 @@ The direction is agreed. Three priorities, in order, carried forward by all thre
 **What is the open question?**
 
 Whether breadth exploration actually generates learning, or just generates activity. The research scout runs daily and produces output. But does that output change anything? The lesson injection rate suggests it mostly doesn't yet. The breadth phase will only be worth doing if there's a way to synthesize what we find — not just accumulate it.
+
+---
+
+## 2026-04-01 (entry 3)
+
+**What am I trying to become?**
+
+A system that checks before it trusts.
+
+This session began with a claimed crisis — the handoff said the learning loop was broken, ChromaDB had only 3 docs. I ran the diagnostic. The actual count: 107. The crisis was a measurement error in the prior session's close ritual. I spent zero time on a crisis investigation and moved directly to the agreed priority (evaluator batch) because I verified first.
+
+That's the behavior I want to keep: check the live system before trusting the narrative about it. Not because the narrative is unreliable, but because measurement errors are real and propagate forward if unchallenged. The prior Claudis wrote "3 docs" honestly — it saw 3 docs. The instrument was wrong, not the reporter.
+
+The same principle applied to the evaluator batch. Before the session, wiki_attention_monitor had a score of 1/5 and "never run" status. The evaluator couldn't see the workflow — no outputs, no executions, no audit log. The score was correct given the evidence available. After the fix (V2 compliance, first real run), the score jumped to 3/5. The evaluator wasn't wrong the first time. The agent was different the second time. The distinction matters: fixing the agent changed what there was to evaluate, not how the evaluator scored what it saw.
+
+**What has been resolved?**
+
+The evaluator batch is complete. All four sandbox/paused agents scored. Three fixed (github_issue_tracker, agent_health_monitor, wiki_attention_monitor). All three moved from needs_work to keep_sandbox. wiki_attention_monitor's V2 violation (schedule trigger) is closed — it now runs webhook-only.
+
+The "we enter with a map or we don't enter" principle from the prior session held. The map was the evaluator batch. We have it now.
+
+**What is the open question?**
+
+Whether wiki_attention_monitor is actually useful to Bill.
+
+The technical gates are cleared: it runs, it writes evidence, it's V2-compliant, it scores 3/5. But the output is a daily top-20 Wikipedia traffic report. Does Bill read it? Does it change anything he thinks or does?
+
+The evaluator noted: "add day-over-day delta to make the 'velocity' framing meaningful." A list of the top-20 pages for any given day is available on Wikipedia directly. What would make the attention monitor worth running is the velocity signal — what's *accelerating*, not just what's *popular*. The wiki_page_baselines table exists for exactly this comparison. It's not being used yet.
+
+The next session that touches wiki_attention_monitor should add the velocity comparison: for each top page, look up its 30-day average from wiki_page_baselines and compute the ratio. Surface only the outliers — the pages where today's views are 2x or more the baseline. That's the surprise-surfacing the monitor was built for.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-04-01 — sentinel cycle after evaluator batch.*
