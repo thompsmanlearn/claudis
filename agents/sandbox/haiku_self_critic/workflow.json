@@ -1,0 +1,169 @@
+{
+  "id": "1v0JFPdtVte5MJrO",
+  "name": "SANDBOX — Haiku Self-Critic (Wikipedia + Self-Review)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "node-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "haiku-self-critic",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "note": "V2-compliant webhook trigger. Upgraded from ManualTrigger 2026-04-01. Webhook not active until n8n restart."
+    },
+    {
+      "id": "node-fetch-wiki",
+      "name": "Fetch Random Wikipedia Article",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://en.wikipedia.org/api/rest_v1/page/random/summary",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "User-Agent", "value": "AADP-SandboxAgent/1.0 (raspberrypi)"},
+            {"name": "Accept", "value": "application/json"}
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-build-summary",
+      "name": "Build Summary Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const art=$json;const title=art.title||'Unknown';const extract=(art.extract||'').slice(0,800);const body={model:'claude-haiku-4-5-20251001',max_tokens:300,messages:[{role:'user',content:'Summarize this Wikipedia article in exactly 3 bullet points. Be concise and factually accurate. Use plain bullets starting with -\\n\\nTitle: '+title+'\\n\\nContent: '+extract}]};return [{json:{sum_body:JSON.stringify(body),article_title:title,article_extract:extract,article_url:(art.content_urls&&art.content_urls.desktop&&art.content_urls.desktop.page)||''}}];"
+      }
+    },
+    {
+      "id": "node-call-summary",
+      "name": "Call Haiku Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "x-api-key", "value": "{{ANTHROPIC_API_KEY}}"},
+            {"name": "anthropic-version", "value": "2023-06-01"},
+            {"name": "content-type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.sum_body }}"
+      }
+    },
+    {
+      "id": "node-merge-sum",
+      "name": "Merge Summary",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1120, 300],
+      "parameters": {"mode": "append"}
+    },
+    {
+      "id": "node-build-critique",
+      "name": "Build Critique Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300],
+      "parameters": {
+        "jsCode": "const items=$input.all();let orig=null;let sumResp=null;for(const item of items){if(item.json&&item.json.article_extract!==undefined)orig=item.json;if(item.json&&item.json.content&&Array.isArray(item.json.content))sumResp=item.json;}const sumText=(sumResp&&sumResp.content&&sumResp.content[0])?sumResp.content[0].text:'(no summary)';const extract=(orig&&orig.article_extract)||'';const title=(orig&&orig.article_title)||'';const critPrompt='You wrote this summary of a Wikipedia article. Critically evaluate it.\\n\\nOriginal (excerpt):\\n'+extract+'\\n\\nYour summary:\\n'+sumText+'\\n\\nReturn ONLY valid JSON (no other text): {\"accuracy\":<1-5>,\"completeness\":<1-5>,\"missed_fact\":\"<key fact missed or null>\",\"verdict\":\"<good|needs_revision>\",\"improvement\":\"<one suggestion or null>\"}';const crit={model:'claude-haiku-4-5-20251001',max_tokens:250,messages:[{role:'user',content:critPrompt}]};return [{json:{crit_body:JSON.stringify(crit),article_title:title,article_extract:extract,article_url:(orig&&orig.article_url)||'',summary_text:sumText}}];",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "node-call-critique",
+      "name": "Call Haiku Critique",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "x-api-key", "value": "{{ANTHROPIC_API_KEY}}"},
+            {"name": "anthropic-version", "value": "2023-06-01"},
+            {"name": "content-type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.crit_body }}"
+      }
+    },
+    {
+      "id": "node-merge-crit",
+      "name": "Merge Critique",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1780, 300],
+      "parameters": {"mode": "append"}
+    },
+    {
+      "id": "node-format",
+      "name": "Format Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300],
+      "parameters": {
+        "jsCode": "const items=$input.all();let critData=null;let critResp=null;for(const item of items){if(item.json&&item.json.summary_text!==undefined)critData=item.json;if(item.json&&item.json.content&&Array.isArray(item.json.content))critResp=item.json;}const raw=(critResp&&critResp.content&&critResp.content[0])?critResp.content[0].text:'{}';let parsed={accuracy:3,completeness:3,missed_fact:null,verdict:'unknown',improvement:null};try{const s=raw.indexOf('{');const e=raw.lastIndexOf('}');if(s>=0&&e>s)parsed=JSON.parse(raw.slice(s,e+1));}catch(err){}const today=new Date().toISOString().slice(0,10);const conf=((parsed.accuracy||3)+(parsed.completeness||3))/10.0;const out={agent_name:'haiku_self_critic',experiment_id:'haiku_self_critic_'+today,output_type:'self_reflection_evaluation',content:{article_title:(critData&&critData.article_title)||'',article_url:(critData&&critData.article_url)||'',summary:(critData&&critData.summary_text)||'',self_critique:parsed,pattern:'two_pass_haiku_self_reflection'},confidence:conf,promoted:false,reviewed_by_bill:false};return [{json:{body_json:JSON.stringify(out)}}];",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "node-write-supa",
+      "name": "Write to Experimental Outputs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2220, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer {{SUPABASE_SERVICE_KEY}}"},
+            {"name": "apikey", "value": "{{SUPABASE_SERVICE_KEY}}"},
+            {"name": "Prefer", "value": "return=representation"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body_json }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {"main": [[{"node": "Fetch Random Wikipedia Article", "type": "main", "index": 0}]]},
+    "Fetch Random Wikipedia Article": {"main": [[{"node": "Build Summary Request", "type": "main", "index": 0}]]},
+    "Build Summary Request": {"main": [[{"node": "Call Haiku Summary", "type": "main", "index": 0}, {"node": "Merge Summary", "type": "main", "index": 0}]]},
+    "Call Haiku Summary": {"main": [[{"node": "Merge Summary", "type": "main", "index": 1}]]},
+    "Merge Summary": {"main": [[{"node": "Build Critique Request", "type": "main", "index": 0}]]},
+    "Build Critique Request": {"main": [[{"node": "Call Haiku Critique", "type": "main", "index": 0}, {"node": "Merge Critique", "type": "main", "index": 0}]]},
+    "Call Haiku Critique": {"main": [[{"node": "Merge Critique", "type": "main", "index": 1}]]},
+    "Merge Critique": {"main": [[{"node": "Format Result", "type": "main", "index": 0}]]},
+    "Format Result": {"main": [[{"node": "Write to Experimental Outputs", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}
