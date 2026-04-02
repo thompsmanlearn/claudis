@@ -1,0 +1,383 @@
+{
+  "name": "SANDBOX - Morning Briefing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "morning-briefing",
+        "responseMode": "onReceived",
+        "responseData": "noData",
+        "options": {}
+      },
+      "id": "trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "webhookId": "morning-briefing",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/work_queue?status=in.(pending,claimed)&select=id,task_type",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch_wq",
+      "name": "Fetch Work Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst all = [];\nfor (const item of items) {\n  if (Array.isArray(item.json)) all.push(...item.json);\n  else if (item.json && item.json.id) all.push(item.json);\n}\nif (all.length === 0) return [{ json: { wq_count: 0, wq_types: 'none', wq_raw: [] } }];\nconst types = {};\nfor (const t of all) { types[t.task_type] = (types[t.task_type] || 0) + 1; }\nconst summary = Object.entries(types).map(([k,v]) => v > 1 ? v+'x'+k : k).join(', ');\nreturn [{ json: { wq_count: all.length, wq_types: summary, wq_raw: all } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "parse_wq",
+      "name": "Parse Work Queue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/agent_registry?select=status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch_registry",
+      "name": "Fetch Agent Registry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst all = [];\nfor (const item of items) {\n  if (Array.isArray(item.json)) all.push(...item.json);\n  else if (item.json && item.json.status) all.push(item.json);\n}\nconst counts = { active: 0, sandbox: 0, paused: 0, retired: 0 };\nfor (const a of all) {\n  if (a.status in counts) counts[a.status]++;\n  else counts.retired++;\n}\nreturn [{ json: { agent_counts: counts } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "parse_registry",
+      "name": "Parse Agent Registry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:9100/stats",
+        "options": {}
+      },
+      "id": "fetch_sys",
+      "name": "Fetch System Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        0
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs?created_at=gte={{ new Date(Date.now()-86400000).toISOString() }}&select=id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch_outputs_24h",
+      "name": "Fetch 24h Outputs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1344,
+        0
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'America/Los_Angeles' });\nconst wq = $('Parse Work Queue').item.json;\nconst agents = $('Parse Agent Registry').item.json.agent_counts;\nlet sysStr = 'unavailable';\ntry {\n  const sys = $('Fetch System Status').item.json;\n  if (sys && sys.cpu_percent !== undefined) {\n    sysStr = 'CPU ' + sys.cpu_percent + '%, RAM ' + sys.memory_percent + '%, Disk ' + sys.disk_percent + '%, Temp ' + sys.temperature_c + 'C';\n  }\n} catch(e) {}\nlet outputCount = 0;\ntry {\n  const outItems = $('Fetch 24h Outputs').all();\n  for (const item of outItems) {\n    if (Array.isArray(item.json)) outputCount += item.json.length;\n    else if (item.json && item.json.id) outputCount++;\n  }\n} catch(e) {}\nconst wqLine = wq.wq_count === 0 ? 'Work queue: empty' : 'Work queue: ' + wq.wq_count + ' pending (' + wq.wq_types + ')';\nconst agentLine = 'Agents: ' + agents.active + ' active, ' + agents.sandbox + ' sandbox, ' + agents.paused + ' paused';\nconst sysLine = 'System: ' + sysStr;\nconst outputLine = 'Last 24h: ' + outputCount + ' new experimental outputs';\nconst healthStatus = (agents.active >= 6) ? 'AADP is healthy.' : 'Check agent status.';\nconst message = 'Good morning Bill - ' + today + '\\n\\n' + wqLine + '\\n' + agentLine + '\\n' + sysLine + '\\n' + outputLine + '\\n\\n' + healthStatus;\nreturn [{ json: { message, today, wq_count: wq.wq_count, agent_counts: agents, output_count: outputCount } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "build_message",
+      "name": "Build Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/telegram-quick-send",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({chat_id: 8513796837, message: $json.message}) }}",
+        "options": {}
+      },
+      "id": "send_telegram",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1792,
+        -120
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ agent_name: 'morning_briefing', experiment_id: 'brief_' + new Date().toISOString().slice(0,10), output_type: 'daily_briefing', content: $('Build Message').item.json, confidence: 1.0, promoted: false }) }}",
+        "options": {}
+      },
+      "id": "write_output",
+      "name": "Write Output",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1792,
+        120
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ actor: 'morning_briefing', action: 'telegram_send', target: 'telegram', details: { date: $('Build Message').item.json.today, wq_count: $('Build Message').item.json.wq_count } }) }}",
+        "options": {}
+      },
+      "id": "write_audit",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2016,
+        0
+      ],
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch Work Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Work Queue": {
+      "main": [
+        [
+          {
+            "node": "Parse Work Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Work Queue": {
+      "main": [
+        [
+          {
+            "node": "Fetch Agent Registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Agent Registry": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent Registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent Registry": {
+      "main": [
+        [
+          {
+            "node": "Fetch System Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch System Status": {
+      "main": [
+        [
+          {
+            "node": "Fetch 24h Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch 24h Outputs": {
+      "main": [
+        [
+          {
+            "node": "Build Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Message": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Write Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Output": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
