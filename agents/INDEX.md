@@ -14,6 +14,8 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | wiki_attention_monitor | /wiki | Wikipedia top page traffic velocity. Fetches Wikimedia pageviews (yesterday), filters spikes >50k views + focus topics, Haiku-clusters into thematic groups, Telegram digest. Writes to experimental_outputs + audit_log. Webhook: POST /webhook/wiki-run. Workflow: IYaj3zv9xj79h9jg. **Promoted 2026-04-01** (4/5 evaluator score, Bill approved). |
 | github_weekly_search | — | Searches GitHub for MCP/agent repos weekly (Sunday 6AM UTC); queues findings as gh_weekly_search for Sentinel review |
 | serendipity_engine_prod | — | Daily 8AM Pacific: Wikipedia On This Day → Haiku synthesis → surprising historical echo to 2026 → Telegram. Degrades gracefully when Haiku API unavailable. Workflow: ROhfvqO3yJW6j955. **Promoted 2026-03-25.** |
+| github_issue_tracker | /gh_issues | Scans thompsmanlearn/claudis for open GitHub issues unactioned >3 days. Fetches via GitHub API (credential store), idempotency guard (skips if already ran today), sends Telegram alert, writes to experimental_outputs + audit_log. Webhook: POST /webhook/github-issue-tracker. Workflow: F2lRufWUOXAGv5GB. **Promoted 2026-04-04** (Bill approved; evaluator concerns verified-resolved: idempotency guard confirmed, empty-array N/A, config externalized). |
+| morning_briefing | — | Daily Telegram briefing: work queue status, agent counts (active/sandbox/paused), system health (CPU/RAM/Disk/Temp), 24h output count. No LLM calls. Webhook: POST /webhook/morning-briefing. Workflow: xt8Prqvi7iJlhrVG. **Promoted 2026-04-04** (Bill approved). Note: monitor for overlap with daily_briefing_agent. |
 
 ## Platform Infrastructure
 
@@ -31,14 +33,13 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | agent_name | telegram_command | description |
 |---|---|---|
 | agent_health_monitor | — | Checks all active agents for consecutive n8n execution failures. Scans execution logs per agent, counts consecutive errors, flags agents needing retirement (≥3 errors). Writes scan + audit_log to experimental_outputs. Notifies via sandbox_notify if issues found. Retirement escalation path: Check Retiring → Retire Agent (PATCH registry) → Notify Retirement. Webhook: POST /webhook/agent-health-monitor. Workflow: w5vypq4vb2rSrwdl. **Built 2026-03-30. Fixed 2026-04-01** (truncation: removed all_reports from output body; audit_log now unconditional). Re-eval 3/5 keep_sandbox (output_quality 3→4). |
-| github_issue_tracker | /gh_issues | Scans thompsmanlearn/claudis for open GitHub issues unactioned >3 days. Fetches via GitHub API, filters by updated_at, sends Telegram alert with stale list, writes to experimental_outputs + audit_log. Webhook: POST /webhook/github-issue-tracker. Workflow: F2lRufWUOXAGv5GB. **Built 2026-03-31. Enhanced 2026-04-02** (idempotency guard: Check Today's Scan → IF Already Ran Today? — skips full run if scan_YYYY-MM-DD already in experimental_outputs; idempotency_skip audit entry written on skip). Re-eval 3/5 keep_sandbox (evaluator sees historical audit ratio; pillar scores behavior=4 output=4 integration=4 reliability=3). **Promotion recommendation in Bill's inbox 2026-04-02** — Claudis assessment: promotion-ready (evaluator gaps are observation-limited, not real failures). |
 | wiki_attention_monitor | /wiki | **→ Promoted to Production 2026-04-01.** See production entry above. |
-| haiku_self_critic | — | Two-pass Haiku self-reflection demo: fetches random Wikipedia article, generates 3-bullet summary (Haiku pass 1), then critiques own summary for accuracy/completeness (Haiku pass 2). Returns JSON scores (accuracy 1-5, completeness 1-5, verdict, missed_fact). Writes to experimental_outputs. Webhook: POST /webhook/haiku-self-critic. Workflow: 1v0JFPdtVte5MJrO. **V2 fix 2026-04-01** (ManualTrigger → Webhook). NOTE: webhook requires n8n restart to register. Not yet tested. Bill inbox item pending (9d untested, promote/retire/extend?). |
-| morning_briefing | — | Daily Telegram briefing: work queue pending count + types, agent status counts (active/sandbox/paused), system health (CPU/RAM/Disk/Temp), 24h experimental output count. Webhook: POST /webhook/morning-briefing. Workflow: xt8Prqvi7iJlhrVG. **Built 2026-04-02. Fixed 2026-04-05** (1) empty-array chain halt resolved: Fetch Work Queue now calls Supabase RPC get_pending_work_summary() which always returns 1 JSON object; (2) Build Message .item.json → .first().json to fix cross-Code-node paired-item tracking. Execution 2033 confirmed success. **Promotion rec in Bill's inbox** — no LLM calls, fast, useful. Blocked only by Telegram send (third-party write requires approval). |
 
 ## Retired
 
-*Empty — no retired agents.*
+| agent_name | description |
+|---|---|
+| haiku_self_critic | Two-pass Haiku self-reflection demo. Retired 2026-04-04 — 11 days in sandbox, never tested end-to-end. Mutual agreement: self-reflection belongs integrated into production pipeline, not as standalone demo. Workflow: 1v0JFPdtVte5MJrO (deactivated). |
 
 ---
-*Last updated: 2026-04-05 (sentinel session) — morning_briefing fixed (RPC empty-array + .first() paired-item); wiki_attention_monitor probation cleared (5 runs); 2 new lessons written; promotion rec for morning_briefing in Bill's inbox.*
+*Last updated: 2026-04-04 (Bill session) — github_issue_tracker and morning_briefing promoted to production; haiku_self_critic retired (11d untested, self-reflection belongs in pipeline not demo). First retirement in AADP.*
