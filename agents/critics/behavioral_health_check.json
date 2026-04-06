@@ -1,0 +1,760 @@
+{
+  "updatedAt": "2026-04-06T09:51:01.242Z",
+  "createdAt": "2026-04-06T09:42:18.667Z",
+  "id": "kdzJPyZtchNA3Seq",
+  "name": "SANDBOX \u2014 Behavioral Health Check",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "n-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "behavioral-health-check",
+      "parameters": {
+        "path": "behavioral-health-check",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "n-parse",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "jsCode": "return [{json: {agent_name: ($json.body||$json).agent_name || 'unknown'}}];"
+      }
+    },
+    {
+      "id": "n-get-agent",
+      "name": "Get Agent Registry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/agent_registry?agent_name=eq.{{$json.agent_name}}&select=agent_name,display_name,workflow_id,status,description",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n-fetch-execs",
+      "name": "Fetch Executions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=http://host.docker.internal:5678/api/v1/executions?workflowId={{$('Get Agent Registry').item.json.workflow_id}}&limit=10",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "{{N8N_API_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n-compute",
+      "name": "Compute Behavioral Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const agentData = $('Get Agent Registry').item.json;\nconst execData = $json;\nconst execList = Array.isArray(execData) ? execData : (execData.data || []);\nlet promptText;\nlet metricsOut;\nif (execList.length === 0) {\n  promptText = 'Agent ' + JSON.stringify(agentData.agent_name||'unknown') + ' has no execution history. Status: ' + (agentData.status||'unknown') + '. Reliability score 0-10 for untested agent, recommendation (promote/retire/investigate/monitor). Under 80 words.';\n  metricsOut = {agent_name: agentData.agent_name||'unknown', display_name: agentData.display_name, workflow_id: agentData.workflow_id, status: agentData.status, exec_count: 0, success_count: 0, error_count: 0, success_rate: null, avg_duration_ms: null, error_streak: 0, consistency_score: null, metrics_summary: 'No execution history.'};\n} else {\n  const successes = execList.filter(e => e.status === 'success');\n  const errors = execList.filter(e => e.status === 'error');\n  const successRate = successes.length / execList.length;\n  const durations = execList.filter(e => e.startedAt && e.stoppedAt).map(e => new Date(e.stoppedAt)-new Date(e.startedAt));\n  const avgDuration = durations.length > 0 ? Math.round(durations.reduce((a,b)=>a+b,0)/durations.length) : null;\n  let errorStreak = 0;\n  for (let i=0; i<execList.length; i++) { if (execList[i].status==='error') errorStreak++; else break; }\n  const consistency = (successRate===1.0||successRate===0.0) ? 1.0 : 1.0-(2*successRate*(1-successRate));\n  const summary = execList.length+' execs: '+successes.length+' ok/'+errors.length+' err. '+Math.round(successRate*100)+'% success. Avg '+(avgDuration||'N/A')+'ms. Streak: '+errorStreak+'.';\n  promptText = 'Evaluate AADP agent ' + JSON.stringify(agentData.agent_name) + '. Last '+execList.length+' runs: '+successes.length+' success, '+errors.length+' error. Rate: '+Math.round(successRate*100)+'%. Avg: '+(avgDuration||'N/A')+'ms. Error streak: '+errorStreak+'. Reliability score 0-10, whether errors are systematic, recommendation (promote/retire/investigate/monitor). Under 100 words.';\n  metricsOut = {agent_name: agentData.agent_name||'unknown', display_name: agentData.display_name, workflow_id: agentData.workflow_id, status: agentData.status, exec_count: execList.length, success_count: successes.length, error_count: errors.length, success_rate: Math.round(successRate*100)/100, avg_duration_ms: avgDuration, error_streak: errorStreak, consistency_score: Math.round(consistency*100)/100, metrics_summary: summary};\n}\nconst haikuBody = JSON.stringify({model: 'claude-haiku-4-5', max_tokens: 200, messages: [{role: 'user', content: promptText}]});\nreturn [{json: Object.assign({}, metricsOut, {haiku_body: haikuBody})}];"
+      }
+    },
+    {
+      "id": "n-haiku",
+      "name": "Haiku Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "{{ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "body": "={{ $json.haiku_body }}",
+        "options": {
+          "timeout": 30000
+        },
+        "contentType": "raw"
+      }
+    },
+    {
+      "id": "n-build",
+      "name": "Build Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const m = $('Compute Behavioral Metrics').item.json;\nconst haiku = $json;\nlet analysis = 'Analysis unavailable';\ntry { analysis = haiku.content[0].text; } catch(e) {}\nconst today = new Date().toISOString().slice(0,10);\nconst expId = 'behavioral_health_' + m.agent_name + '_' + today;\nconst report = {agent_name: m.agent_name, display_name: m.display_name, workflow_id: m.workflow_id, registry_status: m.status, test_type: 'behavioral_health_check', test_source: 'SpecOps-inspired: real n8n execution log analysis', metrics: {exec_count: m.exec_count, success_count: m.success_count, error_count: m.error_count, success_rate: m.success_rate, avg_duration_ms: m.avg_duration_ms, error_streak: m.error_streak, consistency_score: m.consistency_score}, metrics_summary: m.metrics_summary, behavioral_analysis: analysis, evaluated_at: new Date().toISOString()};\nreturn [{json: {experiment_id: expId, report: report, analysis_text: analysis, agent_name: m.agent_name, metrics_summary: m.metrics_summary}}];"
+      }
+    },
+    {
+      "id": "n-write",
+      "name": "Write to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "body": "={{ JSON.stringify({agent_name: $json.agent_name, experiment_id: $json.experiment_id, output_type: 'behavioral_health_check', content: $json.report, confidence: 0.9, promoted: false, reviewed_by_bill: false}) }}",
+        "options": {},
+        "contentType": "raw"
+      }
+    },
+    {
+      "id": "n-notify",
+      "name": "Sandbox Notify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5678/webhook/sandbox-notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "raw",
+        "body": "={{ JSON.stringify({agent_name: 'behavioral_health_check', message: '\ud83d\udd2c ' + $('Build Report').item.json.agent_name + ': ' + $('Build Report').item.json.metrics_summary + ' | ' + $('Build Report').item.json.analysis_text.slice(0,200), trigger_url: 'http://localhost:5678/webhook/behavioral-health-check'}) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Build Report').item.json.report) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Input": {
+      "main": [
+        [
+          {
+            "node": "Get Agent Registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Agent Registry": {
+      "main": [
+        [
+          {
+            "node": "Fetch Executions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Executions": {
+      "main": [
+        [
+          {
+            "node": "Compute Behavioral Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Behavioral Metrics": {
+      "main": [
+        [
+          {
+            "node": "Haiku Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Haiku Analysis": {
+      "main": [
+        [
+          {
+            "node": "Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Report": {
+      "main": [
+        [
+          {
+            "node": "Write to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Sandbox Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sandbox Notify": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "242f003b-47b5-447c-a3f0-f964aa0ec6e0",
+  "activeVersionId": "242f003b-47b5-447c-a3f0-f964aa0ec6e0",
+  "versionCounter": 24,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-04-06T09:42:18.669Z",
+      "createdAt": "2026-04-06T09:42:18.669Z",
+      "role": "workflow:owner",
+      "workflowId": "kdzJPyZtchNA3Seq",
+      "projectId": "1332MGZuLwNany4P",
+      "project": {
+        "updatedAt": "2026-03-07T17:29:18.510Z",
+        "createdAt": "2026-02-08T17:14:20.266Z",
+        "id": "1332MGZuLwNany4P",
+        "name": "William Thompson <thompsmanlearn@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+        "projectRelations": [
+          {
+            "updatedAt": "2026-02-08T17:14:20.266Z",
+            "createdAt": "2026-02-08T17:14:20.266Z",
+            "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+            "projectId": "1332MGZuLwNany4P",
+            "user": {
+              "updatedAt": "2026-04-06T09:27:46.000Z",
+              "createdAt": "2026-02-08T17:14:19.719Z",
+              "id": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792",
+              "email": "thompsmanlearn@gmail.com",
+              "firstName": "William",
+              "lastName": "Thompson",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2026-02-08T17:27:44.911Z",
+                "personalization_survey_n8n_version": "2.6.4",
+                "companySize": "<20",
+                "companyType": "education",
+                "role": "other",
+                "roleOther": "High School Teacher",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "RpajIIDI7GF_mkpukB28X",
+                "userActivatedAt": 1770587372742,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1771221926271
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-04-06",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-04-06T09:51:01.244Z",
+    "createdAt": "2026-04-06T09:51:01.244Z",
+    "versionId": "242f003b-47b5-447c-a3f0-f964aa0ec6e0",
+    "workflowId": "kdzJPyZtchNA3Seq",
+    "nodes": [
+      {
+        "id": "n-webhook",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          300
+        ],
+        "webhookId": "behavioral-health-check",
+        "parameters": {
+          "path": "behavioral-health-check",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "n-parse",
+        "name": "Parse Input",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          300
+        ],
+        "parameters": {
+          "jsCode": "return [{json: {agent_name: ($json.body||$json).agent_name || 'unknown'}}];"
+        }
+      },
+      {
+        "id": "n-get-agent",
+        "name": "Get Agent Registry",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          440,
+          300
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "=https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/agent_registry?agent_name=eq.{{$json.agent_name}}&select=agent_name,display_name,workflow_id,status,description",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{SUPABASE_SERVICE_KEY}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+              }
+            ]
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "n-fetch-execs",
+        "name": "Fetch Executions",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          660,
+          300
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "=http://host.docker.internal:5678/api/v1/executions?workflowId={{$('Get Agent Registry').item.json.workflow_id}}&limit=10",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-N8N-API-KEY",
+                "value": "{{N8N_API_KEY}}"
+              }
+            ]
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "n-compute",
+        "name": "Compute Behavioral Metrics",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const agentData = $('Get Agent Registry').item.json;\nconst execData = $json;\nconst execList = Array.isArray(execData) ? execData : (execData.data || []);\nlet promptText;\nlet metricsOut;\nif (execList.length === 0) {\n  promptText = 'Agent ' + JSON.stringify(agentData.agent_name||'unknown') + ' has no execution history. Status: ' + (agentData.status||'unknown') + '. Reliability score 0-10 for untested agent, recommendation (promote/retire/investigate/monitor). Under 80 words.';\n  metricsOut = {agent_name: agentData.agent_name||'unknown', display_name: agentData.display_name, workflow_id: agentData.workflow_id, status: agentData.status, exec_count: 0, success_count: 0, error_count: 0, success_rate: null, avg_duration_ms: null, error_streak: 0, consistency_score: null, metrics_summary: 'No execution history.'};\n} else {\n  const successes = execList.filter(e => e.status === 'success');\n  const errors = execList.filter(e => e.status === 'error');\n  const successRate = successes.length / execList.length;\n  const durations = execList.filter(e => e.startedAt && e.stoppedAt).map(e => new Date(e.stoppedAt)-new Date(e.startedAt));\n  const avgDuration = durations.length > 0 ? Math.round(durations.reduce((a,b)=>a+b,0)/durations.length) : null;\n  let errorStreak = 0;\n  for (let i=0; i<execList.length; i++) { if (execList[i].status==='error') errorStreak++; else break; }\n  const consistency = (successRate===1.0||successRate===0.0) ? 1.0 : 1.0-(2*successRate*(1-successRate));\n  const summary = execList.length+' execs: '+successes.length+' ok/'+errors.length+' err. '+Math.round(successRate*100)+'% success. Avg '+(avgDuration||'N/A')+'ms. Streak: '+errorStreak+'.';\n  promptText = 'Evaluate AADP agent ' + JSON.stringify(agentData.agent_name) + '. Last '+execList.length+' runs: '+successes.length+' success, '+errors.length+' error. Rate: '+Math.round(successRate*100)+'%. Avg: '+(avgDuration||'N/A')+'ms. Error streak: '+errorStreak+'. Reliability score 0-10, whether errors are systematic, recommendation (promote/retire/investigate/monitor). Under 100 words.';\n  metricsOut = {agent_name: agentData.agent_name||'unknown', display_name: agentData.display_name, workflow_id: agentData.workflow_id, status: agentData.status, exec_count: execList.length, success_count: successes.length, error_count: errors.length, success_rate: Math.round(successRate*100)/100, avg_duration_ms: avgDuration, error_streak: errorStreak, consistency_score: Math.round(consistency*100)/100, metrics_summary: summary};\n}\nconst haikuBody = JSON.stringify({model: 'claude-haiku-4-5', max_tokens: 200, messages: [{role: 'user', content: promptText}]});\nreturn [{json: Object.assign({}, metricsOut, {haiku_body: haikuBody})}];"
+        }
+      },
+      {
+        "id": "n-haiku",
+        "name": "Haiku Analysis",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1100,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-api-key",
+                "value": "{{ANTHROPIC_API_KEY}}"
+              },
+              {
+                "name": "anthropic-version",
+                "value": "2023-06-01"
+              },
+              {
+                "name": "content-type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "body": "={{ $json.haiku_body }}",
+          "options": {
+            "timeout": 30000
+          },
+          "contentType": "raw"
+        }
+      },
+      {
+        "id": "n-build",
+        "name": "Build Report",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1320,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const m = $('Compute Behavioral Metrics').item.json;\nconst haiku = $json;\nlet analysis = 'Analysis unavailable';\ntry { analysis = haiku.content[0].text; } catch(e) {}\nconst today = new Date().toISOString().slice(0,10);\nconst expId = 'behavioral_health_' + m.agent_name + '_' + today;\nconst report = {agent_name: m.agent_name, display_name: m.display_name, workflow_id: m.workflow_id, registry_status: m.status, test_type: 'behavioral_health_check', test_source: 'SpecOps-inspired: real n8n execution log analysis', metrics: {exec_count: m.exec_count, success_count: m.success_count, error_count: m.error_count, success_rate: m.success_rate, avg_duration_ms: m.avg_duration_ms, error_streak: m.error_streak, consistency_score: m.consistency_score}, metrics_summary: m.metrics_summary, behavioral_analysis: analysis, evaluated_at: new Date().toISOString()};\nreturn [{json: {experiment_id: expId, report: report, analysis_text: analysis, agent_name: m.agent_name, metrics_summary: m.metrics_summary}}];"
+        }
+      },
+      {
+        "id": "n-write",
+        "name": "Write to Supabase",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1540,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "{{SUPABASE_SERVICE_KEY}}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{SUPABASE_SERVICE_KEY}}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "body": "={{ JSON.stringify({agent_name: $json.agent_name, experiment_id: $json.experiment_id, output_type: 'behavioral_health_check', content: $json.report, confidence: 0.9, promoted: false, reviewed_by_bill: false}) }}",
+          "options": {},
+          "contentType": "raw"
+        }
+      },
+      {
+        "id": "n-notify",
+        "name": "Sandbox Notify",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1760,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:5678/webhook/sandbox-notify",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "raw",
+          "body": "={{ JSON.stringify({agent_name: 'behavioral_health_check', message: '\ud83d\udd2c ' + $('Build Report').item.json.agent_name + ': ' + $('Build Report').item.json.metrics_summary + ' | ' + $('Build Report').item.json.analysis_text.slice(0,200), trigger_url: 'http://localhost:5678/webhook/behavioral-health-check'}) }}",
+          "options": {}
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "n-respond",
+        "name": "Respond to Webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1980,
+          300
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify($('Build Report').item.json.report) }}",
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Input",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Input": {
+        "main": [
+          [
+            {
+              "node": "Get Agent Registry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Agent Registry": {
+        "main": [
+          [
+            {
+              "node": "Fetch Executions",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Executions": {
+        "main": [
+          [
+            {
+              "node": "Compute Behavioral Metrics",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compute Behavioral Metrics": {
+        "main": [
+          [
+            {
+              "node": "Haiku Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Haiku Analysis": {
+        "main": [
+          [
+            {
+              "node": "Build Report",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Report": {
+        "main": [
+          [
+            {
+              "node": "Write to Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Write to Supabase": {
+        "main": [
+          [
+            {
+              "node": "Sandbox Notify",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sandbox Notify": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "William Thompson",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-06T09:51:01.415Z",
+        "id": 419,
+        "workflowId": "kdzJPyZtchNA3Seq",
+        "versionId": "242f003b-47b5-447c-a3f0-f964aa0ec6e0",
+        "event": "activated",
+        "userId": "85fd8a0b-d1ed-4bfc-a75a-7c96dafb4792"
+      }
+    ]
+  }
+}
