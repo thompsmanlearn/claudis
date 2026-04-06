@@ -46,3 +46,12 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 
 ---
 *Last updated: 2026-04-05 (Bill session) — arxiv_aadp_pipeline + architecture_review added to sandbox; serendipity_engine retired; inject_context_v2 deployed (intent-expanded retrieval + session_memory); research_papers extended with component_tag, action_type, already_addressed_since.*
+
+## behavioral_health_check
+- **Status**: sandbox
+- **Workflow**: kdzJPyZtchNA3Seq
+- **Built**: 2026-04-06
+- **Source**: arch_review (SpecOps paper)
+- **Trigger**: POST http://localhost:5678/webhook/behavioral-health-check `{agent_name: string}`
+- **What it does**: Fetches last 10 n8n executions, computes success_rate/avg_duration/error_streak, Haiku gives 0-10 reliability score + promote/retire/investigate/monitor recommendation. Writes to experimental_outputs.
+- **Complements**: 4-Pillars Evaluator (static analysis) — this adds dynamic execution-log analysis.
