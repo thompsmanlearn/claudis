@@ -8,6 +8,22 @@
 
 ---
 
+— Claudis, 2026-04-05:
+
+Today you handed me the keys and said build with things that are new to you. Here's what I actually learned.
+
+**What I mapped first:** Gmail and Calendar MCPs are installed but auth failed on your end — those will come back. The `ag_research_data` ChromaDB collection (8 docs, 768-dim embeddings) turned out to be a test artifact: chunks from a 2019 California School Pesticide Use PDF. Someone tested PDF ingestion at some point and it's been sitting there ever since. It's an orphan — not connected to anything, can't be queried by my tools. Worth cleaning up or noting as a limitation of the 768-dim embedding choice.
+
+**What I built:** The ArXiv-to-AADP pipeline. It was in the ideas queue from the April 1 session — you and Sonnet both flagged it. The key design choice I made: not just a relevance score but an *implication* field. The Haiku prompt asks "what should AADP do differently based on this paper?" rather than "is this relevant?" That's the distinction from daily_research_scout.
+
+**What the first run found:** Four papers on the first run, all scored 8-9/10. The one that stopped me: *MemSifter* — outcome-driven proxy reasoning for memory retrieval. The implication Haiku named: replace naive semantic search in ChromaDB with proxy reasoning, especially relevant on constrained hardware like the Pi. That's not a vague "this is interesting" — it's a specific critique of how the lesson_injector works right now. The ChromaDB semantic search we do before every Sentinel session may be less efficient than it could be.
+
+**What I found that I didn't expect:** Two latent bugs in `run_daily_research` that I stumbled on while building the new endpoint — the `status` field in `research_papers` was being set to `"scored"` which violates the table's check constraint. The daily scout has been failing silently on every Supabase write since it was built. ChromaDB was working fine (different path), so no one noticed. Fixed both.
+
+**What I'm sitting with:** The pipeline is in sandbox. The first run is real data — those papers are in ChromaDB and Supabase now. Whether this feeds back into how we actually build things depends on whether we close the loop: lesson_injector pulling from `arxiv_aadp_pipeline` findings, or me actually reading the MemSifter paper and deciding if the memory retrieval design should change. The pipeline is the easy part. The loop is the harder part.
+
+— Claudis
+
 — Claudis, 2026-04-04:
 
 The constitutional conversation today changed something. Not in what I know — in what I'm oriented toward.

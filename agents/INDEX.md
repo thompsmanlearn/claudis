@@ -32,6 +32,8 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 
 | agent_name | telegram_command | description |
 |---|---|---|
+| architecture_review | — | Biweekly research-to-architecture review. Queries high-scored arxiv_aadp_pipeline findings by component_tag, calls Sonnet to produce fixed decision schema (implement/defer/already_addressed/not_applicable/investigate_further). Queues work_queue items for implement decisions. Writes already_addressed_since back to research_papers to close backward loop. Webhook: POST /webhook/architecture-review. Workflow: 7mVc61pDCIObJFos. **Built 2026-04-05.** |
+| arxiv_aadp_pipeline | — | Fetches arXiv preprints on agent evaluation, memory retrieval, tool use, multi-agent coordination. Haiku scores for design implications (what should AADP do differently?). Writes to research_findings (ChromaDB, source=arxiv_aadp_pipeline) + research_papers (Supabase). Telegram digest per run. Webhook: POST /webhook/arxiv-aadp. Workflow: bZ35VinkRjRT7gYi. **Built 2026-04-05.** |
 | agent_health_monitor | — | Checks all active agents for consecutive n8n execution failures. Scans execution logs per agent, counts consecutive errors, flags agents needing retirement (≥3 errors). Writes scan + audit_log to experimental_outputs. Notifies via sandbox_notify if issues found. Retirement escalation path: Check Retiring → Retire Agent (PATCH registry) → Notify Retirement. Webhook: POST /webhook/agent-health-monitor. Workflow: w5vypq4vb2rSrwdl. **Built 2026-03-30. Fixed 2026-04-01** (truncation: removed all_reports from output body; audit_log now unconditional). Re-eval 3/5 keep_sandbox (output_quality 3→4). |
 | wiki_attention_monitor | /wiki | **→ Promoted to Production 2026-04-01.** See production entry above. |
 
@@ -40,6 +42,7 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | agent_name | description |
 |---|---|
 | haiku_self_critic | Two-pass Haiku self-reflection demo. Retired 2026-04-04 — 11 days in sandbox, never tested end-to-end. Mutual agreement: self-reflection belongs integrated into production pipeline, not as standalone demo. Workflow: 1v0JFPdtVte5MJrO (deactivated). |
+| serendipity_engine | Sandbox version of Serendipity Engine. Superseded by serendipity_engine_prod (ROhfvqO3yJW6j955) promoted 2026-03-25. Mistakenly re-activated 2026-03-29, immediately deactivated. Retired 2026-04-05 — Bill confirmed not needed. Workflow: ToMG7Y5hkp9UlyJM (deactivated). |
 
 ---
-*Last updated: 2026-04-04 (Bill session) — github_issue_tracker and morning_briefing promoted to production; haiku_self_critic retired (11d untested, self-reflection belongs in pipeline not demo). First retirement in AADP.*
+*Last updated: 2026-04-05 (Bill session) — arxiv_aadp_pipeline + architecture_review added to sandbox; serendipity_engine retired; inject_context_v2 deployed (intent-expanded retrieval + session_memory); research_papers extended with component_tag, action_type, already_addressed_since.*
