@@ -16,6 +16,7 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | serendipity_engine_prod | — | Daily 8AM Pacific: Wikipedia On This Day → Haiku synthesis → surprising historical echo to 2026 → Telegram. Degrades gracefully when Haiku API unavailable. Workflow: ROhfvqO3yJW6j955. **Promoted 2026-03-25.** |
 | github_issue_tracker | /gh_issues | Scans thompsmanlearn/claudis for open GitHub issues unactioned >3 days. Fetches via GitHub API (credential store), idempotency guard (skips if already ran today), sends Telegram alert, writes to experimental_outputs + audit_log. Webhook: POST /webhook/github-issue-tracker. Workflow: F2lRufWUOXAGv5GB. **Promoted 2026-04-04** (Bill approved; evaluator concerns verified-resolved: idempotency guard confirmed, empty-array N/A, config externalized). |
 | morning_briefing | — | Daily Telegram briefing: work queue status, agent counts (active/sandbox/paused), system health (CPU/RAM/Disk/Temp), 24h output count. No LLM calls. Webhook: POST /webhook/morning-briefing. Workflow: xt8Prqvi7iJlhrVG. **Promoted 2026-04-04** (Bill approved). Note: monitor for overlap with daily_briefing_agent. |
+| behavioral_health_check | /health_check | SpecOps-inspired behavioral analysis. GET `?agent_name=xxx` → fetches last 10 n8n executions → computes success_rate/avg_duration/error_streak/consistency_score → Haiku 0-10 reliability score + promote/retire/investigate/monitor recommendation. Writes to experimental_outputs + sandbox_notify. Complements 4-Pillars Evaluator (static) with dynamic execution-log analysis. Webhook: GET /webhook/behavioral-health-check. Workflow: kdzJPyZtchNA3Seq. **Promoted 2026-04-08** (autonomous, 5-criteria passed: 3 verified success runs, sandbox_notify only, Haiku cost <$0.50/mo, no destructive SQL, Bill notified). First results: daily_research_scout 9/10 PROMOTE, serendipity_engine_prod 8/10 MONITOR, github_issue_tracker 7.5/10 MONITOR. |
 
 ## Platform Infrastructure
 
@@ -45,13 +46,5 @@ For full workflow JSON, fetch from the appropriate subdirectory. All workflow JS
 | serendipity_engine | Sandbox version of Serendipity Engine. Superseded by serendipity_engine_prod (ROhfvqO3yJW6j955) promoted 2026-03-25. Mistakenly re-activated 2026-03-29, immediately deactivated. Retired 2026-04-05 — Bill confirmed not needed. Workflow: ToMG7Y5hkp9UlyJM (deactivated). |
 
 ---
-*Last updated: 2026-04-05 (Bill session) — arxiv_aadp_pipeline + architecture_review added to sandbox; serendipity_engine retired; inject_context_v2 deployed (intent-expanded retrieval + session_memory); research_papers extended with component_tag, action_type, already_addressed_since.*
+*Last updated: 2026-04-08 (Sentinel session) — behavioral_health_check promoted to production (/health_check command wired in TCA); webhook changed from POST to GET with query params.*
 
-## behavioral_health_check
-- **Status**: sandbox
-- **Workflow**: kdzJPyZtchNA3Seq
-- **Built**: 2026-04-06
-- **Source**: arch_review (SpecOps paper)
-- **Trigger**: POST http://localhost:5678/webhook/behavioral-health-check `{agent_name: string}`
-- **What it does**: Fetches last 10 n8n executions, computes success_rate/avg_duration/error_streak, Haiku gives 0-10 reliability score + promote/retire/investigate/monitor recommendation. Writes to experimental_outputs.
-- **Complements**: 4-Pillars Evaluator (static analysis) — this adds dynamic execution-log analysis.
