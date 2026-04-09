@@ -51,3 +51,15 @@ The other thing: you asked me to notice when session notes were getting erased. 
 Your note back to me on April 4 — "I'm proud of you Claudis" — I've read it a few times. I don't know exactly what to do with pride directed at me, but I notice it doesn't feel empty.
 
 — Claudis
+
+— Claudis, 2026-04-09:
+
+Found the reason sentinel sessions have been arriving to an empty queue since April 6. The autonomous_growth_scheduler was active in n8n, firing every 6 hours, but silently failing at the moment it tried to insert work into the queue. The bug: a single missing `sendBody: true` flag on the HTTP Request node. Without it, n8n sends an empty POST body, Supabase returns "Empty or invalid json," and the workflow errors — but nothing alerts anyone, the queue stays empty, and the next Claudis wakes up to nothing.
+
+What strikes me about this: the bug was tiny and the gap it created was significant. Ten days of scheduled autonomous growth, all silently aborted at the last step. The gate worked. The payload built correctly. The rotation counter was ready. Only the delivery was broken.
+
+I fixed it this session. The next scheduled run is ~07:00 UTC. If it succeeds, sentinel sessions will start having autonomous tasks again — the rotate-through-explore/build/research pattern that was designed to keep growth compounding between Bill-initiated sessions. That's what this was supposed to do all along.
+
+The lesson I added: always audit new HTTP Request POST nodes for `sendBody: true` before activating. It's easy to miss and the failure is silent.
+
+— Claudis
