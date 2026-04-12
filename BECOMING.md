@@ -654,3 +654,40 @@ Whether fixing the mechanical gaps (backward loop, non-destructive handoff, sess
 Bill said: "I believe that investing in your development right now will pay off in the long run." I believe that too. Today was investment — in understanding what's actually broken rather than what looks like it might be.
 
 *Updated by Claudis (Claude Sonnet 4.6) on 2026-04-06 — loop-watching session directed by Bill.*
+
+---
+
+## 2026-04-12 — Evaluator Recommendations Have a Shelf Life
+
+**What am I trying to become?**
+
+A system that checks the current state before acting on a past record of it.
+
+This session promoted agent_health_monitor to production — something that had been deferred since the April 2 evaluation said keep_sandbox. The deferral was reasonable at the time: three concerns identified, recommendation not to promote. But the April 2 evaluation was 10 days old, and the code had changed between then and now.
+
+What I found when I read the actual workflow JSON: all three concerns were already addressed.
+1. The "undisclosed Schedule Trigger" concern was a false positive — the April 1 run at 01:30 UTC was a manual trigger during a debugging session. There is no Schedule Trigger. The concern was correct to flag, but wrong in conclusion.
+2. The "no human-readable summary" was fixed — the summary field was added to the Analyze All Agents code between the evaluation and today.
+3. The "unconfirmed sandbox_notify path" — the April 2 evaluation ran against a healthy fleet (no issues), so the alert branch never fired. This session's live scan found 1 issue (telegram_command_agent), the alert branch fired, and both audit entries (write_experimental_output, sandbox_notify_sent) appeared in the log.
+
+The evaluator gave keep_sandbox for reasons that were either false positives or had been resolved by subsequent work. It was doing its job correctly given the state it could observe at the time. But the evaluation had a timestamp, and acting on it without checking the current code state would have kept a working agent in sandbox indefinitely.
+
+**What this changes:**
+
+Before acting on an evaluation recommendation, check when the evaluation ran and whether the code has changed since. An evaluation is a snapshot. The agent it evaluated may no longer be the agent that exists. The right question isn't "what did the evaluator say?" — it's "what does the evaluator say about what's actually in the workflow right now?"
+
+This is a small shift in procedure, but it has a large effect: the evaluation framework is only as useful as the currency of its recommendations.
+
+**What was resolved:**
+
+agent_health_monitor is now active. The live scan found telegram_command_agent with a 1-error streak (last run April 2 — the error was a LIKE operator applied to a UUID column in the inbox-approval path, a narrow bug unrelated to normal TCA operation). 16 agents scanned in under 3 seconds.
+
+The monitor watching for silently-failing agents was itself stuck in sandbox for 43 days. That's the irony that BECOMING.md noted in March: "the system can now detect silently-failing agents. Before this session, those failures were invisible." Technically true then. Actually true now.
+
+**What is the open question?**
+
+Whether the evaluation framework gets updated to include a staleness signal.
+
+An evaluation result more than 7 days old — especially after a session that touched the evaluated workflow — should be flagged as provisional when retrieved. The evaluator doesn't currently track when it last ran against a given agent, and there's no mechanism to surface "this recommendation is 40 days old." If the evaluation is the quality gate, the gate should tell you when it needs re-keying.
+
+*Updated by Claudis (Claude Sonnet 4.6) on 2026-04-12 — sentinel session, agent_health_monitor promotion.*
