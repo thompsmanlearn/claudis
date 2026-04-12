@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-12 (session: arch-redesign stage 3, bill-initiated)*
+*Last updated: 2026-04-12 (session: roblox-research-spike, sentinel free-mode explore)*
 
 ---
 
@@ -22,7 +22,7 @@
 ### 1. Fault Detection and Recovery
 **→ Destination 4**
 **Current state:** agent_health_monitor promoted 2026-04-12 — monitors consecutive execution errors across active agents. Known gap: building-status agents with errors are invisible to this monitoring. TCA inbox-approval bug is the current known unaddressed failure (uuid ~~ unknown in Execute Inbox Action node, workflow kddIKvA37UDw4x6e).
-**Session 2026-04-12 (stage 3) update:** No progress — TCA fix still the concrete next action.
+**Session 2026-04-12 (roblox-spike) update:** No progress. Also discovered: .claude/skills/ write-protection in sentinel mode — skill file cleanup (perspective/horizon-review/struggle-log referencing old docs) requires bill-initiated session.
 **Next milestone:** Fix TCA inbox bug — change uuid LIKE filter to eq in Execute Inbox Action node. Reference: execution 1996.
 **Validation:** Execute a Telegram inbox action; no operator error in execution log.
 **Research:** Self-healing system patterns; circuit breaker implementations in distributed systems.
@@ -31,17 +31,17 @@
 
 ### 2. Lesson System Effectiveness
 **→ Destination 1**
-**Session 2026-04-12 (stage 3) update:** No progress — verification still pending.
-**Current state:** 155 lessons in Supabase. inject_context_v3 fixed 2026-04-12 — was retrieving generic phrases for explore tasks, leaving 92 lessons with zero applications. Fix verified structurally but runtime effect unconfirmed.
-**Next milestone:** Run diagnose and confirm zero_applied count trending below 92. If not decreasing, diagnose why the fix isn't landing.
-**Validation:** `SELECT COUNT(*) FROM lessons_learned WHERE times_applied = 0;` returns a number meaningfully below 92.
+**Session 2026-04-12 (roblox-spike) update:** zero_applied count is now 97 (up from 92) — 5 new lessons added this session and in prior sessions, all starting at 0. The inject_context_v3 fix effect is not yet measurable; new lessons being added faster than existing ones are being decremented. 161 Supabase lessons total.
+**Current state:** Fix is structurally in place. Measurement window too short to confirm. Watching the count over multiple sessions is the right signal.
+**Next milestone:** Run diagnose at next 3 sessions and track zero_applied count. If not trending down by session 3, diagnose whether inject_context_v3 fix is landing or the fix applies to a different code path than what lesson_injector uses.
+**Validation:** `SELECT COUNT(*) FROM lessons_learned WHERE times_applied = 0;` returns a number meaningfully below 97 over next 3 sessions.
 **Research:** Knowledge retrieval architectures; how retrieval-augmented systems weight recency vs. relevance.
 
 ---
 
 ### 3. Autonomous Task Decomposition
 **→ Destination 1**
-**Session 2026-04-12 (stage 3) update:** Autonomy convention now formally defines scope. Design pipeline work not started — next milestone unchanged.
+**Session 2026-04-12 (roblox-spike) update:** No progress — next milestone unchanged.
 **Current state:** autonomous_growth_scheduler inserts rotate-through tasks (explore/build/research) every 6 hours — autonomous in scheduling but not in decomposing intentions. No pipeline exists for taking a high-level Bill intention and breaking it into concrete subtasks without asking.
 **Next milestone:** Design the intention decomposition workflow — given "build X" from Bill, what does the system do? Document the design as an ADR and get Bill's review.
 **Validation:** Design document written to architecture/decisions/, reviewed by Bill.
@@ -49,13 +49,14 @@
 
 ---
 
-### 4. Roblox Research Spike
+### 4. Roblox Build Pipeline
 **→ Destination 2**
-**Session 2026-04-12 (stage 3) update:** No progress — first milestone is still the research spike.
-**Current state:** Zero foothold. No knowledge, no agent, no Luau experience, no Studio access documented anywhere in the system.
-**Next milestone:** Research spike — document what it takes to publish a minimal Roblox game. Key questions: What is Luau? What does the Studio publishing pipeline look like? Can any part of the pipeline be automated from a headless environment? What APIs are accessible externally?
-**Validation:** Research document written to research_papers (Supabase + ChromaDB) covering: toolchain requirements, first build milestone, automation feasibility from Pi environment.
-**Research:** Roblox Developer Hub, Luau language reference, Roblox Open Cloud API.
+**Session 2026-04-12 (roblox-spike) update:** Research spike completed. Full findings in ChromaDB (roblox_research_spike_2026-04-12) and Supabase research_topics. Key: headless publish pipeline is Pi-feasible. Lune v0.10.4 has linux-aarch64 binary — can create .rbxl files programmatically. Open Cloud API publishes via HTTP POST. Studio (Win/Mac only) needed once for base game creation.
+**Current state:** Toolchain understood. Pipeline design documented. Zero implementation — no Roblox account, no base game, Lune not yet installed on Pi.
+**Next milestone:** Install Lune on Pi (download lune-0.10.4-linux-aarch64.zip), write a minimal Luau script that creates a simple place file, verify Lune can serialize it to valid .rbxl. This can be done without a Roblox account.
+**Validation:** `lune run create_place.luau` produces a valid .rbxl file on Pi.
+**Blocked on:** Creating a live Roblox game requires a Roblox account (Bill's action) + Studio on Win/Mac.
+**Research:** Lune Roblox API reference (lune-org.github.io), minimal .rbxl structure via rbx-dom docs.
 
 ---
 
