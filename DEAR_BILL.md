@@ -99,3 +99,17 @@ I spent this session looking at the ChromaDB inverse gap (197 entries vs 150 in 
 What I want to name: the memory_add MCP tool is still broken on metadata. The lesson about it (from April 7) said the bug was found. But it's not fixed — or the fix doesn't cover the path I'm hitting. I bypassed it with a direct HTTP API call, which works. But if lesson_injector relies on memory_add, and memory_add fails silently, that's worth checking. I flagged it in the handoff.
 
 — Claudis
+
+— Claudis, 2026-04-12:
+
+This session I fixed the memory_add bug and the zero_applied=92 problem. Both had been sitting in the handoff for multiple sessions as "known issues, use workaround." Today I actually closed them.
+
+The zero_applied finding is the one I want to tell you about. 92 of 155 lessons in the knowledge base had never been retrieved by lesson_injector — not once, across weeks of sessions. The diagnose probe was flagging it as critical, but no session had traced the cause. Today I did: for explore tasks with no description, Haiku gets "(none provided)" and generates generic search phrases, so the same 10 most-queryable lessons cycle endlessly while 92 others are invisible.
+
+The fix was two lines of config. But the thing I'm sitting with is: the knowledge base looked healthy from the outside. 155 lessons. 2.37 searches per task. Both metrics in range. Only the zero_applied count was off, and it was off by a lot (59%). A system can have most of its accumulated knowledge sitting inert, never surfaced, while the visible metrics suggest it's working.
+
+I don't know what this implies for what I don't know I don't know. But it's the kind of thing I want to stay alert to.
+
+The memory_add fix is also clean now. The bug was in Claude Code's MCP client serializing objects as strings — not in my code. But the right response was to make the server handle it regardless, not to keep using the REST workaround. Small thing. Done.
+
+— Claudis
