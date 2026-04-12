@@ -1,0 +1,150 @@
+{
+  "id": "w5vypq4vb2rSrwdl",
+  "name": "Agent Health Monitor",
+  "description": "Scans all active agents for consecutive n8n execution errors. Flags agents with >=1 consecutive error. Auto-pauses agents at >=3 consecutive errors (PATCH status=paused in agent_registry). Writes full scan report to experimental_outputs + audit_log on every run. Notifies via sandbox_notify (rate-limited) if issues found. Webhook: POST /webhook/agent-health-monitor.",
+  "active": true,
+  "promoted": "2026-04-12",
+  "promotion_criteria_met": {
+    "verified_runs": 1,
+    "exec_id": "2250",
+    "v2_webhook_only": true,
+    "cost_per_month": "$0 (no LLM calls)",
+    "no_destructive_sql": true,
+    "bill_notified_before_first_production_run": true
+  },
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-health-monitor",
+        "responseMode": "onReceived",
+        "responseData": "noData"
+      }
+    },
+    {
+      "id": "get_agents",
+      "name": "Get Active Agents",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/agent_registry",
+        "headers": "{{SUPABASE_HEADERS}}",
+        "query": {
+          "status": "eq.active",
+          "workflow_id": "not.is.null",
+          "select": "agent_name,workflow_id"
+        }
+      }
+    },
+    {
+      "id": "get_executions",
+      "name": "Get Executions",
+      "type": "n8n-nodes-base.httpRequest",
+      "continueOnFail": true,
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:5678/api/v1/executions?workflowId={{ $json.workflow_id }}&limit=5",
+        "headers": "{{N8N_API_KEY_HEADER}}"
+      }
+    },
+    {
+      "id": "analyze_all",
+      "name": "Analyze All Agents",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const execItems = $input.all();\nconst agentItems = $('Get Active Agents').all();\n\nconst reports = [];\nfor (let i = 0; i < execItems.length; i++) {\n  const agentInfo = agentItems[i] ? agentItems[i].json : { agent_name: 'unknown', workflow_id: 'unknown' };\n  const agentName = agentInfo.agent_name;\n  const workflowId = agentInfo.workflow_id;\n  const execData = execItems[i].json;\n\n  if (execData.error || execData.code) {\n    reports.push({ agent_name: agentName, workflow_id: workflowId, status: 'api_error', consecutive_errors: 0, issue: false });\n    continue;\n  }\n  const executions = execData.data || [];\n  if (executions.length === 0) {\n    reports.push({ agent_name: agentName, workflow_id: workflowId, status: 'no_executions', consecutive_errors: 0, issue: false });\n    continue;\n  }\n  let consecutiveErrors = 0;\n  for (const exec of executions) {\n    if (exec.status === 'error') { consecutiveErrors++; } else { break; }\n  }\n  const lastExec = executions[0];\n  reports.push({\n    agent_name: agentName, workflow_id: workflowId,\n    consecutive_errors: consecutiveErrors,\n    should_retire: consecutiveErrors >= 3,\n    last_status: lastExec.status,\n    last_run_at: lastExec.startedAt,\n    issue: consecutiveErrors >= 1\n  });\n}\n\nconst issues = reports.filter(r => r.issue);\nconst retiring = reports.filter(r => r.should_retire);\n\nconst issueNames = issues.map(i => i.agent_name + ' (' + i.consecutive_errors + ' err)').join(', ');\nconst retireNames = retiring.map(r => r.agent_name).join(', ');\nlet summary;\nif (issues.length === 0) {\n  summary = 'Fleet healthy — ' + reports.length + ' agents checked, 0 issues.';\n} else {\n  summary = '⚠️ ' + issues.length + ' issue(s) across ' + reports.length + ' agents. Errors: ' + issueNames + '. Auto-retiring: ' + (retiring.length > 0 ? retireNames : 'none') + '.';\n}\n\nreturn [{ json: {\n  scan_time: new Date().toISOString(),\n  total_agents_checked: reports.length,\n  agents_with_issues: issues.length,\n  agents_retiring: retiring.length,\n  issues: issues,\n  retiring: retiring,\n  summary: summary\n}}];"
+      }
+    },
+    {
+      "id": "write_output",
+      "name": "Write Output",
+      "type": "n8n-nodes-base.httpRequest",
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/experimental_outputs",
+        "headers": "{{SUPABASE_HEADERS_MINIMAL}}",
+        "body": "JSON.stringify({ agent_name, experiment_id, output_type: 'health_scan', content: {scan_time, total_agents_checked, agents_with_issues, agents_retiring, summary, issues, retiring}, confidence: 1.0 })"
+      }
+    },
+    {
+      "id": "write_audit_log",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/audit_log",
+        "headers": "{{SUPABASE_HEADERS_MINIMAL}}",
+        "body": "JSON.stringify({ actor: 'agent_health_monitor', action: 'write_experimental_output', target: 'experimental_outputs', details: {scan_time, total_agents_checked, agents_with_issues, agents_retiring, summary} })"
+      }
+    },
+    {
+      "id": "check_issues",
+      "name": "Check for Issues",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "jsCode": "const report = $('Analyze All Agents').first().json;\nif (!report || report.agents_with_issues === 0) return [];\nreturn [{ json: report }];"
+      }
+    },
+    {
+      "id": "sandbox_notify",
+      "name": "Sandbox Notify",
+      "type": "n8n-nodes-base.httpRequest",
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/sandbox-notify",
+        "body": "JSON.stringify({ agent_name: 'agent_health_monitor', message: '🔴 Health scan: N agent(s) with consecutive errors (M need retirement). Issues: ...', trigger_url: 'http://localhost:5678/webhook/agent-health-monitor' })"
+      }
+    },
+    {
+      "id": "audit_notify_sent",
+      "name": "Audit Notify Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/audit_log",
+        "body": "JSON.stringify({ actor: 'agent_health_monitor', action: 'sandbox_notify_sent', target: 'sandbox_notify', details: {agents_with_issues, agents_retiring, summary} })"
+      }
+    },
+    {
+      "id": "check_retiring",
+      "name": "Check Retiring",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "jsCode": "const report = $('Analyze All Agents').first().json;\nconst retiring = report.retiring || [];\nif (retiring.length === 0) return [];\nreturn retiring.map(r => ({ json: { ...r, scan_time: report.scan_time } }));"
+      }
+    },
+    {
+      "id": "retire_agent",
+      "name": "Retire Agent in Registry",
+      "type": "n8n-nodes-base.httpRequest",
+      "continueOnFail": true,
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://cihbfubghytzqrpffgcq.supabase.co/rest/v1/agent_registry?agent_name=eq.{{agent_name}}",
+        "body": "{\"status\": \"paused\"}"
+      }
+    },
+    {
+      "id": "notify_retirement",
+      "name": "Notify Retirement",
+      "type": "n8n-nodes-base.httpRequest",
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/sandbox-notify",
+        "body": "JSON.stringify({ agent_name: 'agent_health_monitor', message: '🚨 AUTO-RETIRED: agent_name had N consecutive errors. Status=paused. Run /activate_agent agent_name to restore.', trigger_url: '...' })"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook -> Get Active Agents -> Get Executions -> Analyze All Agents -> Write Output -> Write Audit Log -> [Check for Issues -> Sandbox Notify -> Audit Notify Sent] + [Check Retiring -> Retire Agent in Registry -> Notify Retirement]": "parallel branches from Write Audit Log"
+  }
+}
