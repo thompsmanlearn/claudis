@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-13 (session: context-economy — disk_prompt v29, DCL 73% reduction, session_notes consume bug fixed)*
+*Last updated: 2026-04-13 (session: health-monitor-building — building/sandbox agent stale-build detection added to agent_health_monitor)*
 
 ---
 
@@ -24,8 +24,9 @@
 **Current state:** agent_health_monitor promoted 2026-04-12. TCA inbox approval flow fully rebuilt 2026-04-13 (uuid LIKE bug fixed, /approve and /reject wired). All skill files confirmed updated to v2 on 2026-04-13 — arch redesign fully clean.
 **Session 2026-04-13 (sentinel-lune-install) update:** Confirmed TCA Execute Inbox Action uses `id=eq.{inbox_id}` — fix verified. All 3 skill files (perspective, horizon-review, struggle-log) confirmed updated. Zero remaining arch-redesign cleanup items.
 **Session 2026-04-13 (context-economy) update:** Operational health work. disk_prompt.md → v29 (497→407 lines, ~747 tokens removed). DCL reduced 73% (14,890→~4,025 tokens): consumed 17 stale session_notes (8,143 tokens), fixed bootstrap consume=true bug, added DCL notes cap (5), agent_registry column projection (~3,128 tokens). Lesson written to both stores.
-**Next milestone:** Extend agent_health_monitor to cover building-status agents — currently these are invisible to the monitor. Add them to the scan loop and surface any errors in the Telegram health report.
-**Validation:** /health_check reports on at least one building-status agent; no false negatives for known-broken building agents.
+**Session 2026-04-13 (health-monitor-building) update:** MILESTONE COMPLETE. agent_health_monitor (w5vypq4vb2rSrwdl) extended with parallel branch detecting building/sandbox agents stale >7 days. Execution 2277 confirmed both branches successful. First scan found: research_synthesis_agent (8d building, no workflow) and arxiv_aadp_pipeline (7d sandbox, has workflow). Bill notified. Lesson written to both stores. Also: store sync gap flagged (ChromaDB 213 vs Supabase 169 — 44 lesson gap).
+**Next milestone:** Resolve the 44-lesson store sync gap between ChromaDB (213) and Supabase (169) — identify which entries exist in only one store and backfill or reconcile. Then implement the research_synthesis_agent (currently in building status for 8+ days).
+**Validation:** `SELECT COUNT(*) FROM lessons_learned` returns a value within 2 of the ChromaDB lessons_learned collection count.
 **Research:** Self-healing system patterns; circuit breaker implementations in distributed systems.
 
 ---
