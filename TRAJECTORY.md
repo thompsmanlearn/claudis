@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-12 (session: arch-redesign, bill-initiated — persona retirement and bootstrap reduction)*
+*Last updated: 2026-04-13 (session: tca-inbox-fix, bill-initiated — inbox approval flow rebuilt in TCA)*
 
 ---
 
@@ -21,10 +21,10 @@
 
 ### 1. Fault Detection and Recovery
 **→ Destination 4**
-**Current state:** agent_health_monitor promoted 2026-04-12 — monitors consecutive execution errors across active agents. Known gap: building-status agents with errors are invisible to this monitoring. TCA inbox-approval bug is the current known unaddressed failure (uuid ~~ unknown in Execute Inbox Action node, workflow kddIKvA37UDw4x6e).
-**Session 2026-04-12 (arch-redesign) update:** No progress on TCA bug. Skill cleanup for perspective/horizon-review/struggle-log now actionable — requires a follow-up bill-initiated session (sentinel write-protection confirmed).
-**Next milestone:** Fix TCA inbox bug — change uuid LIKE filter to eq in Execute Inbox Action node. Reference: execution 1996.
-**Validation:** Execute a Telegram inbox action; no operator error in execution log.
+**Current state:** agent_health_monitor promoted 2026-04-12 — monitors consecutive execution errors across active agents. Known gap: building-status agents with errors are invisible to this monitoring. TCA inbox approval flow fully rebuilt 2026-04-13.
+**Session 2026-04-13 (tca-inbox-fix) update:** TCA inbox approval rebuilt. /approve (list), /approve <id> (approve), /reject <id> (reject) wired in Parse Command + Route Command. Execute Inbox Action node uses `id=eq.{uuid}&status=eq.pending` — uuid LIKE bug fixed. Expired Supabase key (14 occurrences) replaced across entire workflow. Pending item 944c37b7 ready for Telegram validation.
+**Next milestone:** Extend agent_health_monitor to cover building-status agents — currently these are invisible to the monitor. Add them to the scan loop and surface any errors in the Telegram health report.
+**Validation:** /health_check reports on at least one building-status agent; no false negatives for known-broken building agents.
 **Research:** Self-healing system patterns; circuit breaker implementations in distributed systems.
 
 ---
