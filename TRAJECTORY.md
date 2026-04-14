@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-13 (session: health-monitor-building — building/sandbox agent stale-build detection added to agent_health_monitor)*
+*Last updated: 2026-04-14 (session: explore — research_synthesis_agent promoted to active, stats server /run_research_synthesis added, workflow upgraded to 4-node delegate pattern)*
 
 ---
 
@@ -26,7 +26,8 @@
 **Session 2026-04-13 (context-economy) update:** Operational health work. disk_prompt.md → v29 (497→407 lines, ~747 tokens removed). DCL reduced 73% (14,890→~4,025 tokens): consumed 17 stale session_notes (8,143 tokens), fixed bootstrap consume=true bug, added DCL notes cap (5), agent_registry column projection (~3,128 tokens). Lesson written to both stores.
 **Session 2026-04-13 (health-monitor-building) update:** MILESTONE COMPLETE. agent_health_monitor (w5vypq4vb2rSrwdl) extended with parallel branch detecting building/sandbox agents stale >7 days. Execution 2277 confirmed both branches successful. First scan found: research_synthesis_agent (8d building, no workflow) and arxiv_aadp_pipeline (7d sandbox, has workflow). Bill notified. Lesson written to both stores. Also: store sync gap flagged (ChromaDB 213 vs Supabase 169 — 44 lesson gap).
 **Session 2026-04-13 (store-sync-repair) update:** MILESTONE COMPLETE. Store sync gap closed: ChromaDB 214 = Supabase 214 (gap = 0). Enumerated all ChromaDB IDs via direct API, diffed against Supabase chromadb_id column, found 47 ChromaDB-only entries (actual gap was 47, not 44). Backfilled all 47 into Supabase via PostgREST service key (Management API Cloudflare-blocked from Pi). Deleted 3 orphaned NULL-chromadb_id Supabase duplicates. Lesson written to both stores.
-**Next milestone:** Implement research_synthesis_agent (currently 8+ days in building status, no workflow). Design the synthesis workflow: query ChromaDB research_findings for past 21 days, compare to prior synthesis, call Sonnet for topic trajectories. Validate with one test run writing to experimental_outputs.
+**Session 2026-04-14 (explore) update:** MILESTONE COMPLETE. research_synthesis_agent promoted: workflow JUBCbXJe3TwwpB2T linked, status=active. Added /run_research_synthesis to stats_server.py (21-day ChromaDB window, Sonnet synthesis, idempotency guard, accumulation/synthesis modes). Upgraded workflow from 10-node hardcoded-key pipeline to 4-node stats-server delegate. Exec 2300 confirmed success. Two prior scheduled runs (exec 2265, 2055) also verified success.
+**Next milestone:** arxiv_aadp_pipeline (status: sandbox, workflow bZ35VinkRjRT7gYi). Evaluate via behavioral_health_check; if passing, check promotion criteria and promote or recommend.
 **Validation:** `SELECT COUNT(*) FROM lessons_learned` returns a value within 2 of the ChromaDB lessons_learned collection count.
 **Research:** Self-healing system patterns; circuit breaker implementations in distributed systems.
 
