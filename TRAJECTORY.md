@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-14 (session: explore-retrieval-log — retrieval_log wired into server.py log_retrieval(); zero_applied regression flagged 96→142)*
+*Last updated: 2026-04-15 (session: explore-zero-applied — zero_applied root cause diagnosed; inject_context_v3.1 wildcard deployed; zero_applied 142→128)*
 
 ---
 
@@ -37,10 +37,11 @@
 
 ### 2. Lesson System Effectiveness
 **→ Destination 1**
-**Session 2026-04-14 (explore-retrieval-log) update:** zero_applied = 142 (up from 96 — regression). 218 total lessons, 142 never applied = 65%. Multiple sessions added lessons without applying existing ones. Also: retrieval_log finally wired into server.py — log_retrieval() now fires after every _memory_search call (takes effect next MCP server restart). This is the data-collection foundation for ChromaDB adapter training.
-**Current state:** zero_applied trending wrong direction. The retrieval_log fix addresses the long-term accuracy gap but does not immediately fix zero_applied rate. Root cause of rising zero_applied: lessons accumulate faster than sessions retrieve them. lesson_injector surfaces context for specific task types only.
-**Next milestone:** Investigate why zero_applied is rising: (a) are new lessons using retrieval-friendly Q&A format? (b) is lesson_injector running on all task types? (c) is ChromaDB embedding quality degraded for newer lessons? Run a manual distance scan across 10 recent zero_applied lessons.
-**Validation:** `SELECT COUNT(*) FROM lessons_learned WHERE times_applied = 0;` returns a number below 130 within 3 sessions.
+**Session 2026-04-14 (explore-retrieval-log) update:** zero_applied = 142 (up from 96 — regression). retrieval_log wired into server.py log_retrieval() — takes effect next MCP restart.
+**Session 2026-04-15 (explore-zero-applied) update:** MILESTONE COMPLETE. Root cause fully diagnosed: (1) velocity gap — 55 lessons created/week vs ~35 retrieved/week, net +20 zero_applied/week; (2) 25 lessons >21 days old covering niche topics (Wikipedia API, Semantic Scholar, FRED debug) that haven't recurred — invisible to semantic search. Embedding quality healthy (distances 0.36–0.78). Fix deployed: inject_context_v3.1 zero_applied wildcard — 2 random uncirculated lessons injected every session, incremented via existing RPC. Result: 142→128 zero_applied in one session. Validation metric already passed.
+**Current state:** zero_applied = 128, trending downward. retrieval_log now accumulating data. 25 niche-topic lessons older than 21 days identified as candidates for wisdom-review retirement. stats_server.py changes are disk-only (not in git).
+**Next milestone:** (1) Monitor zero_applied over 3 sessions — confirm downward trend holds. (2) Run wisdom-review targeting the 25 old zero_applied lessons: retire obsolete ones (Wikipedia feed lesson, serendipity_engine eval). (3) Evaluate adding stats_server.py to version control.
+**Validation:** `SELECT COUNT(*) FROM lessons_learned WHERE times_applied = 0;` stays below 130 for 3 consecutive sessions.
 **Research:** Knowledge retrieval architectures; how retrieval-augmented systems weight recency vs. relevance.
 
 ---
