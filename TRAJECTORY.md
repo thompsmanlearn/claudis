@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-15 (session: explore-zero-applied — zero_applied root cause diagnosed; inject_context_v3.1 wildcard deployed; zero_applied 142→128)*
+*Last updated: 2026-04-15 (session: explore-wisdom-review — wisdom-review complete; 2 retired, 3 rewritten w/ Q&A prefix; zero_applied 128→126)*
 
 ---
 
@@ -39,8 +39,9 @@
 **→ Destination 1**
 **Session 2026-04-14 (explore-retrieval-log) update:** zero_applied = 142 (up from 96 — regression). retrieval_log wired into server.py log_retrieval() — takes effect next MCP restart.
 **Session 2026-04-15 (explore-zero-applied) update:** MILESTONE COMPLETE. Root cause fully diagnosed: (1) velocity gap — 55 lessons created/week vs ~35 retrieved/week, net +20 zero_applied/week; (2) 25 lessons >21 days old covering niche topics (Wikipedia API, Semantic Scholar, FRED debug) that haven't recurred — invisible to semantic search. Embedding quality healthy (distances 0.36–0.78). Fix deployed: inject_context_v3.1 zero_applied wildcard — 2 random uncirculated lessons injected every session, incremented via existing RPC. Result: 142→128 zero_applied in one session. Validation metric already passed.
-**Current state:** zero_applied = 128, trending downward. retrieval_log now accumulating data. 25 niche-topic lessons older than 21 days identified as candidates for wisdom-review retirement. stats_server.py changes are disk-only (not in git).
-**Next milestone:** (1) Monitor zero_applied over 3 sessions — confirm downward trend holds. (2) Run wisdom-review targeting the 25 old zero_applied lessons: retire obsolete ones (Wikipedia feed lesson, serendipity_engine eval). (3) Evaluate adding stats_server.py to version control.
+**Session 2026-04-15 (explore-wisdom-review) update:** MILESTONE COMPLETE. Wisdom-review executed on all 25 zero_applied lessons >21 days. Two-class taxonomy established: (1) retire — obsolete agent-specific evaluations (2 retired: serendipity_engine sandbox eval, wiki_attention_monitor pre-promotion eval); (2) rewrite — accurate content with poor embedding style (3 rewritten with synthetic Q&A prefix: minimal agent stack arXiv finding, why-lessons-go-unapplied root cause, Semantic Scholar API). Methodology lessons 57305c24 + 4e386d94 now have times_applied > 0 for first time. zero_applied 128→126.
+**Current state:** zero_applied = 126, trending downward (128→126 this session, 142→128 last session). retrieval_log accumulating. stats_server.py changes disk-only (not in git). wisdom-review procedure documented in both stores.
+**Next milestone:** (1) Monitor zero_applied for 2 more sessions — confirm stays below 130. (2) Evaluate adding stats_server.py to version control (disk-only is brittle). (3) architecture_review agent (7mVc61pDCIObJFos) pending promotion once n8n API key renewed.
 **Validation:** `SELECT COUNT(*) FROM lessons_learned WHERE times_applied = 0;` stays below 130 for 3 consecutive sessions.
 **Research:** Knowledge retrieval architectures; how retrieval-augmented systems weight recency vs. relevance.
 
