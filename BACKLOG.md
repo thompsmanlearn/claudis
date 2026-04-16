@@ -57,3 +57,31 @@ Session artifact documents the URL, RLS policies, and tested interactions
 Scope
 Touch: GitHub Pages setup, new HTML/JS file(s), Supabase RLS policies, sessions/lean/
 Do not touch: existing n8n workflows, BACKLOG.md, DIRECTIVES.md, stats_server.py
+
+Now let's fill it with content worth looking at. Here's the next card:
+
+## B-024: Add YouTube Source to Resource Scout
+
+Status: ready Depends on: B-018
+Goal
+
+Add YouTube as a second source to the Resource Scout agent, scanning for AI + Blender, AI + UE5, and AI + game dev videos using the YouTube Data API.
+Context
+
+Reddit produced 5 results on the first scan, mostly mediocre. YouTube is where the real game dev workflow content lives — tutorials, tool demos, workflow walkthroughs. The YouTube Data API returns metadata only (title, description, duration, channel, link) — no need to download or watch anything. The scout stores the link, Haiku scores relevance, and Bill reviews on the inbox page.
+
+Use the YouTube Data API v3 search endpoint. Search queries should cover the active inquiry threads — start with queries like "AI Blender workflow," "AI generated 3D models UE5," "Meshy Blender Unreal," "AI game dev tools 2026." Deduplicate against existing resources by URL. Score with Haiku the same way Reddit posts are scored. Store as resource_type "video" with duration in metadata.
+
+The API key should be stored in .env. If there's no YouTube API key yet, the card should document what's needed and Claude Code can use the existing Google API key if one exists, or flag it for Bill.
+Done when
+
+    YouTube search is integrated into the Resource Scout workflow (or a parallel workflow)
+    At least 3 search queries run covering the seed interest
+    Results are deduplicated against existing resources
+    Haiku scores each result and items scoring 3+ are written to resources with resource_type=video
+    First run produces results visible on the inbox page
+    Session artifact documents queries used, results count, and any API key setup needed
+
+Scope
+
+Touch: Resource Scout n8n workflow (or new parallel workflow), Supabase resources table (inserts), .env (YouTube API key if needed), sessions/lean/ Do not touch: inbox page, BACKLOG.md, DIRECTIVES.md, other workflows, RLS policies
