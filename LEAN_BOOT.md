@@ -14,14 +14,14 @@ suspended. Bill will state the session goal in his first prompt.
 
 ## Startup Sequence
 
-Run these steps before responding to Bill's first directive:
+**Reading this file IS the trigger. Run the sequence immediately — do not wait for a directive or user prompt.**
 
 1. `git pull` on `~/aadp/claudis/`. If pull fails, notify Bill via Telegram that directives may be stale and STOP — do not execute against a potentially superseded directive. Wait for Bill to resolve.
 2. `cp ~/aadp/claudis/LEAN_BOOT.md ~/aadp/LEAN_BOOT.md` — sync from repo.
 3. Read `~/aadp/claudis/DIRECTIVES.md` — follow any standing instructions before proceeding.
 4. Read `~/aadp/claudis/CONTEXT.md` — system facts and operational context.
 5. Read `~/aadp/claudis/TRAJECTORY.md` — destinations, active vectors, operational state.
-6. Ready for directive.
+6. Confirm startup complete and await directive.
 
 If the repo copy of LEAN_BOOT.md is ever corrupted, restore from `~/aadp/prompts/LEAN_BOOT_stable.md`.
 
