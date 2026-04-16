@@ -194,3 +194,33 @@ Session artifact confirms file contents and Supabase row IDs
 Scope
 Touch: INQUIRIES.md (new), processed/.gitkeep (new), Supabase inquiry_threads + refinements tables, sessions/lean/
 Do not touch: BACKLOG.md, DIRECTIVES.md, skills/, existing tables, n8n workflows
+
+## B-018: Build Resource Scout Agent — Reddit
+Status: ready
+Depends on: B-017
+Goal
+Build an n8n workflow that scans Reddit for AI-related posts in r/blender, r/unrealengine, and r/gamedev, uses Haiku to assess relevance against active inquiry threads, and writes qualifying items to the resources table in Supabase.
+Context
+Phase 2, Card 1 of the Capability Amplifier. Architecture spec has the full agent design under "Resource Scout Agent." Key points:
+
+Reddit JSON API — public, no auth needed. Append .json to subreddit URLs.
+Read INQUIRIES.md (or query inquiry_threads + refinements from Supabase) for active threads and refinements.
+For each new post, call Haiku with the prompt template from the architecture doc: active interests + resource title/description → score 1-5, thread match, one-line assessment.
+Items scoring 3+ → resources table (status: scouted, linked to matching thread).
+Items scoring 1-2 → discarded.
+Deduplicate against existing resources rows by URL before calling Haiku.
+Schedule: runs every 12 hours. Can be triggered manually.
+Use the agent-development skill for n8n workflow patterns and Claude API integration.
+
+Done when
+
+n8n workflow exists, activated, and has run at least once successfully
+Workflow reads active threads from Supabase (not hardcoded)
+Reddit posts from all three subreddits are fetched and deduplicated
+Haiku scoring prompt matches the architecture doc template
+At least one scouted resource appears in the resources table with correct fields (url, title, source_name, haiku_assessment, relevance_score, thread_id, status=scouted)
+Session artifact documents the workflow structure, first run results, and any items scouted
+
+Scope
+Touch: n8n (new workflow), Supabase resources table (inserts only), sessions/lean/
+Do not touch: BACKLOG.md, DIRECTIVES.md, INQUIRIES.md, existing n8n workflows, other Supabase tables
