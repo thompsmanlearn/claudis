@@ -254,3 +254,30 @@ Scope
 Touch: n8n (new workflow), Telegram (send only), Supabase resources table (read only), sessions/lean/
 Do not touch: BACKLOG.md, DIRECTIVES.md, INQUIRIES.md, existing workflows, other Supabase tables
 
+## B-020: Build Feedback Agent — Parse Telegram Replies
+Status: ready
+Depends on: B-019
+Goal
+Build an n8n workflow that receives Telegram replies to digest messages, parses them as feedback (quick reactions or refinements), writes to the feedback_log and/or refinements tables in Supabase, and confirms back via Telegram.
+Context
+Phase 2, Card 3 of the Capability Amplifier. Architecture spec has the design under "Feedback Agent." Key points:
+
+Telegram webhook trigger — listens for replies to the bot.
+Parse intent: a reply like "more like item 2" or "less like item 4" is a thumbs_up/thumbs_down on a specific resource. A reply like "less tutorials, more tool announcements" is a refinement that goes into the refinements table linked to the relevant thread.
+Simple parsing is fine for v1 — doesn't need to be perfect. If the reply references a specific item number from the digest, try to match it. If it's a general statement, treat it as a refinement on the active trunk thread.
+Write to feedback_log (always) and refinements (when the reply is a refinement, not just a reaction).
+Confirm via Telegram: "Got it — logged as [reaction/refinement]."
+Use the communication skill for Telegram patterns and the agent-development skill for n8n workflow structure.
+
+Done when
+
+n8n workflow exists and is activated
+Telegram webhook receives replies and triggers the workflow
+A thumbs-up style reply (e.g., "more like item 2") writes to feedback_log with correct feedback_type
+A refinement reply (e.g., "show me more tool announcements, less tutorials") writes to both feedback_log and refinements
+Telegram confirmation message sent back after processing
+Session artifact documents workflow structure, sample inputs tested, and resulting database rows
+
+Scope
+Touch: n8n (new workflow), Supabase feedback_log + refinements tables (inserts only), Telegram (receive + send), sessions/lean/
+Do not touch: BACKLOG.md, DIRECTIVES.md, INQUIRIES.md, existing workflows, other Supabase tables
