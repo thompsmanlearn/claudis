@@ -1,78 +1,40 @@
 ## Goal
-Answer seven design questions about the skill system.
+Update skill system structure based on design review answers.
 
 ## Context
-Read sessions/lean/2026-04-15-skill-system-scaffold.md first.
-The skill directory is now at ~/aadp/claudis/skills/ with five 
-stub skills and a CATALOG.md. Before we write skill content, 
-we need your input on how selection and loading should work.
+Read sessions/lean/2026-04-15-skill-design-questions.md first.
+Design decisions made after reviewing your answers:
 
-Answer each question from your experience operating in this system:
+1. Merge agent-development + api-integration into one skill 
+   (agent-development). Two sections internally, one skill to load.
+2. Add "Also triggers when" column to CATALOG.md for problem-state 
+   entry points (e.g. "500 error and unclear which layer").
+3. Create skills/PROTECTED.md — single source for resources that 
+   must not be modified without Bill's approval. LEAN_BOOT.md 
+   references it during startup. Do not duplicate in each SKILL.md.
+4. Add a new skill: triage — cross-layer diagnostic reasoning 
+   when something is broken and you don't know what layer. 
+   Distinct from system-ops (which stays as runbooks for known 
+   procedures).
 
-1. Is "Applies when / Provides" enough for reliable skill selection?
-2. Can you judge relevance from 1-2 sentence descriptions?
-3. Are five skills the right boundaries, or should some split/merge?
-4. What's the practical context cost of loading a skill?
-5. What work types aren't covered by these five?
-6. What do you do now when you lack needed knowledge mid-task?
-7. What institutional knowledge matters most in autonomous mode 
-   with no human present?
-
-Be concrete and opinionated. Disagree with the current design 
-where warranted. Cite specific past experiences if you can.
-
-## Done when
-- All seven questions answered with concrete reasoning
-- Any counter-proposals clearly stated
-- Session artifact written and pushed
-
-## Scope
-Touch: sessions/lean/ (artifact only)
-Do not touch: everything else — this is a thinking session## Goal
-Move skills into the repo and fix LEAN_BOOT auto-start.
-
-## Context
-Two issues from the scaffold session:
-1. ~/.claude/skills/ is outside the claudis repo — not versioned, 
-   not backed up, not visible on GitHub. Move to ~/aadp/claudis/skills/.
-2. LEAN_BOOT.md doesn't trigger the startup sequence automatically 
-   when read. The instruction needs to make clear: reading this file 
-   IS the trigger — run the sequence immediately, don't wait.
+Final skill list: agent-development, research, system-ops, 
+communication, triage.
 
 ## Done when
-- Skills directory moved to ~/aadp/claudis/skills/
-- CATALOG.md paths updated to match new location
-- LEAN_BOOT.md updated so reading it triggers startup sequence 
-  without manual nudge
-- Stable backup updated: cp LEAN_BOOT.md to 
-  ~/aadp/prompts/LEAN_BOOT_stable.md
+- api-integration directory removed, its catalog content merged 
+  into agent-development
+- triage directory created with stub SKILL.md and references/
+- CATALOG.md updated: five skills, three columns 
+  (Applies when / Provides / Also triggers when)
+- skills/PROTECTED.md created with TCA workflow (kddIKvA37UDw4x6e) 
+  and any other protected resources you know of from CONTEXT.md
+- LEAN_BOOT.md updated to read PROTECTED.md during startup 
+  (add as step between current steps 2 and 3)
+- Stable backup updated
 - All changes committed and pushed
+- Session artifact written
 
 ## Scope
 Touch: ~/aadp/claudis/skills/, LEAN_BOOT.md, CATALOG.md, 
-  ~/aadp/prompts/LEAN_BOOT_stable.md, sessions/lean/ (artifact)
-Do not touch: DIRECTIVES.md, n8n workflows, MCP server, agents## Goal
-Create the skill system directory structure and catalog.
-
-## Context
-We're building a skill system so Claude Code can load relevant 
-procedural knowledge on demand. Design is documented in the 
-April 15 context handoff. This card is scaffolding only — 
-structure and stubs, no skill content yet.
-
-## Done when
-- Directory exists: ~/.claude/skills/ with five subdirectories:
-  agent-development, research, system-ops, api-integration, communication
-- Each subdirectory has: SKILL.md (stub with title and empty sections: 
-  Purpose, When to Load, Core Instructions, Cross-Skill Warnings, 
-  Known Failure Modes) and a references/ directory with empty 
-  lessons.md and patterns.md
-- CATALOG.md exists at ~/.claude/skills/CATALOG.md with all five 
-  entries indexed (skill-name, path, "Applies when", "Provides" — 
-  use best judgment for the descriptions based on CONTEXT.md)
-- Everything committed and pushed
-
-## Scope
-Touch: ~/.claude/skills/ (new), ~/aadp/claudis/sessions/lean/ (artifact)
-Do not touch: LEAN_BOOT.md, DIRECTIVES.md, any n8n workflows, 
-MCP server, Supabase, agents
+  ~/aadp/prompts/LEAN_BOOT_stable.md, sessions/lean/
+Do not touch: DIRECTIVES.md, n8n workflows, MCP server, agents
