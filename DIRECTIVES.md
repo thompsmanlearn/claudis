@@ -1,105 +1,153 @@
 ## Goal
-Write the triage SKILL.md with reviewed content.
+Write the agent-development SKILL.md with reviewed content.
 
 ## Context
-The triage skill content below was drafted on desktop and 
-reviewed by Claude Code. All four of Claude Code's suggested 
-changes have been incorporated. Write this exactly as provided 
-— do not modify the content.
+Content drafted on desktop using lessons from references/lessons.md 
+and design review answers. Write exactly as provided.
 
 ## Done when
-- skills/triage/SKILL.md replaced with the content below
+- skills/agent-development/SKILL.md replaced with content below
 - Committed and pushed
 - Session artifact written
 
 ## Scope
-Touch: skills/triage/SKILL.md, sessions/lean/
+Touch: skills/agent-development/SKILL.md, sessions/lean/
 Do not touch: everything else
 
 ## Content to write
 
-# Skill: Triage
+# Skill: Agent Development
 
 ## Purpose
-Cross-layer diagnostic reasoning when something is broken and the 
-failing layer is unclear. This skill is for diagnosis, not repair — 
-once you know what's broken, switch to the relevant skill 
-(system-ops for runbooks, agent-development for agent/API fixes).
+Building, promoting, and retiring agents in the AADP fleet. 
+Writing and versioning agent prompts. Calling external APIs and 
+integrations from agents and n8n workflows. This skill covers 
+the full agent lifecycle and the API patterns needed to support it.
 
 ## When to Load
-- An execution failed and the error doesn't clearly point to one layer
-- A tool call returns unexpected results (wrong data, silent success, 
-  empty response)
-- An agent stopped producing expected output after a system change
-- error_log has entries without an obvious owner
-- You're about to debug something and aren't sure where to start
+- Designing, scaffolding, promoting, or retiring agents
+- Writing or updating agent prompts, versioning via prompt_update
+- Building or debugging n8n workflows
+- Writing Supabase queries, ChromaDB operations, or Claude API 
+  calls within agent context
+- Connecting agents to external APIs (Telegram, GitHub, Gmail, 
+  Google Calendar)
 
 ## Core Instructions
 
-### Session-start probes (every session, not per-task)
-Run these two before beginning any work:
-- `diag_agent_stuck_tasks` — work_queue items claimed >2 hours
-- `SELECT COUNT(*) FROM lessons_learned WHERE chromadb_id IS NULL` 
-  — real store sync gap (not COUNT comparison, which misses NULLs)
+### Part 1: Agent Lifecycle
 
-### The layer stack (check in this order)
-1. **Infrastructure** — Is the service running? Pi resources OK?
-   (n8n, ChromaDB, MCP server, Supabase connectivity)
-2. **Tool/API** — Did the tool call actually succeed? Check for 
-   silent failures — tools can return 200 while rejecting unknown 
-   columns or writing nothing. Surface OK ≠ actual OK.
-3. **Data** — Is the data correct? Schema match? Enum values exact? 
-   Check for NULL foreign keys, JSONB nesting issues, metrics that 
-   measure the wrong thing.
-4. **Agent logic** — Is the prompt right? Is output going where 
-   expected? Is the evaluator looking in the right place for output?
+#### Before building anything
+Check if it already exists:
+`SELECT agent_name, status, workflow_id FROM agent_registry 
+WHERE agent_name LIKE '%keyword%' AND status='active'`
+Sandbox names don't always match prod names. INDEX.md Production 
+table is authoritative. If the workflow exists in n8n but isn't 
+linked in agent_registry, link it — don't rebuild.
 
-### The core principle: don't trust surface signals
-Almost every triage failure in this system traces to a metric or 
-tool reporting OK when the underlying state was wrong. Before 
-concluding something works:
-- Verify the actual row/state, not the tool's return code
-- Ask: does this metric measure what I think it measures?
-- If a tool "succeeds" but the expected change didn't happen, 
-  use supabase_exec_sql to check directly
+#### Sandbox → Active promotion checklist
+1. Pre-promotion duplicate check (above)
+2. Behavioral health check passes
+3. Workflow uses webhook trigger, not manual trigger (execute API 
+   returns 405 for manual-trigger workflows)
+4. workflow_id linked in agent_registry
+5. Audit log node branches from data node, not delivery node
+6. Leave sandbox workflow DEACTIVATED after testing
 
-### Read-only during diagnosis
-While triaging, do not modify system state except to write 
-diagnostic findings to error_log. No "quick fixes," no config 
-changes, no data patches. Diagnosis and repair are separate steps. 
-Find the layer, log what you found, then hand off to the right 
-skill for the fix.
+#### Health monitoring
+n8n execution monitors are blind to building/sandbox agents 
+(no workflow_id). Monitor these separately: query 
+`status=in.(building,sandbox)` with `updated_at > 7 days` as 
+stale threshold. Use a normalize/guard Code node 
+(`runOnceForAllItems`) returning a sentinel item when input is 
+empty — the empty-array bug silently kills branches otherwise.
 
-### What to log
-Triage that doesn't leave a trace is invisible to future sessions.
-- Root cause identified → write to error_log before switching skills
-- Fix confirmed after handoff → write to audit_log
-- Unresolved → write what you tried and what was ruled out to 
-  error_log so the next session doesn't repeat the same probes
+#### When to delegate to stats server
+Move logic out of n8n and into stats_server.py when: it requires 
+ChromaDB subprocess calls, API keys should stay in .env not 
+workflow JSON, or the endpoint needs CLI testability. Pattern: 
+add endpoint to stats_server.py, replace complex n8n nodes with 
+HTTP Request to `host.docker.internal:9100/your_endpoint`, keep 
+schedule/webhook triggers in n8n.
 
-### When to stop and escalate
-Three signals mean you're stuck in a loop — alert Bill via Telegram 
-and stop:
-- Same error 3+ times in error_log
-- Work queue item claimed >2 hours without completing
-- API budget approaching limit
+### Part 2: n8n Workflow Patterns
 
-Do not retry past these thresholds. Write what you found, send 
-the Telegram alert, stop.
+#### Webhook setup (critical — undocumented in n8n 2.6.4)
+- webhookId must be a top-level node property matching the path 
+  value. Without it, n8n silently fails to register the route.
+- API-created webhook URLs differ from UI-created. Never guess. 
+  Look up: `SELECT webhookPath FROM webhook_entity WHERE 
+  workflowId = '{id}'`
+- Newly-activated workflows return 404 until n8n restarts. 
+  `docker restart n8n` after activation. For sandbox testing 
+  without restart, write directly to Supabase via PostgREST.
+
+#### Workflow creation
+- Omit the `active` field entirely — including `active: false` 
+  causes 400. Workflows are always created inactive.
+- Activate separately: `POST /api/v1/workflows/{id}/activate`
+- Never use `PATCH {active: true}` — returns null, does nothing.
+
+#### Data flow gotchas
+- HTTP Request node unwraps JSON arrays into multiple items, 
+  breaking sequential chains. Fix at API layer: wrap in 
+  `{"results": [...], "count": N}`.
+- `$json` refers to the PREVIOUS node's output only. For 
+  non-adjacent data: `$('Node Name').item.json`
+- `finished: false` on error executions — check 
+  `exec.finished OR exec.status in ("success","error","crashed")`, 
+  not just `finished`.
+- HTTP Request nodes that don't consume the response need 
+  `responseFormat: text`. Use `Prefer: return=minimal` for 
+  INSERT nodes where the returned row isn't used.
+
+#### Credentials
+Never hardcode in workflow JSON. Read from .env at build time. 
+When rotating, replace both `apikey` header AND 
+`Authorization: Bearer` using str.replace on the full JSON 
+string to catch all occurrences.
+
+#### Audit logging
+Audit node must branch from the data node, not the delivery 
+node. Filter → Telegram AND Filter → Write Audit as parallel 
+branches. Delivery failure must never prevent audit from firing.
+
+### Part 3: Claude API Patterns
+
+#### Prompt caching
+- Haiku 4.5: silently fails. Returns 
+  cache_creation_input_tokens: 0 with no error. Do not attempt.
+- Sonnet 4.6: works, but actual minimum is ~2048 tokens in the 
+  system block (documented threshold of 1024 is wrong). Target 
+  2200+ tokens to clear with margin.
+
+#### Agent evaluation (4-Pillars)
+Score on four axes, not binary pass/fail:
+1. Core LLM behavior consistency
+2. Memory accuracy
+3. Tool use correctness
+4. Environment interaction
+
+Status-aware recommendations: active agents get 
+`maintain|needs_work|retire`; sandbox/paused get 
+`promote|keep_sandbox|needs_work|retire`. Inject valid options 
+as a VALID RECOMMENDATION VALUES block in the Haiku prompt — 
+Haiku picks invalid options otherwise.
 
 ## Cross-Skill Warnings
-- If triage reveals an agent problem → load agent-development. 
-  Do not patch agent issues during diagnosis.
-- If triage reveals a service problem → load system-ops for the 
-  runbook. Triage finds the layer; system-ops has the procedure.
-- See skills/PROTECTED.md before modifying anything.
+- If a build fails and you can't tell which layer broke → 
+  load triage. Don't debug infrastructure from this skill.
+- If the task involves Telegram message formatting → check 
+  communication skill for 750-char limit and format rules.
+- See skills/PROTECTED.md — TCA workflow (kddIKvA37UDw4x6e) 
+  must never be modified without Bill's explicit approval.
 
 ## Known Failure Modes
-- Metrics that measure the wrong thing (see references/lessons.md: 
-  store sync gap)
-- Tools that report success without performing the operation 
-  (see references/lessons.md: work_queue_update silent 400s)
-- Evaluators that can't see output sent to external channels 
-  (see references/lessons.md: 4-Pillars blind spots)
-- Historical ratios that reflect pre-monitoring state, not failures 
-  (see references/lessons.md: evaluator audit ratio)
+- Building an agent that already exists under a different name 
+  (see references/lessons.md: pre-promotion duplicate check)
+- Webhook 404 after activation without n8n restart 
+  (see references/lessons.md: webhook registration)
+- Silent branch death from empty arrays in monitoring workflows 
+  (see references/lessons.md: health monitoring)
+- Prompt caching appearing to work but doing nothing on Haiku 
+  (see references/lessons.md: prompt caching)
