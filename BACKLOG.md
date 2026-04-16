@@ -126,3 +126,22 @@ Touch: LEAN_BOOT.md, ~/aadp/prompts/LEAN_BOOT_stable.md,
   sessions/lean/
 Do not touch: skills/, CATALOG.md, BACKLOG.md, DIRECTIVES.md, 
   n8n workflows, agents
+
+  B-015: Create Capability Amplifier Supabase Tables
+Goal: Create the five Supabase tables for the Capability Amplifier: inquiry_threads, refinements, resources, projects, feedback_log.
+Context: Architecture spec is in capability-amplifier-architecture-v2.md (uploaded to this conversation, also available as a session artifact). The data model section has the full schema. These tables are net-new — they don't touch existing AADP tables. Use the system-ops skill for Supabase DDL patterns.
+Done when:
+
+All five tables exist in Supabase with correct columns and types
+inquiry_threads.parent_id is a self-referencing nullable FK
+resources.thread_id, refinements.thread_id, projects.thread_id, and feedback_log.thread_id are FKs to inquiry_threads
+feedback_log.resource_id is a nullable FK to resources
+inquiry_threads.sparked_by_resource_id is a nullable FK to resources
+status columns use text (not enum) — values enforced at application layer
+projects.screenshots is jsonb
+All tables have created_at defaulting to now()
+Session artifact confirms table creation with column listing
+
+Scope: Tables only. No data seeding (that's the next card). No RLS policies yet — add if trivial, skip if not.
+
+
