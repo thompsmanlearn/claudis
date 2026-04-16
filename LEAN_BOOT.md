@@ -19,7 +19,11 @@ suspended. Bill will state the session goal in his first prompt.
 1. `git pull` on `~/aadp/claudis/`. If pull fails, notify Bill via Telegram that directives may be stale and STOP — do not execute against a potentially superseded directive. Wait for Bill to resolve.
 2. `cp ~/aadp/claudis/LEAN_BOOT.md ~/aadp/LEAN_BOOT.md` — sync from repo.
 3. Read `~/aadp/claudis/skills/PROTECTED.md` — know what must not be touched before any work begins.
-4. Read `~/aadp/claudis/DIRECTIVES.md` — follow any standing instructions before proceeding.
+4. Read `~/aadp/claudis/DIRECTIVES.md`. Two cases:
+   - **Full card content** — execute it directly as before.
+   - **Short pointer** — if the file contains only a single line matching `Run: B-NNN`
+     (e.g. `Run: B-013`), read `~/aadp/claudis/BACKLOG.md`, find the card with that
+     ID, and execute it. The card in BACKLOG.md is the directive.
 5. Read `~/aadp/claudis/CONTEXT.md` — system facts and operational context.
 6. Read `~/aadp/claudis/TRAJECTORY.md` — destinations, active vectors, operational state.
 7. Execute the directive immediately — do not pause for confirmation or "await directive".
@@ -77,6 +81,7 @@ What's left, if anything.
 | `~/aadp/stats-server/stats_server.py` | Stats/proxy sidecar (port 9100) — filesystem ops, git, GitHub API proxy, `/run_research_synthesis` |
 | `~/aadp/logs/` | Sentinel session logs |
 | `~/aadp/claudis/DIRECTIVES.md` | Bill's standing instructions — read at every lean session start |
+| `~/aadp/claudis/BACKLOG.md` | Lean session card queue — referenced when DIRECTIVES.md contains `Run: B-NNN` |
 | `~/aadp/claudis/sessions/lean/` | Lean session artifacts |
 
 ### Supabase (Primary Database)
