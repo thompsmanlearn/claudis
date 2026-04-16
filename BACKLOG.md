@@ -224,3 +224,33 @@ Session artifact documents the workflow structure, first run results, and any it
 Scope
 Touch: n8n (new workflow), Supabase resources table (inserts only), sessions/lean/
 Do not touch: BACKLOG.md, DIRECTIVES.md, INQUIRIES.md, existing n8n workflows, other Supabase tables
+
+## B-019: Build Digest Agent — Daily Telegram Summary
+Status: ready
+Depends on: B-018
+Goal
+Build an n8n workflow that queries newly scouted resources from Supabase, groups them by inquiry thread, and sends a formatted Telegram digest to Bill.
+Context
+Phase 2, Card 2 of the Capability Amplifier. Architecture spec has the design under "Digest Agent." Key points:
+
+Query resources table for items with status scouted since last digest. Track last-digest timestamp in Supabase (new row in system_config or a simple approach — query by scouted_at in the last 24 hours).
+Join against inquiry_threads to get thread names for grouping.
+Format as Telegram message: thread name header, then each item with title + one-line assessment + link.
+Use the communication skill — 750 char target, truncate at 4000. Quick Send key pattern.
+Schedule: once daily. Can also be triggered manually via webhook.
+If no new resources since last digest, either skip or send a short "nothing new today" message.
+
+Done when
+
+n8n workflow exists, activated, and has sent at least one test digest to Telegram
+Message groups resources by thread name
+Each item shows title, one-line Haiku assessment, and link
+Message respects 750 char target / 4000 char max from communication skill
+Schedule set to once daily
+Manual trigger via webhook works
+Session artifact documents workflow structure and sample message sent
+
+Scope
+Touch: n8n (new workflow), Telegram (send only), Supabase resources table (read only), sessions/lean/
+Do not touch: BACKLOG.md, DIRECTIVES.md, INQUIRIES.md, existing workflows, other Supabase tables
+
