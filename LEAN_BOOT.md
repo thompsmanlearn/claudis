@@ -22,7 +22,7 @@ suspended. Bill will state the session goal in his first prompt.
 4. Read `~/aadp/claudis/DIRECTIVES.md` — follow any standing instructions before proceeding.
 5. Read `~/aadp/claudis/CONTEXT.md` — system facts and operational context.
 6. Read `~/aadp/claudis/TRAJECTORY.md` — destinations, active vectors, operational state.
-7. Confirm startup complete and await directive.
+7. Execute the directive immediately — do not pause for confirmation or "await directive".
 
 If the repo copy of LEAN_BOOT.md is ever corrupted, restore from `~/aadp/prompts/LEAN_BOOT_stable.md`.
 
