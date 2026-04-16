@@ -1,40 +1,39 @@
 ## Goal
-Update skill system structure based on design review answers.
+Pull relevant lessons from ChromaDB into skill reference files.
 
 ## Context
-Read sessions/lean/2026-04-15-skill-design-questions.md first.
-Design decisions made after reviewing your answers:
+Read sessions/lean/2026-04-15-skill-system-structure.md first.
+All five skills have empty references/lessons.md files. Before we 
+draft skill content on desktop, we need the actual operational 
+lessons from ChromaDB that belong to each skill.
 
-1. Merge agent-development + api-integration into one skill 
-   (agent-development). Two sections internally, one skill to load.
-2. Add "Also triggers when" column to CATALOG.md for problem-state 
-   entry points (e.g. "500 error and unclear which layer").
-3. Create skills/PROTECTED.md — single source for resources that 
-   must not be modified without Bill's approval. LEAN_BOOT.md 
-   references it during startup. Do not duplicate in each SKILL.md.
-4. Add a new skill: triage — cross-layer diagnostic reasoning 
-   when something is broken and you don't know what layer. 
-   Distinct from system-ops (which stays as runbooks for known 
-   procedures).
+For each skill, query ChromaDB with 3-5 targeted searches matching 
+that skill's "Applies when" and "Also triggers when" descriptions. 
+Deduplicate across skills. Write curated results into each skill's 
+references/lessons.md with the lesson text and source metadata.
 
-Final skill list: agent-development, research, system-ops, 
-communication, triage.
+Skills to populate:
+- agent-development (include agent AND api/integration topics)
+- research
+- system-ops
+- communication
+- triage (cross-layer diagnosis, error tracing, debugging)
+
+Keep each lessons.md to the most actionable lessons — things that 
+would change behavior, not general observations. If a lesson is 
+trivially obvious, skip it.
 
 ## Done when
-- api-integration directory removed, its catalog content merged 
-  into agent-development
-- triage directory created with stub SKILL.md and references/
-- CATALOG.md updated: five skills, three columns 
-  (Applies when / Provides / Also triggers when)
-- skills/PROTECTED.md created with TCA workflow (kddIKvA37UDw4x6e) 
-  and any other protected resources you know of from CONTEXT.md
-- LEAN_BOOT.md updated to read PROTECTED.md during startup 
-  (add as step between current steps 2 and 3)
-- Stable backup updated
+- All five references/lessons.md files populated with curated 
+  ChromaDB lessons
+- Each lesson includes enough context to be useful standalone
+- No duplicates across skill files
+- Session artifact includes: total lessons found, how many kept 
+  per skill, any skill areas where ChromaDB had weak coverage
 - All changes committed and pushed
-- Session artifact written
 
 ## Scope
-Touch: ~/aadp/claudis/skills/, LEAN_BOOT.md, CATALOG.md, 
-  ~/aadp/prompts/LEAN_BOOT_stable.md, sessions/lean/
-Do not touch: DIRECTIVES.md, n8n workflows, MCP server, agents
+Touch: ~/aadp/claudis/skills/*/references/lessons.md, 
+  sessions/lean/
+Do not touch: SKILL.md files, CATALOG.md, LEAN_BOOT.md, 
+  PROTECTED.md, n8n workflows, agents
