@@ -167,4 +167,30 @@ Scope
 Touch: Supabase (new tables only), sessions/lean/
 Do not touch: existing AADP tables, BACKLOG.md, DIRECTIVES.md, skills/, n8n workflows
 
+## B-017: Create GitHub file structure and seed first inquiry thread
+Status: ready
+Depends on: B-016
+Goal
+Create INQUIRIES.md and the processed/ directory in the claudis repo. Seed the first inquiry thread in the inquiry_threads table and its initial refinements in the refinements table.
+Context
+Phase 1, Card 2 of the Capability Amplifier. The trunk thread is: "Game development with Blender and UE5, using AI to skip traditional learning curves."
+Initial refinements:
 
+"Not tutorials — AI-assisted workflows and tools"
+"More like practical tools I can try today (e.g. Meshy AI) than theory"
+"How people are using Claude and other AI for Blender Python scripting and UE5 Blueprints"
+"Tool announcements and new releases over educational content"
+
+INQUIRIES.md format (from architecture doc): sections for Active Threads, New Questions, Refinements, Paused.
+Done when
+
+INQUIRIES.md exists at repo root with the seed thread and refinements in the documented format
+processed/ directory exists at repo root (with a .gitkeep)
+One row in inquiry_threads: trunk, parent_id null, status active
+Four rows in refinements: one per refinement above, linked to the trunk thread, source = 'github'
+All pushed to GitHub
+Session artifact confirms file contents and Supabase row IDs
+
+Scope
+Touch: INQUIRIES.md (new), processed/.gitkeep (new), Supabase inquiry_threads + refinements tables, sessions/lean/
+Do not touch: BACKLOG.md, DIRECTIVES.md, skills/, existing tables, n8n workflows
