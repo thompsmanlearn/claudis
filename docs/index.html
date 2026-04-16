@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resource Inbox</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 14px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+    .header-left p  { font-size: 0.75rem; opacity: 0.6; margin-top: 2px; }
+
+    .reload-btn {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .reload-btn:hover { background: rgba(255,255,255,0.22); }
+
+    .controls {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 10px 16px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter-btn {
+      padding: 5px 12px;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      background: #fff;
+      font-size: 0.78rem;
+      cursor: pointer;
+      color: #444;
+      white-space: nowrap;
+    }
+    .filter-btn.active {
+      background: #1a1a2e;
+      color: #fff;
+      border-color: #1a1a2e;
+    }
+
+    .show-dismissed-label {
+      margin-left: auto;
+      font-size: 0.78rem;
+      color: #888;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .feed {
+      padding: 12px 16px;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card.dismissed { display: none; }
+    .card.dismissed.visible { display: block; opacity: 0.38; }
+    .card.starred { border-left: 3px solid #f59e0b; }
+
+    .card-thread {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #9ca3af;
+      margin-bottom: 5px;
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      line-height: 1.35;
+      margin-bottom: 6px;
+    }
+    .card-title a { color: #1a1a2e; text-decoration: none; }
+    .card-title a:hover { text-decoration: underline; }
+
+    .card-assessment {
+      font-size: 0.83rem;
+      color: #555;
+      line-height: 1.45;
+      margin-bottom: 11px;
+    }
+    .card-assessment.none { color: #bbb; font-style: italic; }
+
+    .card-actions { display: flex; gap: 8px; }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 7px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.12s, opacity 0.12s;
+    }
+    .btn:disabled { opacity: 0.55; cursor: default; }
+
+    .btn-star          { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    .btn-star:hover:not(:disabled)    { background: #fde68a; }
+    .btn-star.done     { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+
+    .btn-dismiss       { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+    .btn-dismiss:hover:not(:disabled) { background: #e5e7eb; }
+    .btn-dismiss.done  { background: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; }
+
+    .empty-state {
+      text-align: center;
+      padding: 56px 16px;
+      color: #aaa;
+    }
+    .empty-state p { font-size: 0.9rem; margin-top: 6px; }
+
+    .loading-state {
+      text-align: center;
+      padding: 56px 16px;
+      color: #aaa;
+      font-size: 0.9rem;
+    }
+
+    .error-state {
+      text-align: center;
+      padding: 40px 16px;
+    }
+    .error-state h2 { color: #dc2626; font-size: 1rem; }
+    .error-state p { color: #888; font-size: 0.82rem; margin-top: 6px; }
+
+    .statusbar {
+      font-size: 0.72rem;
+      color: #aaa;
+      text-align: center;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Resource Inbox</h1>
+    <p id="subtitle">Loading…</p>
+  </div>
+  <button class="reload-btn" onclick="reload()">↺ Refresh</button>
+</header>
+
+<div class="controls">
+  <button class="filter-btn active" data-thread="all" onclick="setFilter('all',this)">All</button>
+  <label class="show-dismissed-label">
+    <input type="checkbox" id="show-dismissed" onchange="toggleDismissed(this.checked)">
+    Show dismissed
+  </label>
+</div>
+
+<div class="feed" id="feed">
+  <div class="loading-state">Loading resources…</div>
+</div>
+
+<div class="statusbar" id="statusbar"></div>
+
+<script>
+const SB_URL  = 'https://cihbfubghytzqrpffgcq.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpaGJmdWJnaHl0enFycGZmZ2NxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjUxODQsImV4cCI6MjA4OTIwMTE4NH0.RjPXzYNtMgo-Y3K_tTSyaCse1HCX8oCjWTCLtNN2Y4g';
+
+const H = {
+  'apikey': SB_ANON,
+  'Authorization': 'Bearer ' + SB_ANON,
+  'Content-Type': 'application/json'
+};
+
+let resources    = [];
+let threads      = {};   // id -> thread object
+let feedback     = {};   // resource_id -> 'thumbs_up' | 'dismiss'
+let activeFilter = 'all';
+let showDismissed = false;
+
+async function sbGet(path) {
+  const r = await fetch(SB_URL + '/rest/v1/' + path, { headers: H });
+  if (!r.ok) throw new Error(r.status + ' ' + await r.text());
+  return r.json();
+}
+
+async function sbPost(path, body) {
+  const r = await fetch(SB_URL + '/rest/v1/' + path, {
+    method: 'POST',
+    headers: { ...H, 'Prefer': 'return=minimal' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(r.status + ' ' + await r.text());
+}
+
+async function load() {
+  document.getElementById('feed').innerHTML = '<div class="loading-state">Loading…</div>';
+  try {
+    const [threadRows, resourceRows, feedbackRows] = await Promise.all([
+      sbGet('inquiry_threads?select=id,domain_name,description&status=eq.active'),
+      sbGet('resources?select=id,thread_id,title,url,haiku_assessment,status,scouted_at&order=scouted_at.desc.nullslast'),
+      sbGet('feedback_log?select=resource_id,feedback_type&resource_id=not.is.null&order=created_at.asc')
+    ]);
+
+    threads = {};
+    threadRows.forEach(t => { threads[t.id] = t; });
+
+    feedback = {};
+    feedbackRows.forEach(f => { feedback[f.resource_id] = f.feedback_type; });
+
+    resources = resourceRows;
+
+    buildThreadButtons(threadRows);
+    render();
+
+    const scouted = resourceRows.filter(r => r.status === 'scouted' && feedback[r.id] !== 'dismiss').length;
+    document.getElementById('subtitle').textContent =
+      resourceRows.length + ' resources · ' + scouted + ' unreviewed';
+    document.getElementById('statusbar').textContent =
+      'Loaded ' + new Date().toLocaleTimeString();
+
+  } catch (err) {
+    document.getElementById('feed').innerHTML =
+      '<div class="error-state"><h2>Load failed</h2><p>' + esc(err.message) + '</p></div>';
+  }
+}
+
+function buildThreadButtons(threadRows) {
+  const controls = document.querySelector('.controls');
+  // Remove any previously injected thread buttons
+  controls.querySelectorAll('.filter-btn[data-thread]:not([data-thread="all"])').forEach(b => b.remove());
+  const label = document.querySelector('.show-dismissed-label');
+  threadRows.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'filter-btn' + (activeFilter === t.id ? ' active' : '');
+    b.dataset.thread = t.id;
+    b.textContent = t.domain_name;
+    b.onclick = () => setFilter(t.id, b);
+    controls.insertBefore(b, label);
+  });
+}
+
+function setFilter(threadId, btn) {
+  activeFilter = threadId;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function toggleDismissed(checked) {
+  showDismissed = checked;
+  document.querySelectorAll('.card.dismissed').forEach(card => {
+    card.classList.toggle('visible', checked);
+  });
+}
+
+function render() {
+  const feed = document.getElementById('feed');
+  const list = activeFilter === 'all'
+    ? resources
+    : resources.filter(r => r.thread_id === activeFilter);
+
+  if (!list.length) {
+    feed.innerHTML = '<div class="empty-state"><strong>Nothing here</strong><p>No resources match this filter.</p></div>';
+    return;
+  }
+
+  feed.innerHTML = list.map(cardHTML).join('');
+}
+
+function cardHTML(r) {
+  const fb       = feedback[r.id];
+  const dismissed = fb === 'dismiss';
+  const starred   = fb === 'thumbs_up';
+  const thread    = threads[r.thread_id] || null;
+  const label     = thread ? thread.domain_name : '';
+
+  const cardClass = [
+    'card',
+    starred   ? 'starred'   : '',
+    dismissed ? 'dismissed' : '',
+    dismissed && showDismissed ? 'visible' : ''
+  ].filter(Boolean).join(' ');
+
+  const starClass    = 'btn btn-star'    + (starred   ? ' done' : '');
+  const dismissClass = 'btn btn-dismiss' + (dismissed ? ' done' : '');
+
+  const titleHTML = r.url
+    ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>`
+    : esc(r.title);
+
+  const assessHTML = r.haiku_assessment
+    ? `<div class="card-assessment">${esc(r.haiku_assessment)}</div>`
+    : `<div class="card-assessment none">No assessment yet</div>`;
+
+  return `
+<div class="card ${cardClass}" id="card-${r.id}">
+  <div class="card-thread">${esc(label)}</div>
+  <div class="card-title">${titleHTML}</div>
+  ${assessHTML}
+  <div class="card-actions">
+    <button class="${starClass}" onclick="giveFeedback('${r.id}','${r.thread_id}','thumbs_up',this)" ${starred ? 'disabled' : ''}>★ Star</button>
+    <button class="${dismissClass}" onclick="giveFeedback('${r.id}','${r.thread_id}','dismiss',this)" ${dismissed ? 'disabled' : ''}>✕ Dismiss</button>
+  </div>
+</div>`;
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s || '');
+  return d.innerHTML;
+}
+
+async function giveFeedback(resourceId, threadId, type, btn) {
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '…';
+  try {
+    await sbPost('feedback_log', {
+      resource_id:   resourceId,
+      thread_id:     threadId,
+      feedback_type: type
+    });
+    feedback[resourceId] = type;
+    // Patch just this card in-place
+    const el  = document.getElementById('card-' + resourceId);
+    const res = resources.find(r => r.id === resourceId);
+    if (el && res) el.outerHTML = cardHTML(res);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = orig;
+    alert('Error: ' + err.message);
+  }
+}
+
+function reload() { load(); }
+
+load();
+</script>
+</body>
+</html>
