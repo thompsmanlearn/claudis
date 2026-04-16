@@ -24,9 +24,16 @@ suspended. Bill will state the session goal in his first prompt.
    - **Short pointer** — if the file contains only a single line matching `Run: B-NNN`
      (e.g. `Run: B-013`), read `~/aadp/claudis/BACKLOG.md`, find the card with that
      ID, and execute it. The card in BACKLOG.md is the directive.
-5. Read `~/aadp/claudis/CONTEXT.md` — system facts and operational context.
-6. Read `~/aadp/claudis/TRAJECTORY.md` — destinations, active vectors, operational state.
-7. Execute the directive immediately — do not pause for confirmation or "await directive".
+5. **Skill selection:** Read `~/aadp/claudis/skills/CATALOG.md`. Match the directive against the
+   "Applies when" and "Also triggers when" columns using judgment. For each match, read the
+   corresponding SKILL.md into context. If no skills match, proceed without — not every
+   directive needs a skill. Output a single confirmation line: `Loading: [skill names]. Proceeding.`
+   (or `No skills matched. Proceeding.` if none apply). Do not load
+   `references/lessons.md` or `references/patterns.md` automatically — pull those on demand
+   during execution if needed.
+6. Read `~/aadp/claudis/CONTEXT.md` — system facts and operational context.
+7. Read `~/aadp/claudis/TRAJECTORY.md` — destinations, active vectors, operational state.
+8. Execute the directive immediately — do not pause for confirmation or "await directive".
 
 If the repo copy of LEAN_BOOT.md is ever corrupted, restore from `~/aadp/prompts/LEAN_BOOT_stable.md`.
 
