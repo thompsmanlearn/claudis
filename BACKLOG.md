@@ -33,3 +33,27 @@ The agent should:
 ### Scope
 Touch: n8n (new workflow), Supabase `resources` table (inserts/updates), Telegram (send only for new questions), GitHub API (read only), sessions/lean/
 Do not touch: BACKLOG.md, DIRECTIVES.md, INQUIRIES.md, processed/ directory contents, existing workflows, other Supabase tables
+
+## B-023: Build Resource Inbox Web Page
+Status: ready
+Depends on: B-016
+Goal
+Build a single-page web app hosted on GitHub Pages that displays scouted resources as scrollable cards with star/dismiss buttons that write feedback directly to Supabase.
+Context
+This is the steering wheel. The current Telegram digest is a bad review interface. Bill needs a page he can open on his phone or desktop, scroll through new finds, star what's interesting, dismiss what isn't, and move on. That interaction IS the feedback loop — no Telegram replies, no GitHub files, no ceremony.
+Technical approach: single HTML file with vanilla JS (or minimal React). Reads from Supabase REST API using the anon key with RLS policies for read access on resources, inquiry_threads. Writes to feedback_log on star/dismiss. No build step. Host on GitHub Pages from the claudis repo (gh-pages branch or docs/ folder).
+Each resource card shows: title, source, one-line Haiku assessment, link to original, star button, dismiss button. Group or filter by inquiry thread. Newest first. Dismissed items disappear from the default view.
+RLS policies needed: anon read on resources, inquiry_threads, refinements. Anon insert on feedback_log. No delete/update for anon.
+Done when
+
+Page is live on GitHub Pages and accessible from Bill's phone and desktop
+Scouted resources display as cards with title, assessment, source link
+Star button writes thumbs_up to feedback_log with correct resource_id and thread_id
+Dismiss button writes dismiss to feedback_log and hides the card
+Page loads current data from Supabase on each visit
+Supabase RLS policies are in place (read resources/threads, insert feedback)
+Session artifact documents the URL, RLS policies, and tested interactions
+
+Scope
+Touch: GitHub Pages setup, new HTML/JS file(s), Supabase RLS policies, sessions/lean/
+Do not touch: existing n8n workflows, BACKLOG.md, DIRECTIVES.md, stats_server.py
