@@ -281,3 +281,23 @@ Session artifact documents workflow structure, sample inputs tested, and resulti
 Scope
 Touch: n8n (new workflow), Supabase feedback_log + refinements tables (inserts only), Telegram (receive + send), sessions/lean/
 Do not touch: BACKLOG.md, DIRECTIVES.md, INQUIRIES.md, existing workflows, other Supabase tables
+
+## B-021: Route Telegram replies to Feedback Agent via TCA
+Status: ready
+Depends on: B-020
+Goal
+Add a routing rule to TCA that forwards non-command Telegram text messages to the Feedback Agent's internal webhook (POST http://localhost:5678/webhook/feedback-agent).
+Context
+Bill approves this TCA modification. Per PROTECTED.md, TCA changes require explicit approval — this is it.
+Telegram only supports one webhook per bot, and TCA owns it. The Feedback Agent (B-020, workflow izJKH5YqPIE9lES2) is built and tested but can only receive messages via its internal webhook. TCA's Route Command switch needs one new case: if the incoming message is plain text (not a recognized command), forward the message body to the Feedback Agent webhook with { "text": <message text> }.
+Keep it simple — if TCA doesn't recognize the text as a command, route it to the Feedback Agent. No parsing in TCA; all intent parsing happens in the Feedback Agent itself.
+Done when
+
+TCA routes unrecognized text messages to the Feedback Agent webhook
+Bill can reply to a digest message in Telegram and see it land in feedback_log (test with a real Telegram reply)
+Existing TCA commands still work (test at least one)
+Session artifact documents the TCA change and test results
+
+Scope
+Touch: TCA workflow (Route Command switch — one new case), sessions/lean/
+Do not touch: Feedback Agent workflow, BACKLOG.md, DIRECTIVES.md, Supabase tables, other n8n workflows
