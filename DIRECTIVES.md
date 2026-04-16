@@ -1,4 +1,27 @@
 ## Goal
+Move skills into the repo and fix LEAN_BOOT auto-start.
+
+## Context
+Two issues from the scaffold session:
+1. ~/.claude/skills/ is outside the claudis repo — not versioned, 
+   not backed up, not visible on GitHub. Move to ~/aadp/claudis/skills/.
+2. LEAN_BOOT.md doesn't trigger the startup sequence automatically 
+   when read. The instruction needs to make clear: reading this file 
+   IS the trigger — run the sequence immediately, don't wait.
+
+## Done when
+- Skills directory moved to ~/aadp/claudis/skills/
+- CATALOG.md paths updated to match new location
+- LEAN_BOOT.md updated so reading it triggers startup sequence 
+  without manual nudge
+- Stable backup updated: cp LEAN_BOOT.md to 
+  ~/aadp/prompts/LEAN_BOOT_stable.md
+- All changes committed and pushed
+
+## Scope
+Touch: ~/aadp/claudis/skills/, LEAN_BOOT.md, CATALOG.md, 
+  ~/aadp/prompts/LEAN_BOOT_stable.md, sessions/lean/ (artifact)
+Do not touch: DIRECTIVES.md, n8n workflows, MCP server, agents## Goal
 Create the skill system directory structure and catalog.
 
 ## Context
