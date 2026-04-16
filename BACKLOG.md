@@ -51,3 +51,24 @@
 ## B-013: Add Run: B-NNN short-pointer to LEAN_BOOT.md
 **Status:** done
 **Artifact:** sessions/lean/2026-04-15-backlog-bootstrap.md
+
+## B-014: Smoke test Run: B-NNN short-pointer
+**Status:** ready
+
+### Goal
+Verify that DIRECTIVES.md containing only "Run: B-014" 
+correctly triggers Claude Code to read BACKLOG.md and 
+execute this card.
+
+### Context
+See artifact: sessions/lean/2026-04-15-backlog-bootstrap.md
+This tests the LEAN_BOOT.md step 4 change from B-013.
+
+### Done when
+- Claude Code found and executed this card from BACKLOG.md
+- Session artifact confirms the short-pointer path was used
+- Artifact pushed to GitHub
+
+### Scope
+Touch: sessions/lean/ (artifact only)
+Do not touch: everything else
