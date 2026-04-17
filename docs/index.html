@@ -169,6 +169,50 @@
       text-align: center;
       padding: 10px;
     }
+
+    .refine-bar {
+      position: sticky;
+      bottom: 0;
+      background: #fff;
+      border-top: 1px solid #e0e0e0;
+      padding: 10px 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      max-width: 100%;
+      z-index: 100;
+    }
+
+    .refine-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 7px;
+      font-size: 0.85rem;
+      outline: none;
+      min-width: 0;
+    }
+    .refine-input:focus { border-color: #1a1a2e; }
+
+    .refine-submit {
+      padding: 8px 14px;
+      background: #1a1a2e;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .refine-submit:hover:not(:disabled) { background: #2d2d4e; }
+    .refine-submit:disabled { opacity: 0.5; cursor: default; }
+
+    .refine-status {
+      font-size: 0.75rem;
+      color: #888;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -194,6 +238,13 @@
 </div>
 
 <div class="statusbar" id="statusbar"></div>
+
+<div class="refine-bar">
+  <input class="refine-input" id="refine-input" type="text"
+    placeholder="Add a refinement — keywords, tools, topics…" maxlength="400">
+  <span class="refine-status" id="refine-status"></span>
+  <button class="refine-submit" id="refine-btn" onclick="submitRefinement()">Add Refinement</button>
+</div>
 
 <script>
 const SB_URL  = 'https://cihbfubghytzqrpffgcq.supabase.co';
@@ -367,6 +418,44 @@ async function giveFeedback(resourceId, threadId, type, btn) {
 }
 
 function reload() { load(); }
+
+async function submitRefinement() {
+  const input = document.getElementById('refine-input');
+  const btn   = document.getElementById('refine-btn');
+  const status = document.getElementById('refine-status');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  const threadId = (activeFilter !== 'all')
+    ? activeFilter
+    : (resources.length ? resources[0].thread_id : null);
+
+  if (!threadId) {
+    status.textContent = 'No active thread.';
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = 'Saving…';
+  try {
+    await sbPost('refinements', {
+      refinement_text: text,
+      thread_id: threadId,
+      source: 'portal'
+    });
+    input.value = '';
+    status.textContent = 'Saved — scouts will pick this up next cycle.';
+    setTimeout(() => { status.textContent = ''; }, 4000);
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('refine-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitRefinement();
+});
 
 load();
 </script>
