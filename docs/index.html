@@ -24,41 +24,58 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
     }
 
     .header-left h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
     .header-left p  { font-size: 0.75rem; opacity: 0.6; margin-top: 2px; }
 
+    .header-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    .hdr-btn {
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 6px 12px;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .hdr-btn:disabled { opacity: 0.5; cursor: default; }
+
     .reload-btn {
       background: rgba(255,255,255,0.12);
       border: 1px solid rgba(255,255,255,0.2);
       color: #fff;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 0.8rem;
-      cursor: pointer;
-      white-space: nowrap;
     }
-    .reload-btn:hover { background: rgba(255,255,255,0.22); }
+    .reload-btn:hover:not(:disabled) { background: rgba(255,255,255,0.22); }
 
+    .scan-btn {
+      background: #16a34a;
+      border: 1px solid #15803d;
+      color: #fff;
+    }
+    .scan-btn:hover:not(:disabled) { background: #15803d; }
+    .scan-btn.scanning { background: #4b5563; border-color: #4b5563; }
+
+    /* ── Controls bar ── */
     .controls {
       background: #fff;
       border-bottom: 1px solid #e0e0e0;
-      padding: 10px 16px;
+      padding: 8px 16px;
       display: flex;
-      gap: 8px;
       flex-wrap: wrap;
+      gap: 6px;
       align-items: center;
     }
 
     .filter-btn {
-      padding: 5px 12px;
-      border: 1px solid #ccc;
+      padding: 4px 11px;
+      border: 1px solid #d1d5db;
       border-radius: 20px;
       background: #fff;
       font-size: 0.78rem;
       cursor: pointer;
-      color: #444;
+      color: #555;
       white-space: nowrap;
     }
     .filter-btn.active {
@@ -67,33 +84,52 @@
       border-color: #1a1a2e;
     }
 
-    .show-dismissed-label {
-      margin-left: auto;
-      font-size: 0.78rem;
-      color: #888;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      white-space: nowrap;
+    .controls-sep {
+      width: 1px;
+      height: 20px;
+      background: #e5e7eb;
+      margin: 0 2px;
     }
 
+    .state-btn {
+      padding: 4px 11px;
+      border: 1px solid #d1d5db;
+      border-radius: 20px;
+      background: #fff;
+      font-size: 0.78rem;
+      cursor: pointer;
+      color: #555;
+      white-space: nowrap;
+    }
+    .state-btn.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+    .state-btn.active.starred-view { background: #d97706; border-color: #d97706; }
+
+    /* ── Feed ── */
     .feed {
       padding: 12px 16px;
       max-width: 640px;
       margin: 0 auto;
     }
 
+    /* ── Cards ── */
     .card {
       background: #fff;
       border-radius: 10px;
       padding: 14px;
       margin-bottom: 10px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border-left: 3px solid transparent;
+      transition: opacity 0.15s;
     }
-    .card.dismissed { display: none; }
-    .card.dismissed.visible { display: block; opacity: 0.38; }
-    .card.starred { border-left: 3px solid #f59e0b; }
+    .card.starred   { border-left-color: #f59e0b; }
+    .card.dismissed { opacity: 0.38; }
+
+    .card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
 
     .card-thread {
       font-size: 0.68rem;
@@ -101,8 +137,17 @@
       text-transform: uppercase;
       letter-spacing: 0.07em;
       color: #9ca3af;
-      margin-bottom: 5px;
     }
+
+    .card-state-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+    .badge-starred   { background: #fef3c7; color: #92400e; }
+    .badge-dismissed { background: #f3f4f6; color: #9ca3af; }
 
     .card-title {
       font-size: 0.95rem;
@@ -134,14 +179,15 @@
     }
     .btn:disabled { opacity: 0.55; cursor: default; }
 
-    .btn-star          { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
-    .btn-star:hover:not(:disabled)    { background: #fde68a; }
-    .btn-star.done     { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+    .btn-star               { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    .btn-star:hover:not(:disabled) { background: #fde68a; }
+    .btn-star.done          { background: #f59e0b; color: #fff; border-color: #f59e0b; }
 
-    .btn-dismiss       { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+    .btn-dismiss            { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
     .btn-dismiss:hover:not(:disabled) { background: #e5e7eb; }
-    .btn-dismiss.done  { background: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; }
+    .btn-dismiss.done       { background: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; }
 
+    /* ── Status / empty states ── */
     .empty-state {
       text-align: center;
       padding: 56px 16px;
@@ -156,12 +202,9 @@
       font-size: 0.9rem;
     }
 
-    .error-state {
-      text-align: center;
-      padding: 40px 16px;
-    }
+    .error-state { text-align: center; padding: 40px 16px; }
     .error-state h2 { color: #dc2626; font-size: 1rem; }
-    .error-state p { color: #888; font-size: 0.82rem; margin-top: 6px; }
+    .error-state p  { color: #888; font-size: 0.82rem; margin-top: 6px; }
 
     .statusbar {
       font-size: 0.72rem;
@@ -170,6 +213,7 @@
       padding: 10px;
     }
 
+    /* ── Refine bar ── */
     .refine-bar {
       position: sticky;
       bottom: 0;
@@ -179,7 +223,6 @@
       display: flex;
       gap: 8px;
       align-items: center;
-      max-width: 100%;
       z-index: 100;
     }
 
@@ -222,15 +265,18 @@
     <h1>Resource Inbox</h1>
     <p id="subtitle">Loading…</p>
   </div>
-  <button class="reload-btn" onclick="reload()">↺ Refresh</button>
+  <div class="header-actions">
+    <button class="hdr-btn scan-btn" id="scan-btn" onclick="scanNow()">⟳ Scan Now</button>
+    <button class="hdr-btn reload-btn" onclick="load()">↺ Refresh</button>
+  </div>
 </header>
 
-<div class="controls">
-  <button class="filter-btn active" data-thread="all" onclick="setFilter('all',this)">All</button>
-  <label class="show-dismissed-label">
-    <input type="checkbox" id="show-dismissed" onchange="toggleDismissed(this.checked)">
-    Show dismissed
-  </label>
+<div class="controls" id="controls">
+  <button class="filter-btn active" data-thread="all" onclick="setThreadFilter('all',this)">All</button>
+  <div class="controls-sep"></div>
+  <button class="state-btn active"           onclick="setStateFilter('unreviewed',this)">Unreviewed</button>
+  <button class="state-btn"                  onclick="setStateFilter('all',this)">All</button>
+  <button class="state-btn starred-view"     onclick="setStateFilter('starred',this)">★ Starred</button>
 </div>
 
 <div class="feed" id="feed">
@@ -257,10 +303,10 @@ const H = {
 };
 
 let resources    = [];
-let threads      = {};   // id -> thread object
-let feedback     = {};   // resource_id -> 'thumbs_up' | 'dismiss'
-let activeFilter = 'all';
-let showDismissed = false;
+let threads      = {};
+let feedback     = {};
+let threadFilter = 'all';
+let stateFilter  = 'unreviewed';
 
 async function sbGet(path) {
   const r = await fetch(SB_URL + '/rest/v1/' + path, { headers: H });
@@ -297,9 +343,10 @@ async function load() {
     buildThreadButtons(threadRows);
     render();
 
-    const scouted = resourceRows.filter(r => r.status === 'scouted' && feedback[r.id] !== 'dismiss').length;
+    const unreviewed = resourceRows.filter(r => !feedback[r.id]).length;
+    const starred    = resourceRows.filter(r => feedback[r.id] === 'thumbs_up').length;
     document.getElementById('subtitle').textContent =
-      resourceRows.length + ' resources · ' + scouted + ' unreviewed';
+      resourceRows.length + ' resources · ' + unreviewed + ' unreviewed · ' + starred + ' starred';
     document.getElementById('statusbar').textContent =
       'Loaded ' + new Date().toLocaleTimeString();
 
@@ -310,42 +357,53 @@ async function load() {
 }
 
 function buildThreadButtons(threadRows) {
-  const controls = document.querySelector('.controls');
-  // Remove any previously injected thread buttons
+  const controls = document.getElementById('controls');
   controls.querySelectorAll('.filter-btn[data-thread]:not([data-thread="all"])').forEach(b => b.remove());
-  const label = document.querySelector('.show-dismissed-label');
+  const sep = controls.querySelector('.controls-sep');
   threadRows.forEach(t => {
     const b = document.createElement('button');
-    b.className = 'filter-btn' + (activeFilter === t.id ? ' active' : '');
+    b.className = 'filter-btn' + (threadFilter === t.id ? ' active' : '');
     b.dataset.thread = t.id;
     b.textContent = t.domain_name;
-    b.onclick = () => setFilter(t.id, b);
-    controls.insertBefore(b, label);
+    b.onclick = () => setThreadFilter(t.id, b);
+    controls.insertBefore(b, sep);
   });
 }
 
-function setFilter(threadId, btn) {
-  activeFilter = threadId;
+function setThreadFilter(id, btn) {
+  threadFilter = id;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   render();
 }
 
-function toggleDismissed(checked) {
-  showDismissed = checked;
-  document.querySelectorAll('.card.dismissed').forEach(card => {
-    card.classList.toggle('visible', checked);
-  });
+function setStateFilter(state, btn) {
+  stateFilter = state;
+  document.querySelectorAll('.state-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
 }
 
 function render() {
   const feed = document.getElementById('feed');
-  const list = activeFilter === 'all'
+
+  let list = threadFilter === 'all'
     ? resources
-    : resources.filter(r => r.thread_id === activeFilter);
+    : resources.filter(r => r.thread_id === threadFilter);
+
+  if (stateFilter === 'unreviewed') {
+    list = list.filter(r => !feedback[r.id]);
+  } else if (stateFilter === 'starred') {
+    list = list.filter(r => feedback[r.id] === 'thumbs_up');
+  }
 
   if (!list.length) {
-    feed.innerHTML = '<div class="empty-state"><strong>Nothing here</strong><p>No resources match this filter.</p></div>';
+    const msgs = {
+      unreviewed: 'All caught up — nothing left to review.',
+      starred:    'No starred resources yet.',
+      all:        'No resources match this filter.'
+    };
+    feed.innerHTML = `<div class="empty-state"><strong>Nothing here</strong><p>${msgs[stateFilter]}</p></div>`;
     return;
   }
 
@@ -353,21 +411,23 @@ function render() {
 }
 
 function cardHTML(r) {
-  const fb       = feedback[r.id];
+  const fb        = feedback[r.id];
   const dismissed = fb === 'dismiss';
   const starred   = fb === 'thumbs_up';
   const thread    = threads[r.thread_id] || null;
   const label     = thread ? thread.domain_name : '';
 
-  const cardClass = [
-    'card',
-    starred   ? 'starred'   : '',
-    dismissed ? 'dismissed' : '',
-    dismissed && showDismissed ? 'visible' : ''
-  ].filter(Boolean).join(' ');
+  const cardClass = ['card', starred ? 'starred' : '', dismissed ? 'dismissed' : '']
+    .filter(Boolean).join(' ');
 
   const starClass    = 'btn btn-star'    + (starred   ? ' done' : '');
   const dismissClass = 'btn btn-dismiss' + (dismissed ? ' done' : '');
+
+  const badge = starred
+    ? '<span class="card-state-badge badge-starred">★ Starred</span>'
+    : dismissed
+      ? '<span class="card-state-badge badge-dismissed">Dismissed</span>'
+      : '';
 
   const titleHTML = r.url
     ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>`
@@ -378,8 +438,11 @@ function cardHTML(r) {
     : `<div class="card-assessment none">No assessment yet</div>`;
 
   return `
-<div class="card ${cardClass}" id="card-${r.id}">
-  <div class="card-thread">${esc(label)}</div>
+<div class="${cardClass}" id="card-${r.id}">
+  <div class="card-meta">
+    <div class="card-thread">${esc(label)}</div>
+    ${badge}
+  </div>
   <div class="card-title">${titleHTML}</div>
   ${assessHTML}
   <div class="card-actions">
@@ -406,10 +469,12 @@ async function giveFeedback(resourceId, threadId, type, btn) {
       feedback_type: type
     });
     feedback[resourceId] = type;
-    // Patch just this card in-place
     const el  = document.getElementById('card-' + resourceId);
     const res = resources.find(r => r.id === resourceId);
-    if (el && res) el.outerHTML = cardHTML(res);
+    if (el && res) {
+      el.outerHTML = cardHTML(res);
+      if (stateFilter !== 'all') render();
+    }
   } catch (err) {
     btn.disabled = false;
     btn.textContent = orig;
@@ -417,23 +482,38 @@ async function giveFeedback(resourceId, threadId, type, btn) {
   }
 }
 
-function reload() { load(); }
+async function scanNow() {
+  const btn = document.getElementById('scan-btn');
+  btn.disabled = true;
+  btn.classList.add('scanning');
+  btn.textContent = 'Scanning…';
+  try {
+    await Promise.allSettled([
+      fetch('http://localhost:5678/webhook/resource-scout'),
+      fetch('http://localhost:5678/webhook/resource-scout-youtube')
+    ]);
+    btn.textContent = 'Waiting…';
+    await new Promise(r => setTimeout(r, 10000));
+    await load();
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('scanning');
+    btn.textContent = '⟳ Scan Now';
+  }
+}
 
 async function submitRefinement() {
-  const input = document.getElementById('refine-input');
-  const btn   = document.getElementById('refine-btn');
+  const input  = document.getElementById('refine-input');
+  const btn    = document.getElementById('refine-btn');
   const status = document.getElementById('refine-status');
-  const text  = input.value.trim();
+  const text   = input.value.trim();
   if (!text) return;
 
-  const threadId = (activeFilter !== 'all')
-    ? activeFilter
+  const threadId = (threadFilter !== 'all')
+    ? threadFilter
     : (resources.length ? resources[0].thread_id : null);
 
-  if (!threadId) {
-    status.textContent = 'No active thread.';
-    return;
-  }
+  if (!threadId) { status.textContent = 'No active thread.'; return; }
 
   btn.disabled = true;
   status.textContent = 'Saving…';
