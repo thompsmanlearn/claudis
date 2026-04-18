@@ -36,3 +36,25 @@ Commit pushed to main
 Scope
 Touch: ~/aadp/claudis/anvil/, thompsmanlearn/claude-dashboard repo, systemd unit files
 Do not touch: stats_server.py, mcp-server/server.py, .env (already configured), n8n workflows
+
+
+## B-029: Add interactive controls to Anvil dashboard
+
+**Status:** complete (2026-04-18)
+**Depends on:** B-027
+
+### Goal
+Turn the dashboard from a read-only monitor into a control surface. Add callable functions and UI controls for triggering lean sessions, writing directives, and approving inbox items.
+
+### Context
+B-027 proved the architecture. This card added trigger_lean_session, write_directive, approve_inbox_item, deny_inbox_item, and get_inbox callables to the uplink server, plus full control UI in the Anvil app.
+
+### Done when
+- Three new callables registered and live
+- Dashboard UI has controls for lean trigger, directive writing, inbox approve/deny
+- Uplink service restarted and verified
+- Commits pushed to both repos
+
+### Scope
+Touch: ~/aadp/claudis/anvil/uplink_server.py, thompsmanlearn/claude-dashboard client_code
+Do not touch: stats_server.py, mcp-server/server.py, systemd unit file, .env
