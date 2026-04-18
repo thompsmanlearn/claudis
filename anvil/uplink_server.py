@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""AADP Anvil Uplink — registers read-only callables for the Claude Dashboard."""
+"""AADP Anvil Uplink — read-only and control callables for the Claude Dashboard."""
 import logging
 import os
+import subprocess
 import requests
 import anvil.server
+from datetime import datetime, timezone
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,7 +38,10 @@ _HEADERS = {
     'Authorization': f'Bearer {_SUPABASE_KEY}',
     'Content-Type': 'application/json',
 }
+_CLAUDIS_DIR = os.path.expanduser('~/aadp/claudis')
 
+
+# ── Read-only callables ──────────────────────────────────────────────────────
 
 @anvil.server.callable
 def get_system_status():
@@ -75,6 +80,81 @@ def get_work_queue():
     )
     r.raise_for_status()
     return r.json()
+
+
+@anvil.server.callable
+def get_inbox():
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/inbox',
+        headers=_HEADERS,
+        params={
+            'select': 'id,from_agent,subject,body,priority,created_at',
+            'status': 'eq.pending',
+            'order': 'created_at.desc',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+# ── Control callables ────────────────────────────────────────────────────────
+
+@anvil.server.callable
+def approve_inbox_item(item_id):
+    now = datetime.now(timezone.utc).isoformat()
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/inbox',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{item_id}'},
+        json={'status': 'approved', 'responded_at': now},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Inbox item %s approved', item_id)
+    return {'status': 'approved'}
+
+
+@anvil.server.callable
+def deny_inbox_item(item_id):
+    now = datetime.now(timezone.utc).isoformat()
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/inbox',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{item_id}'},
+        json={'status': 'rejected', 'responded_at': now},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Inbox item %s denied', item_id)
+    return {'status': 'rejected'}
+
+
+@anvil.server.callable
+def trigger_lean_session():
+    r = requests.post(f'{_STATS_URL}/trigger_lean', timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def write_directive(text):
+    text = (text or '').strip()
+    if not text:
+        raise Exception('Directive text cannot be empty.')
+    directives_path = os.path.join(_CLAUDIS_DIR, 'DIRECTIVES.md')
+    with open(directives_path, 'w') as f:
+        f.write(text + '\n')
+    for cmd in [
+        ['git', '-C', _CLAUDIS_DIR, 'add', 'DIRECTIVES.md'],
+        ['git', '-C', _CLAUDIS_DIR, 'commit', '-m', 'directive: written from Anvil dashboard'],
+        ['git', '-C', _CLAUDIS_DIR, 'push', 'origin', 'main'],
+    ]:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            raise Exception(f'{cmd[2]} failed: {result.stderr.strip()}')
+    log.info('Directive written and pushed: %s', text[:80])
+    return {'status': 'written', 'message': 'Directive written and pushed to claudis.'}
 
 
 log.info('Connecting to Anvil uplink...')
