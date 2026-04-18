@@ -1,5 +1,5 @@
 B-028: Add Anvil Uplink key to .env and verify connection
-Status: ready
+Status: complete (2026-04-18)
 Depends on: none
 Goal
 Add the Anvil server Uplink key to the environment file so the Pi can connect to Anvil's cloud. This completes the manual setup Bill did in the browser (account, app, Uplink enabled) and unblocks B-027.
