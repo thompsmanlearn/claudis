@@ -43,7 +43,7 @@
 **Session 2026-04-15 (explore-wisdom-review) update:** MILESTONE COMPLETE. Wisdom-review executed on all 25 zero_applied lessons >21 days. Two-class taxonomy established: (1) retire — obsolete agent-specific evaluations (2 retired: serendipity_engine sandbox eval, wiki_attention_monitor pre-promotion eval); (2) rewrite — accurate content with poor embedding style (3 rewritten with synthetic Q&A prefix: minimal agent stack arXiv finding, why-lessons-go-unapplied root cause, Semantic Scholar API). Methodology lessons 57305c24 + 4e386d94 now have times_applied > 0 for first time. zero_applied 128→126.
 **Session 2026-04-17 (lean-collaborator-brief) update:** Lesson injection wired to lean sessions via lean_runner.sh (task_type='general', 25s timeout, backlog card resolution for pointer-style directives). Quality signal established: session artifacts now include "Lessons Applied" section listing lesson IDs that influenced decisions. Application rate now trackable separately from retrieval rate.
 **Current state:** zero_applied = 126, trending downward. Lesson injection now covers both autonomous and lean sessions. retrieval_log accumulating. stats_server.py changes disk-only (not in git). wisdom-review procedure documented in both stores.
-**Next milestone:** (1) Monitor zero_applied for 2 more sessions — confirm stays below 130. (2) Evaluate adding stats_server.py to version control (disk-only is brittle). (3) Run behavioral_health_check on architecture_review agent (7mVc61pDCIObJFos) — next promotion candidate.
+**Next milestone:** (1) Monitor zero_applied for 2 more sessions — confirm stays below 130. (2) Evaluate adding stats_server.py to version control (disk-only is brittle).
 **Validation:** `SELECT COUNT(*) FROM lessons_learned WHERE times_applied = 0;` stays below 130 for 3 consecutive sessions.
 **Research:** Knowledge retrieval architectures; how retrieval-augmented systems weight recency vs. relevance.
 
@@ -84,7 +84,7 @@
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil (anvil.works) selected as the UI layer. B-026–B-031 all complete as of 2026-04-18. Dashboard now has full agent fleet governance: per-agent detail cards, activate/pause toggle, thumbs-up/down feedback with comments. agent_feedback Supabase table created. 10 non-critical agents paused via dashboard. Protected agent list established (7 agents). Uplink watchdog active (localhost:9101/ping health endpoint; aadp-anvil-watchdog.timer fires every 15 min). BACKLOG.md now 21 lines. Next card: B-032 when Bill writes one.
+Anvil (anvil.works) selected as the UI layer. B-026–B-032 all complete as of 2026-04-18. B-032 delivered: collapsible sections, agent fleet grouped by status with count badges, compact expandable agent cards, ⚠️ protected indicators, search/filter, font sizes bumped for mobile (body=16, title=20). **Active focus: Anvil dashboard.** Next card (Bill writing): lean session status indicator next to Trigger button — shows 🟢 Idle / 🟡 Running so Bill knows if Claude is available before triggering. After that: live test of directive+lean trigger from Anvil. /oslean fix intentionally deferred — not current priority.
 
 ---
 
