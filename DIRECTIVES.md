@@ -1,1 +1,1 @@
-Investigate and fix /oslean. The command is not triggering lean sessions. Check TCA routing for the /oslean command, the /trigger_lean endpoint in stats_server.py (lock file state, subprocess launch), and lean_runner.sh. Confirm the fix by successfully triggering a lean session end-to-end. Document root cause in session artifact.
+Run: B-026

@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-17 (session: documentation + version control — DEEP_DIVE_BRIEF.md written from live inspection; stats_server.py added to git as claudis/stats-server/; COLLABORATOR_BRIEF.md updated with card format guide; /oslean broken, needs investigation; Anvil dashboard direction captured)*
+*Last updated: 2026-04-18 (session: strategy — Anvil integration scoped as B-026/B-027; platform integrations mapped; system framing refined; Unreal replaces Roblox; Telegram deprioritized; Opus builder's brief identified as needed document)*
 
 ---
 
@@ -82,14 +82,14 @@
 
 ## Destinations (addendum)
 
-**Destination 5 (emerging): Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Not yet ratified as a formal destination — Bill is evaluating Anvil (anvil.works) as the UI layer. See Parked Directions below.
+**Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
+Anvil (anvil.works) selected as the UI layer. B-026 (Bill setup) and B-027 (Claude Code build) are the next cards. Telegram deprioritized — unreliable, poor desktop experience.
 
 ---
 
 ## Parked Directions
 
-- **Anvil dashboard (evaluating).** Anvil (anvil.works) is a Python-only web app platform with an Uplink feature: a persistent websocket from the Pi to Anvil's cloud — no port forwarding, no reverse proxy, auto-reconnects on failure. The Pi uplink script would wrap existing infrastructure (stats_server endpoints, Supabase queries, claudis file reads). The Anvil web app provides a visual dashboard accessible from any device as a browser app or phone-installable PWA. Solves: replaces Telegram-only monitoring with a real UI; adds interactive session control (write directives, pick backlog cards, launch lean sessions from phone); proper inbox/approval UI; potential phone capabilities (camera, geolocation, push notifications). Architecture: Pi uplink script (systemd) → Anvil cloud (websocket) → Anvil web app (browser/PWA). Free tier likely sufficient. **First milestone when ready:** read-only dashboard showing system status, agent fleet health, work queue. **Blocked on:** Bill creating an Anvil account and prototyping the uplink connection. Not yet a backlog card.
+- **Anvil integration (active — see B-026/B-027).** Uplink architecture: Pi runs outbound websocket to Anvil cloud, no port forwarding needed. Anvil app = browser/PWA dashboard. Phone capabilities: camera (visual input pipeline), geolocation (context-aware agents), push notifications. First milestone: read-only dashboard. B-026 = Bill establishes account + proves uplink. B-027 = Claude Code builds service + dashboard.
 
 - **Bill's monitoring interface audit** — cosmos_report, session_health_reporter, and daily_briefing_agent exist but their current output hasn't been reviewed against what Bill actually needs. Parked until Destination 3 work begins — reviewing existing reporters is the natural first step.
 - **Haiku self-critic** — retired 2026-04-05. Replaced by behavioral_health_check for agent quality assessment.

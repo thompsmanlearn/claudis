@@ -111,3 +111,58 @@ The file already reads all credentials from ~/aadp/mcp-server/.env — no inline
 ### Scope
 Touch: claudis/stats-server/ (new directory), sessions/lean/
 Do not touch: stats_server.py itself (copy only, no edits), DIRECTIVES.md, BACKLOG.md, existing n8n workflows, .env
+
+## B-026: Bill — Anvil Account Setup and Uplink Proof of Concept
+
+**Status:** bill-action — not a Claude Code session
+
+### Goal
+Establish an Anvil account and confirm the Pi can connect to Anvil's cloud via Uplink before Claude Code builds anything against it. This is a Bill action checklist, not a build card.
+
+### Context
+Anvil (anvil.works) is the planned dashboard and UI layer for AADP, replacing Telegram as the primary interface. The Uplink feature maintains a persistent outbound websocket from the Pi to Anvil's cloud — no port forwarding, no reverse proxy needed. Claude Code cannot build the uplink service until the connection is proven to work from behind the home router and an uplink key exists in .env.
+
+### Done when
+- Anvil account created at anvil.works (free tier)
+- New Anvil app created
+- Uplink enabled on the app — Anvil generates an uplink key
+- `ANVIL_UPLINK_KEY=<key>` added to `~/aadp/mcp-server/.env`
+- Minimal proof: run `pip install anvil-uplink` in the mcp-server venv, run a one-liner uplink script, confirm it shows as connected in the Anvil editor
+- Tell Claude Code: "Anvil uplink is working, B-026 complete, ready for B-027"
+
+### Scope
+This is all Bill. Claude Code is not involved until B-027.
+
+## B-027: Build Anvil Uplink Service and Read-Only Dashboard
+
+**Status:** ready
+**Depends on:** B-026
+
+### Goal
+Build the Pi-side Anvil uplink as a systemd service and create a read-only Anvil dashboard showing system status, agent fleet health, and work queue. This proves the full architecture before adding interactive controls.
+
+### Context
+Anvil replaces Telegram as the primary interface for AADP. The uplink script runs on the Pi as a persistent process, exposes callable functions that the Anvil web app invokes, and wraps existing infrastructure — no new logic, just bridges. The Anvil app itself is built in the Anvil editor (Python + drag-and-drop UI).
+
+The read-only first milestone is deliberate: prove the uplink connection is stable from behind the home router before building anything interactive on top of it. If the websocket drops or reconnects unreliably, we need to know that before adding session launching, directive writing, or approval flows.
+
+Uplink functions to expose for the read-only dashboard:
+- `get_system_status()` → wraps stats_server `/system_status`
+- `get_agent_fleet()` → Supabase `agent_registry` (active agents, any broken/paused)
+- `get_work_queue()` → Supabase `work_queue` (pending tasks)
+- `get_recent_sessions()` → last 5 entries from `session_notes` or `sessions/lean/`
+
+All reads. No writes in this card.
+
+### Done when
+- `~/aadp/anvil/uplink.py` exists and connects to Anvil using `ANVIL_UPLINK_KEY` from .env
+- Systemd service `aadp-anvil.service` created, enabled, running
+- Anvil app displays: system status (CPU/RAM/disk/temp), agent fleet summary, work queue
+- Dashboard is accessible from a browser (and ideally installable as PWA on phone)
+- Service survives a restart: `sudo systemctl restart aadp-anvil` reconnects cleanly
+- claudis/anvil/ directory contains uplink.py and aadp-anvil.service (same pattern as stats-server)
+- Committed and pushed to main
+
+### Scope
+Touch: ~/aadp/anvil/ (new directory), claudis/anvil/ (new directory), /etc/systemd/system/aadp-anvil.service, .env (read only — key already there from B-026), sessions/lean/
+Do not touch: stats_server.py, existing n8n workflows, Supabase schema, ChromaDB, DIRECTIVES.md, BACKLOG.md
