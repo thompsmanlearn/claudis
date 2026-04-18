@@ -125,7 +125,7 @@ def get_agent_fleet():
         f'{_SUPABASE_URL}/rest/v1/agent_registry',
         headers=_HEADERS,
         params={
-            'select': 'agent_name,display_name,description,status,schedule,updated_at',
+            'select': 'agent_name,display_name,description,status,schedule,protected,updated_at',
             'order': 'agent_name.asc',
         },
         timeout=10,
