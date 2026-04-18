@@ -17,7 +17,7 @@ Touch: ~/aadp/mcp-server/.env
 Do not touch: stats_server.py, any systemd units, any Anvil app code
 
 B-027: Build Anvil Uplink service and read-only dashboard
-Status: ready
+Status: complete (2026-04-18)
 Depends on: B-028
 Goal
 Build the Pi-side Uplink service as a systemd unit and create a read-only Anvil dashboard showing system status, agent fleet, and work queue. Prove the architecture end-to-end before adding interactive controls.
