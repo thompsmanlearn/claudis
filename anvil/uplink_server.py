@@ -11,6 +11,10 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# anvil-uplink 0.7.0 requires a tracer provider to be set before any call is dispatched
+from anvil_downlink_util.tracing import set_internal_tracer_provider, TracerProvider
+set_internal_tracer_provider(TracerProvider())
+
 
 def _load_env(path: str) -> dict:
     env = {}
