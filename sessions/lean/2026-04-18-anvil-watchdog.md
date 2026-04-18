@@ -18,6 +18,14 @@ B-031: Add uplink connection watchdog and archive backlog cards B-022–B-030.
 ## Boot-chain file sizes (post-archive)
 PROTECTED.md: 34 | DIRECTIVES.md: 2 | CATALOG.md: 10 | CONTEXT.md: 70 | TRAJECTORY.md: ~97 | BACKLOG.md: 3 | Total: ~216
 
+## Bonus work (post-B-031)
+- Ran behavioral_health_check on architecture_review: 3/3 success, 100%, 4.5s avg — score 9/10, already active.
+- Discovered behavioral_health_check had been silently broken since ~April 14: hardcoded n8n API key expired. Same pattern as April 15 incident that only fixed server.py.
+- Scanned all 51 workflows; found 2 with expired key: behavioral_health_check (fixed during eval) and agent_health_monitor (fixed now).
+- 2 lessons written to Supabase + ChromaDB: (1) n8n key expiry scan procedure; (2) n8n PUT body field restrictions.
+
+## Future Improvement
+**B-032 candidate:** Refactor n8n workflow nodes that call the n8n API internally to read the key from a stats_server endpoint at runtime, rather than hardcoding it. Same pattern that fixed server.py in April 15 session — eliminates the recurring scan-and-patch toil on every key rotation.
+
 ## Unfinished
-Nothing. All "Done when" items verified. Next card: B-032 when Bill writes one.
-Candidate: agent that reads agent_feedback table and surfaces patterns to Bill.
+Nothing critical. Next card: B-032 when Bill writes one.
