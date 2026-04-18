@@ -136,3 +136,50 @@ The Pi Claude Code instance is resource-constrained (16GB RAM, Raspberry Pi). Co
 ## How to Be Useful Right Now
 
 Ask Bill what the current directive is. If he's in a lean session, the directive is in `DIRECTIVES.md`. If autonomous mode is running, check TRAJECTORY.md vectors and work_queue. Your job is to either (a) help Bill think through a design decision before it goes to Claude Code, or (b) help Bill write a DIRECTIVES.md entry that is specific, scoped to 2 hours, and leaves the system measurably more capable.
+
+---
+
+## How Lean Directives Work (Card Format)
+
+`DIRECTIVES.md` holds the current lean session task. It can be either:
+
+1. **Full prose** — the complete directive written inline. Claude Code reads it and executes directly.
+2. **A pointer** — a single line `Run: B-NNN`. Claude Code reads `BACKLOG.md`, finds the matching card, and executes it.
+
+**Context cost:** The full `BACKLOG.md` is loaded when the pointer form is used. Old cards should be archived periodically (see the note at the top of BACKLOG.md) to keep the file small. The archiving practice is load-bearing, not cosmetic.
+
+### Card format (BACKLOG.md)
+
+Cards are numbered sequentially `B-NNN`. Each card follows this structure:
+
+```markdown
+## B-NNN: Short descriptive title
+
+**Status:** ready
+**Depends on:** B-MMM   ← omit if no dependency
+
+### Goal
+One paragraph. What this session should accomplish and why it matters now.
+
+### Context
+Background Claude Code needs before starting. Reference prior sessions,
+system state, design constraints. Enough to execute without back-and-forth.
+
+### Done when
+Bulleted acceptance criteria. Each item should be verifiable:
+- Specific file exists at specific path
+- curl returns expected response
+- Row in Supabase table with expected values
+- Commit pushed to main
+
+### Scope
+Touch: explicit list of files, tables, workflows Claude Code may modify
+Do not touch: explicit list of things that are off-limits this session
+```
+
+**Writing good cards:**
+- **Goal** answers "what and why" — not "how"
+- **Context** answers "what does Claude Code need to know that isn't obvious from the code" — prior decisions, gotchas, related work
+- **Done when** must be checkable, not aspirational. "Works correctly" is not a criterion; "curl localhost:9100/healthz returns {\"status\":\"ok\"}" is.
+- **Scope** is the guardrail. Explicit "do not touch" prevents scope creep into adjacent systems during execution.
+- Two-hour ceiling: if a card can't be completed in one lean session, split it. Incomplete sessions produce no artifact and leave the system in an unknown state.
