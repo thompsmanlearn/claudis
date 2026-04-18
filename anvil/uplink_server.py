@@ -47,8 +47,8 @@ def get_agent_fleet():
         f'{_SUPABASE_URL}/rest/v1/agent_registry',
         headers=_HEADERS,
         params={
-            'select': 'id,name,status,lifecycle_stage,workflow_id',
-            'order': 'name.asc',
+            'select': 'id,agent_name,status,workflow_id',
+            'order': 'agent_name.asc',
         },
         timeout=10,
     )
@@ -62,7 +62,7 @@ def get_work_queue():
         f'{_SUPABASE_URL}/rest/v1/work_queue',
         headers=_HEADERS,
         params={
-            'select': 'id,task_type,status,description,created_at',
+            'select': 'id,task_type,status,priority,created_at',
             'status': 'neq.complete',
             'order': 'created_at.desc',
             'limit': '30',
