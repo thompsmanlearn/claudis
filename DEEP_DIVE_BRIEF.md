@@ -684,13 +684,64 @@ claudis/
   CONVENTIONS.md      — operational procedures
   TRAJECTORY.md       — destinations + active vectors + operational state
   DIRECTIVES.md       — Bill's standing instructions (only Bill edits). Can contain "Run: B-NNN" pointer.
-  BACKLOG.md          — lean session card queue, referenced for B-NNN pointers
+  BACKLOG.md          — lean session card queue, referenced for B-NNN pointers. Cards B-001 through B-021 archived 2026-04-16.
   LEAN_BOOT.md        — lean mode startup protocol
   COLLABORATOR_BRIEF.md, INQUIRIES.md — supporting docs
   roblox/             — Lune pipeline artifacts
   attempts/           — attempt branch close notes
   archive/, processed/, docs/, experiments/ — supporting dirs
 ```
+
+### DIRECTIVES.md and BACKLOG.md — How Lean Tasks Are Specified
+
+`DIRECTIVES.md` holds the current lean session task in one of two forms:
+
+**Form 1 — Inline prose.** The full directive written directly. Claude Code reads and executes it.
+
+**Form 2 — Card pointer.** A single line:
+```
+Run: B-025
+```
+Claude Code reads `BACKLOG.md`, finds the card with that ID, and executes it. `lean_runner.sh` also extracts the first 300 characters of the card description for lesson injection before Claude starts.
+
+**Context cost of BACKLOG.md:** The full file is loaded every time the pointer form is used. Cards should be archived periodically once completed — the archive note at the top of BACKLOG.md is load-bearing, not cosmetic.
+
+### Backlog Card Format
+
+All cards follow this structure. Opus writes them; Claude Code executes them.
+
+```markdown
+## B-NNN: Short descriptive title
+
+**Status:** ready
+**Depends on:** B-MMM      ← omit if none
+
+### Goal
+One paragraph. What this session should accomplish and why it matters now.
+Not how — just what and why.
+
+### Context
+Background Claude Code needs before starting. Reference prior sessions,
+system state, design constraints, known gotchas relevant to this task.
+Enough to execute without back-and-forth — not a tutorial.
+
+### Done when
+- Specific verifiable criterion (file at path, curl response, DB row)
+- Specific verifiable criterion
+- Commit pushed to main
+
+### Scope
+Touch: explicit list of files, tables, workflows, services Claude Code may modify
+Do not touch: explicit list of things off-limits this session
+```
+
+**Writing rules:**
+- **Goal**: what and why, not how. One paragraph.
+- **Context**: what Claude Code won't find by reading the code — prior decisions, active gotchas, related work from other sessions.
+- **Done when**: every item must be checkable. "Works correctly" is not a criterion. "curl localhost:9100/healthz returns `{\"status\":\"ok\"}`" is.
+- **Scope / Do not touch**: explicit guardrails prevent scope creep. Name the specific things that are off-limits.
+- **Two-hour ceiling**: if a card can't reasonably complete in one lean session, split it. Incomplete sessions leave the system in an unknown state and produce no artifact.
+- **Card numbers are sequential** and never reused. Archive completed cards in batches; add a note at the top of BACKLOG.md indicating the archived range.
 
 ### Branching Convention
 - Main work: `main` branch
@@ -739,7 +790,7 @@ These are called by inject_context_v3 and /lessons_applied endpoint. If they're 
 
 ### Fragilities
 
-**stats_server.py is not in git.** The production file at `~/aadp/stats-server/stats_server.py` contains inject_context_v3.1, run_research_synthesis, /trigger_lean, /lessons_applied, and all other endpoints. This is the most critical non-replicated artifact. If the Pi fails, it must be reconstructed from session artifacts and this document. TRAJECTORY.md flags this as a known gap.
+**stats_server.py is now in git** (added 2026-04-17, commit 56ba358). Production file committed to `claudis/stats-server/stats_server.py` exactly as-is. Systemd unit and Supabase RPC DDL also committed. This fragility is closed.
 
 **n8n API key expires silently.** The key in .env is read fresh on every call (fixed 2026-04-15), but the key itself has a TTL. When it expires, all workflow management fails. No monitoring exists for key expiration. The 2026-04-14 session was blocked by an expired key discovered by accident.
 
