@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-18 (session: strategy — Anvil integration scoped as B-026/B-027; platform integrations mapped; system framing refined; Unreal replaces Roblox; Telegram deprioritized; Opus builder's brief identified as needed document)*
+*Last updated: 2026-04-18 (session: cleanup — B-027/B-029 confirmed complete; aadp-anvil.service verified running; lesson written re live trigger safety; Anvil skill reference added to CATALOG; stats_server.py confirmed in git)*
 
 ---
 
@@ -83,13 +83,13 @@
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil (anvil.works) selected as the UI layer. B-026 (Bill setup) and B-027 (Claude Code build) are the next cards. Telegram deprioritized — unreliable, poor desktop experience.
+Anvil (anvil.works) selected as the UI layer. B-026/B-027/B-028/B-029 all complete as of 2026-04-18. Dashboard is live with read-only views and interactive controls (trigger lean, write directive, approve/deny inbox). Next card from Opus pending — /oslean deprioritized, dashboard is the primary control surface. Telegram deprioritized — unreliable, poor desktop experience.
 
 ---
 
 ## Parked Directions
 
-- **Anvil integration (active — see B-026/B-027).** Uplink architecture: Pi runs outbound websocket to Anvil cloud, no port forwarding needed. Anvil app = browser/PWA dashboard. Phone capabilities: camera (visual input pipeline), geolocation (context-aware agents), push notifications. First milestone: read-only dashboard. B-026 = Bill establishes account + proves uplink. B-027 = Claude Code builds service + dashboard.
+- **Anvil integration (MILESTONE: B-026–B-029 all complete 2026-04-18).** Dashboard live with system status, agent fleet, work queue, and controls (trigger lean, write directive, inbox approve/deny). Uplink verified. Next: next Opus card — likely connection watchdog or UX improvements. Skill reference at skills/anvil/REFERENCE.md.
 
 - **Bill's monitoring interface audit** — cosmos_report, session_health_reporter, and daily_briefing_agent exist but their current output hasn't been reviewed against what Bill actually needs. Parked until Destination 3 work begins — reviewing existing reporters is the natural first step.
 - **Haiku self-critic** — retired 2026-04-05. Replaced by behavioral_health_check for agent quality assessment.
