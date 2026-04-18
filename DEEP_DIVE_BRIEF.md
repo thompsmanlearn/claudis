@@ -824,4 +824,79 @@ These are called by inject_context_v3 and /lessons_applied endpoint. If they're 
 
 ---
 
-*This document was written from direct inspection. Every claim traces to a file read, a SQL query result, or a live system query. As of 2026-04-17.*
+## 13. Where We're Going — Anvil Dashboard
+
+*Captured 2026-04-17. Status: evaluating. Not yet a backlog card.*
+
+### The Problem Anvil Solves
+
+The current interface is Telegram-only. That works for alerts and commands but has real limits: no visual overview of system state, no way to browse the resource inbox comfortably, no interactive session control beyond typed commands, and no phone-native capabilities (camera, geolocation, push notifications). The monitoring agents (cosmos_report, daily_briefing_agent, session_health_reporter) produce output but there's no good place to look at it.
+
+### What Anvil Is
+
+Anvil (anvil.works) is a Python-only web app platform. The key capability for AADP is **Uplink**: a persistent websocket connection that the Pi initiates outbound to Anvil's cloud. Once connected, Anvil's server-side Python can call functions defined in the Pi-side uplink script directly.
+
+Why this matters for a Pi behind a home router:
+- No port forwarding required
+- No reverse proxy or nginx config
+- Auto-reconnects on failure
+- The Pi is always the initiator — firewall-friendly
+
+The resulting Anvil web app is accessible from any browser and installable as a PWA on a phone.
+
+### Proposed Architecture
+
+```
+Pi uplink script (systemd service)
+  ↕ websocket (outbound from Pi)
+Anvil cloud
+  ↕
+Anvil web app (browser / phone PWA)
+```
+
+The uplink script is a thin wrapper — it doesn't contain business logic, just exposes existing infrastructure:
+
+| Uplink function | Delegates to |
+|---|---|
+| `get_system_status()` | stats_server `/system_status` |
+| `get_agent_fleet()` | Supabase `agent_registry` |
+| `get_work_queue()` | Supabase `work_queue` |
+| `get_session_notes()` | Supabase `session_notes` |
+| `get_resource_inbox()` | Supabase `resources` |
+| `approve_inbox_item(id)` | Supabase `inbox` PATCH |
+| `trigger_lean_session()` | stats_server `/trigger_lean` |
+| `write_directive(text)` | claudis git → DIRECTIVES.md |
+
+### Phone Capabilities Anvil Unlocks
+
+Anvil apps running in the browser on a phone can access:
+- **Camera** — Bill could photograph something and route the image into the system
+- **Geolocation** — location-aware agents (weather, local context)
+- **Web push notifications** — replace Telegram alerts with native phone notifications
+
+### Planned First Milestone
+
+Read-only dashboard:
+- System status (CPU, RAM, disk, temp)
+- Agent fleet health (active count, any paused/broken)
+- Work queue (pending tasks)
+- Last 5 session notes
+
+This proves the uplink architecture before adding interactive controls. No writes, no session launching — just visibility.
+
+### What's Needed Before Claude Code Can Build
+
+1. **Bill creates an Anvil account** at anvil.works (free tier)
+2. **Bill prototypes the uplink connection** — installs `anvil-uplink` Python package on the Pi, runs the minimal hello-world uplink to confirm the websocket connects from behind the home router
+3. **Bill shares the uplink key** (Anvil generates one per app) — goes in `.env` as `ANVIL_UPLINK_KEY`
+4. **Backlog card written** once the connection is proven
+
+Until steps 1-3 are done, Claude Code has nothing to build against. This is a Bill action.
+
+### What Doesn't Change
+
+The Anvil layer is additive. Telegram commands keep working. The MCP server, stats_server, n8n, and all existing agents are unchanged. Anvil is a new read/write surface on top of existing infrastructure, not a replacement.
+
+---
+
+*This document was written from direct inspection. Every claim traces to a file read, a SQL query result, or a live system query. As of 2026-04-17. Anvil section added 2026-04-18.*
