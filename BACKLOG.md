@@ -85,3 +85,29 @@ Done when
 Scope
 
 Touch: Resource Scout n8n workflow (or new parallel workflow), Supabase resources table (inserts), .env (YouTube API key if needed), sessions/lean/ Do not touch: inbox page, BACKLOG.md, DIRECTIVES.md, other workflows, RLS policies
+
+## B-025: Add stats_server.py to Version Control
+
+**Status:** ready
+
+### Goal
+Add stats_server.py and supporting infrastructure to the claudis repo. The file is disk-only and is the highest single fragility in the system. Get the working production code into git exactly as it runs today.
+
+### Context
+stats_server.py (3,205 lines) contains inject_context_v3.1, run_research_synthesis, /trigger_lean, /lessons_applied, all ChromaDB proxy endpoints, and all GitHub operations. It has never been committed. If the Pi fails, it must be reconstructed from session artifacts. The Supabase RPC functions it calls are similarly undocumented.
+
+The file already reads all credentials from ~/aadp/mcp-server/.env — no inline secrets found in audit (2026-04-17). The only hardcoded value is Bill's Telegram chat_id (8513796837), which is not a credential.
+
+### Done when
+- claudis/stats-server/stats_server.py matches the running production file exactly
+- claudis/stats-server/aadp-stats.service contains the systemd unit
+- claudis/stats-server/supabase_rpcs.sql contains DDL for increment_lessons_applied_by_id and increment_lessons_applied
+- claudis/stats-server/.gitignore prevents .env from being committed
+- sudo systemctl restart aadp-stats comes up clean
+- curl localhost:9100/healthz returns {"status":"ok"}
+- POST localhost:9100/inject_context_v3 with test payload returns a context_block
+- All committed and pushed to main
+
+### Scope
+Touch: claudis/stats-server/ (new directory), sessions/lean/
+Do not touch: stats_server.py itself (copy only, no edits), DIRECTIVES.md, BACKLOG.md, existing n8n workflows, .env

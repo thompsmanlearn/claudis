@@ -1,0 +1,14 @@
+[Unit]
+Description=AADP Stats Server — Pi system metrics HTTP endpoint
+After=network.target
+
+[Service]
+Type=simple
+User=thompsman
+WorkingDirectory=/home/thompsman/aadp/stats-server
+ExecStart=/home/thompsman/aadp/stats-server/venv/bin/python stats_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
