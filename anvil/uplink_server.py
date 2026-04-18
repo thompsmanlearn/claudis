@@ -3,9 +3,12 @@
 import logging
 import os
 import subprocess
+import threading
+import time
 import requests
 import anvil.server
 from datetime import datetime, timezone
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,7 +44,73 @@ _HEADERS = {
 _CLAUDIS_DIR = os.path.expanduser('~/aadp/claudis')
 
 
+# ── Health server (localhost:9101) ───────────────────────────────────────────
+# Watchdog hits /ping to verify the process and Supabase connectivity are alive.
+
+_last_keepalive = time.monotonic()
+_keepalive_lock = threading.Lock()
+
+
+def _keepalive_worker():
+    """Background thread: Supabase liveness probe every 10 minutes."""
+    global _last_keepalive
+    time.sleep(30)  # let the uplink connect first
+    while True:
+        try:
+            r = requests.get(
+                f'{_SUPABASE_URL}/rest/v1/agent_registry',
+                headers=_HEADERS,
+                params={'select': 'agent_name', 'limit': '1'},
+                timeout=10,
+            )
+            r.raise_for_status()
+            with _keepalive_lock:
+                _last_keepalive = time.monotonic()
+            log.info('Keepalive OK')
+        except Exception as e:
+            log.warning('Keepalive failed: %s', e)
+        time.sleep(600)  # 10 minutes
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/ping':
+            with _keepalive_lock:
+                age = time.monotonic() - _last_keepalive
+            if age < 1200:  # 20 minutes — 2 keepalive cycles
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'ok')
+            else:
+                self.send_response(503)
+                self.end_headers()
+                self.wfile.write(b'stale')
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, *args):
+        pass  # suppress per-request logging
+
+
+threading.Thread(
+    target=lambda: HTTPServer(('127.0.0.1', 9101), _HealthHandler).serve_forever(),
+    daemon=True,
+    name='health-server',
+).start()
+threading.Thread(target=_keepalive_worker, daemon=True, name='keepalive').start()
+log.info('Health server listening on localhost:9101')
+
+
 # ── Read-only callables ──────────────────────────────────────────────────────
+
+@anvil.server.callable
+def ping():
+    global _last_keepalive
+    with _keepalive_lock:
+        _last_keepalive = time.monotonic()
+    return {'pong': True}
+
 
 @anvil.server.callable
 def get_system_status():

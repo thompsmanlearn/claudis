@@ -1,26 +1,4 @@
-
-
-B-030: Agent fleet detail view with controls and feedback
-Status: ready
-Depends on: B-029
-Goal
-Replace the simple agent name list with a detailed fleet view showing description, status, schedule, and last activity for each agent. Add activate/pause controls and a thumbs-up/thumbs-down feedback mechanism per agent. This is the governance surface — it lets Bill see what's running, whether it's useful, and act on that judgment without opening a terminal.
-Context
-The current dashboard shows agent names grouped by status. The agent_registry table in Supabase has: agent_name, display_name, description, status, schedule, workflow_id, performance_metrics (jsonb), updated_at. Status values: active, paused, retired, building, broken, sandbox. The uplink server is at ~/aadp/claudis/anvil/uplink_server.py, Anvil app at thompsmanlearn/claude-dashboard (master branch). Feedback ratings don't have a table yet — create a simple agent_feedback table in Supabase with: id (uuid), agent_name (text), rating (int, 1 or -1), comment (text nullable), created_at (timestamptz). The uplink pattern for Supabase CRUD is proven from B-029. The activate/pause control should PATCH agent_registry.status — only allow toggling between active and paused. Do not allow changing to/from retired, building, broken, or sandbox from the dashboard.
-Done when
-
-get_agent_fleet() returns description, status, schedule, updated_at per agent
-Each agent in the dashboard shows: display_name, description, status, schedule, last updated
-Activate/pause toggle button per agent (only active↔paused)
-Thumbs-up/thumbs-down buttons per agent, with optional short comment field
-agent_feedback table created in Supabase
-New callables: set_agent_status(agent_name, status), submit_agent_feedback(agent_name, rating, comment)
-Uplink service restarted and verified
-Commits pushed to both repos
-
-Scope
-Touch: ~/aadp/claudis/anvil/uplink_server.py, thompsmanlearn/claude-dashboard client_code, Supabase DDL (new table only)
-Do not touch: stats_server.py, mcp-server/server.py, n8n workflows, agent behavior
+# B-022–B-030: archived 2026-04-18. All complete. See session artifacts in sessions/lean/.
 
 B-031: Uplink connection watchdog and backlog archive
 Status: ready
