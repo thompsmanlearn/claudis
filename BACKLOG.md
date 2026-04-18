@@ -15,3 +15,24 @@ Commit pushed to main
 Scope
 Touch: ~/aadp/mcp-server/.env
 Do not touch: stats_server.py, any systemd units, any Anvil app code
+
+B-027: Build Anvil Uplink service and read-only dashboard
+Status: ready
+Depends on: B-028
+Goal
+Build the Pi-side Uplink service as a systemd unit and create a read-only Anvil dashboard showing system status, agent fleet, and work queue. Prove the architecture end-to-end before adding interactive controls.
+Context
+Anvil app "Claude Dashboard" is live at anvil.works, App ID PUCVGRU3KBBGPNPH. GitHub integration connected to thompsmanlearn/claude-dashboard — push to that repo and Anvil syncs automatically. Server Uplink key is in ~/aadp/mcp-server/.env as ANVIL_UPLINK_KEY. Connection verified (B-028). The Uplink script should delegate to existing infrastructure — stats_server endpoints and Supabase — not reimplement business logic. See DEEP_DIVE_BRIEF Section 4 for the proposed uplink function table. The Anvil app is Material Design 3 theme. Build the app using the programmatic approach (add_component() in __init__.py) — it's more natural for Claude Code than writing YAML. Bill has no SSH access to the Pi — all Pi work must go through Claude Code.
+Done when
+
+aadp-anvil.service systemd unit running and auto-restarting
+Uplink script registers callable functions: get_system_status(), get_agent_fleet(), get_work_queue()
+Anvil app displays a dashboard with those three data views
+Dashboard accessible from browser and usable on phone
+App code committed and pushed to thompsmanlearn/claude-dashboard
+Uplink service code committed to thompsmanlearn/claudis
+Commit pushed to main
+
+Scope
+Touch: ~/aadp/claudis/anvil/, thompsmanlearn/claude-dashboard repo, systemd unit files
+Do not touch: stats_server.py, mcp-server/server.py, .env (already configured), n8n workflows
