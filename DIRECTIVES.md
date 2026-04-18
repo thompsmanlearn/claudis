@@ -1,1 +1,2 @@
-Run: B-027
+
+Cleanup session. Mark B-027 complete in BACKLOG.md. Add B-029 as complete to BACKLOG.md (title: Add interactive controls to Anvil dashboard, depends on B-027). Check ~/aadp/claude-dashboard for uncommitted B-029 changes — if any, commit and push to master. Write lesson to dual store: "Do not smoke-test live trigger endpoints like /trigger_lean — use status-check endpoints or dry-run flags instead. An accidental trigger during B-029 launched a rogue lean session." Write session artifact. Verify aadp-anvil.service is running.
