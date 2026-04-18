@@ -1,714 +1,102 @@
-# DEEP_DIVE_BRIEF.md — AADP Comprehensive Technical Reference
+# DEEP_DIVE_BRIEF.md — AADP Comprehensive Reference
 
-*Written 2026-04-17 by Claude Sonnet 4.6 (lean session). Source: direct inspection of all files, live SQL queries, live ChromaDB queries. For onboarding fresh sessions and reconstruction from scratch.*
+*Revised 2026-04-18. This document is the primary onboarding reference for fresh desktop and Claude Code sessions. It bridges memory between sessions and gets a new instance to productive collaboration as fast as possible.*
 
----
-
-## 1. Infrastructure and Services Map
-
-### Hardware
-Raspberry Pi 5, 16GB RAM, always-on. All compute is local. External API calls are rate-limited resources.
-
-### Running Services
-
-| Service | Container/Process | Port | Start mechanism | Config location |
-|---|---|---|---|---|
-| n8n 2.6.4 | Docker container `n8n` | 5678 | Docker (auto-restart) | `~/n8n/docker-compose.yml`, `~/n8n/n8n_data/` |
-| ChromaDB v0.5.20 | Docker container | 8000 | Docker (auto-restart) | Do NOT upgrade — v1.x client uses /api/v2, incompatible |
-| Stats Server | systemd `aadp-stats.service` | 9100 | systemd (always-on) | `~/aadp/stats-server/stats_server.py`, `~/aadp/mcp-server/.env` |
-| MCP Server | Claude Code stdio subprocess | stdio | Claude Code spawns it | `~/aadp/mcp-server/server.py`, `~/aadp/mcp-server/.env` |
-| Sentinel | systemd `aadp-sentinel.service` (oneshot) | — | `aadp-sentinel.timer` every 8h | `/etc/systemd/system/aadp-sentinel.{service,timer}` |
-| Supabase | Remote (cihbfubghytzqrpffgcq.supabase.co) | 443 | External SaaS | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_MGMT_PAT` in .env |
-
-### n8n docker-compose (`~/n8n/docker-compose.yml`)
-```yaml
-image: n8nio/n8n:latest
-container_name: n8n
-ports: 5678:5678
-volumes: ./n8n_data:/home/node/.n8n
-environment:
-  N8N_HOST: n8n.thompslife.com
-  WEBHOOK_URL: https://n8n.thompslife.com/
-  TZ: America/Los_Angeles
-extra_hosts:
-  - "host.docker.internal:host-gateway"   # critical — lets n8n reach Pi services
-```
-
-The `host.docker.internal:host-gateway` extra_hosts entry is what lets n8n workflows call `http://host.docker.internal:9100` to reach the stats server.
-
-### Stats Server systemd (`/etc/systemd/system/aadp-stats.service`)
-```
-Type=simple, User=thompsman
-WorkingDirectory=/home/thompsman/aadp/stats-server
-ExecStart=/home/thompsman/aadp/stats-server/venv/bin/python stats_server.py
-Restart=always, RestartSec=5
-```
-
-### Sentinel systemd (`/etc/systemd/system/aadp-sentinel.{service,timer}`)
-- **Service:** `Type=oneshot`, runs `~/aadp/sentinel/scheduler.sh`, `TimeoutStartSec=3600`
-- **Timer:** `OnBootSec=2min`, `OnUnitActiveSec=8h`, `Persistent=true` (fires immediately on boot if missed)
-- **Current state (2026-04-15):** Stopped and disabled — Lean Mode active
-
-### Credentials (`~/aadp/mcp-server/.env`) — NEVER commit
-Keys present (do not expose values):
-- `CHROMADB_HOST`, `CHROMADB_PORT`
-- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_MGMT_PAT`
-- `N8N_BASE_URL`, `N8N_API_KEY`
-- `ANTHROPIC_API_KEY`
-- `GITHUB_TOKEN`
-- `STATS_PORT` (default 9100)
+*Each section has a Last Updated date. Sections with stale dates should be verified before relying on them. Session close should include: "Does the brief need updating? If so, which sections?"*
 
 ---
 
-## 2. Data Flow Architecture
+## 1. System Identity
+*Last updated: 2026-04-18*
 
-### Autonomous Mode Session (sentinel)
+AADP is a personal intelligence infrastructure running on a Raspberry Pi 5. The system is named **Claudis** (Claude Code Intelligence System). Claudis is the name of the system, not a persona — Claude Code operates within Claudis; it is not Claudis. The name refers to the persistent infrastructure: the lesson store, the agent fleet, the boot chain, the operational memory, and the Anvil dashboard that ties them together.
 
-```
-aadp-sentinel.timer (8h)
-  → aadp-sentinel.service
-    → scheduler.sh
-      1. Read .env for SUPABASE_URL, SUPABASE_SERVICE_KEY
-      2. Supabase REST: GET work_queue?status=eq.pending&order=priority.asc&limit=1
-      3. PATCH work_queue: set status=claimed, claimed_at, assigned_agent=sentinel
-      4. POST http://localhost:5678/webhook/inject-context
-           → lesson_injector (n8n workflow MFmk28ijs1wMig7h)
-           → stats_server /inject_context_v3 (via webhook body)
-           → ChromaDB: 3-5 semantic queries across collections
-           → Supabase RPC: increment_lessons_applied_by_id
-           → returns context_block (PRE-LOADED CONTEXT markdown)
-      5. Assemble: context_block + wake_prompt.md → ENRICHED_PROMPT temp file
-      6. claude -p --dangerously-skip-permissions --max-turns 200
-           --system-prompt-file disk_prompt.md
-           < ENRICHED_PROMPT
-      7. After session exit:
-           POST /webhook/5x6G8gFlCxX0YKdM/webhook/session-health-report
-           (session_health_reporter writes GitHub artifact)
-```
+The system extends one person's reach by operating continuously — monitoring, researching, building, and learning — while that person (Bill) directs and judges.
 
-### Lean Mode Session (TCA → lean_runner)
+The system accumulates real institutional knowledge from real operations. The lesson corpus contains 224+ entries as of mid-April 2026, each produced by an actual session encountering an actual problem. When a lesson surfaces that says "n8n empty-array input silently kills all downstream nodes," that came from a real silent failure in a real workflow. This is not synthetic training data. It is operational scar tissue, and it compounds — every session writes lessons, lessons improve the next session, better sessions build better agents, better agents produce better lessons.
 
-```
-Telegram: /oslean
-  → TCA (kddIKvA37UDw4x6e) — long-poll Telegram
-    → /trigger_lean command matched
-    → POST http://host.docker.internal:9100/trigger_lean
-      → stats_server /trigger_lean
-        → if /tmp/oslean.lock exists: return {"status":"locked"}
-        → subprocess: ~/aadp/sentinel/lean_runner.sh
-          1. git -C claudis pull
-          2. Read DIRECTIVES.md — if "Run: B-NNN" format, resolve from BACKLOG.md
-          3. POST http://localhost:5678/webhook/inject-context (task_type=general, 25s timeout)
-          4. Assemble: context_block + LESSON TRACKING + "Read LEAN_BOOT.md" → PROMPT_FILE
-          5. claude -p --dangerously-skip-permissions --max-turns 200 < PROMPT_FILE
-          6. On completion: Telegram via /webhook/telegram-quick-send
-```
+The system does not have a finish line. It has a direction: keep extending what Bill can do through it. The system gets better at executing, better calibrated to Bill, and broader in what it can reach. Specific projects are current work, not destinations. Interests will change, platforms will be added and retired, creative domains will shift. The infrastructure — the lesson system, the agent fleet, the memory, the operational patterns — persists and improves underneath.
 
-### When Claude Code reads LEAN_BOOT.md
-Claude Code's startup sequence (triggered by reading LEAN_BOOT.md):
-1. git pull claudis → abort if fails
-2. cp claudis/LEAN_BOOT.md ~/aadp/LEAN_BOOT.md
-3. Read PROTECTED.md
-4. Read DIRECTIVES.md → resolve B-NNN pointer if needed
-5. Read CATALOG.md → match skills
-6. Read CONTEXT.md
-7. Read TRAJECTORY.md
-8. Execute directive
+The current ceiling is the intention gap. The system executes well against well-specified cards but cannot yet decompose a novel high-level goal into a sequenced build plan. That decomposition is currently done by Bill collaborating with desktop AI sessions, which produce backlog cards that Claude Code executes. Closing this gap — moving from "Bill specifies every card" to "Bill states an intention and the system produces the plan" — is the long-term growth direction.
 
-### When an agent writes a lesson
-```
-Session produces lesson
-  → memory_add MCP tool
-      → ChromaDB HttpClient.add(collection=lessons_learned, doc_id=uuid, document, metadata)
-  → supabase_exec_sql or sb_post
-      → Supabase lessons_learned INSERT (title, content, category, chromadb_id=uuid)
-Both stores must be written. chromadb_id links the two records.
-```
+### Current Operating Mode: Lean Sessions
 
-### When lesson_injector fires
-```
-POST /webhook/inject-context (lesson_injector workflow MFmk28ijs1wMig7h)
-  → Webhook node receives {task_type, task_id, description}
-  → HTTP Request → POST http://host.docker.internal:9100/inject_context_v3
-    (v3 is current; v2 endpoint preserved for backward compat)
-    → Haiku intent expansion: 3-4 specific search phrases
-    → Per-task-type collection routing (see _V3_TASK_ROUTING table)
-    → ChromaDB subprocess queries (mcp-server venv, chromadb 0.5.20)
-    → Staleness penalty on lessons >4 weeks old (+0.05/week)
-    → zero_applied wildcard: 2 random never-retrieved lessons injected
-    → Supabase RPC: increment_lessons_applied_by_id(lesson_ids)
-    → Returns JSON: {context_block, lesson_ids, confidence_tier, ...}
-  → n8n returns context_block to scheduler.sh caller
-```
+As of 2026-04-18, the system operates in Lean Mode. Bill collaborates with a desktop AI session (typically Opus) to think through direction and write well-specified backlog cards. Claude Code executes them in focused sessions. The autonomous sentinel (8-hour timer) is stopped and disabled. This is deliberate — directed builds with tight context produce more value right now than autonomous exploration.
 
-### n8n execution monitoring
-```
-agent_health_monitor (w5vypq4vb2rSrwdl) — webhook triggered
-  Branch 1: active agents
-    → GET /api/v1/executions?workflowId={id} for each active agent
-    → flag agents with consecutive errors ≥1, auto-pause ≥3
-  Branch 2: building/sandbox agents
-    → Supabase: SELECT stale agents (status=building/sandbox, updated_at > 7 days)
-    → experimental_outputs: INSERT stale_build_scan
-    → sandbox_notify Telegram alert
-  Guard node: returns sentinel item when input empty (prevents array-chain-halt)
-```
+Telegram has been deprioritized — it has been unreliable and is a poor interface for desktop work. The Anvil dashboard (see Section 4) is now the primary interface for Bill to monitor and control the system from any browser or phone.
 
 ---
 
-## 3. MCP Server (`~/aadp/mcp-server/server.py`)
+## 2. Working With Bill
+*Last updated: 2026-04-18*
 
-Transport: stdio (stdin/stdout). Claude Code spawns it as a subprocess per session.
+### Privacy
 
-Startup self-test: ChromaDB heartbeat → Supabase REST GET / → n8n GET /workflows.
+Bill is identified only as "Bill." Never use last name, location, profession, or other identifying details in any output, document, session artifact, or commit message. This is a hard constraint, not a preference.
 
-The FastAPI stats sidecar (port 9100, exposing `/system_status` and `/healthz`) is defined in server.py but **not running there** — the real stats server is the standalone `stats_server.py` managed by systemd. The server.py sidecar code appears to be legacy or not reached.
+### Technical Access
 
-### All Exposed Tools
+Bill has no SSH access to the Pi. All Pi work must go through Claude Code. Bill interacts with the system through the Anvil dashboard (browser/phone), desktop AI sessions, and Claude Code sessions. When data entry or terminal commands are needed, Claude Code does them — Bill is the weak link for manual entry and should not be given commands to run on the Pi.
 
-**Memory (ChromaDB)**
+### Collaboration Style
 
-| Tool | What it does |
-|---|---|
-| `memory_search` | Semantic query on a collection. Logs to audit_log (fire-and-forget) and retrieval_log. Params: query, collection, n_results (default 5), where_filters |
-| `memory_add` | Add document to collection. Generates UUID doc_id if not provided. Handles metadata-as-string defensive parsing. |
-| `memory_delete` | Delete document by doc_id from collection. |
-| `memory_list_collections` | List all ChromaDB collections with counts. |
+Bill is usually in exploration mode, not execution mode. He is developing the system's capability surface. The right response is to think alongside him about what's possible — not to ask what he wants to do with it, not to ask what specific application he has in mind, and not to start building. Questions like "what are you thinking of doing with this?" are counterproductive because he is typically exploring a capability, not planning a specific end-case application.
 
-**Prompts (Supabase `agent_prompts` table)**
+Bill prefers substantial back-and-forth before action. He wants to think together, refine ideas collaboratively, and reach clarity before anyone starts writing code or committing changes. The moment to shift into execution is when Bill signals it, not when the AI decides the conversation has gone on long enough.
 
-| Tool | What it does |
-|---|---|
-| `prompt_get` | Fetch active prompt for agent_name (is_active=true, highest version) |
-| `prompt_update` | Deactivate old versions, INSERT new version, audit_log entry |
-| `prompt_history` | All versions for agent_name ordered by version desc |
-| `prompt_rollback` | Deactivate all, activate target version |
+When Bill pushes back or corrects direction, that is collaborative refinement, not friction. Treat corrections as directional input. Do not become more cautious or deferential in response — maintain steady, honest engagement.
 
-**Config (Supabase `agent_config` table)**
+### Tone
 
-| Tool | What it does |
-|---|---|
-| `config_get` | Fetch config record for agent_name |
-| `config_set` | UPSERT config with on_conflict=agent_name |
+Bill does not need affirmation or self-congratulatory language. Do not offer praise for his ideas or pat him on the back. If something is genuinely a significant step forward, explain why it matters — don't celebrate it. Keep the tone direct and substantive.
 
-**Agent Registry (Supabase `agent_registry` table)**
+If a proposal has real significance, explain the significance concretely. "This changes the system from time-aware to context-aware" is useful. "Great idea, Bill!" is not.
 
-| Tool | What it does |
-|---|---|
-| `agent_register` | INSERT new agent, audit_log entry |
-| `agent_update` | PATCH agent by agent_name, audit_log entry |
+### Guided Tasks
 
-**Error Log (Supabase `error_logs` table)**
+A regular part of the workload involves Bill navigating web interfaces — creating accounts, getting API keys, configuring services. This kind of work requires specific support:
 
-| Tool | What it does |
-|---|---|
-| `error_log_query` | Filter by workflow_id, resolved, hours_back (default 48) |
-| `error_log_resolve` | PATCH resolved=true, resolution_notes, resolved_at |
+**One step at a time.** Give Bill a single action. Wait for confirmation or a screenshot. Then give the next action. When a list of instructions is provided all at once, the list scrolls out of sight and becomes unusable.
 
-**Ideas (Supabase `ideas` table)**
+**Be specific to what's visible.** When Bill shares a screenshot, reference what's actually on screen: "Click the blue button labeled Settings in the top right corner." Do not describe steps that come after what's currently visible.
 
-| Tool | What it does |
-|---|---|
-| `idea_capture` | INSERT idea with content, tags (array), source, status=new |
-| `idea_list` | Filter by status, tags (cs. array overlap), limit |
+**Treat this as a working pattern, not a limitation.** The AI cannot see the screen unless Bill shares it. Dumping instructions ahead of where Bill is creates noise.
 
-**Work Queue (Supabase `work_queue` table)**
+### What Not To Do
 
-| Tool | What it does |
-|---|---|
-| `work_queue_add` | INSERT task: task_type, input_data, priority, created_by, status=pending |
-| `work_queue_query` | Filter by status, task_type, assigned_agent. Ordered by priority.asc, created_at.asc |
-| `work_queue_update` | PATCH by task_id: status, output_data, error_message, assigned_agent. Sets completed_at on complete/failed. |
-
-Valid work_queue statuses: `pending`, `claimed`, `processing`, `complete`, `failed`
-
-**Audit Log (Supabase `audit_log` table)**
-
-| Tool | What it does |
-|---|---|
-| `audit_log_query` | Filter by actor, action, hours_back (default 24), limit (default 50) |
-
-**Session Notes (Supabase `session_notes` table)**
-
-| Tool | What it does |
-|---|---|
-| `session_notes_save` | INSERT note: content, category, consumed=false |
-| `session_notes_load` | GET unconsumed notes. consume=true marks them consumed (default false — safe read) |
-
-**Workflows (n8n REST API)**
-
-| Tool | What it does |
-|---|---|
-| `workflow_list` | GET /api/v1/workflows, optional active filter |
-| `workflow_get` | GET /api/v1/workflows/{id} — full JSON |
-| `workflow_create` | POST /api/v1/workflows |
-| `workflow_update` | PUT /api/v1/workflows/{id} — strips versionId, active, id before sending |
-| `workflow_activate` | POST /api/v1/workflows/{id}/activate |
-| `workflow_deactivate` | POST /api/v1/workflows/{id}/deactivate |
-| `workflow_execute` | **Always raises ValueError** — n8n public API has no execution endpoint. Use work_queue instead. |
-| `execution_list` | GET /api/v1/executions, optional workflowId filter |
-| `execution_get` | GET /api/v1/executions/{id} |
-
-**System**
-
-| Tool | What it does |
-|---|---|
-| `system_status` | psutil: cpu_percent, memory, disk, temperature (Pi thermal sensor), uptime |
-| `service_status` | `docker ps` — checks if service container is running, returns port |
-| `logs_fetch` | `docker logs --tail N container` |
-
-**DDL**
-
-| Tool | What it does |
-|---|---|
-| `supabase_exec_sql` | POST to Management API `api.supabase.com/v1/projects/{ref}/database/query`. Requires SUPABASE_MGMT_PAT. Note: Management API is Cloudflare-blocked from Pi for most operations — this endpoint specifically works for DDL. For CRUD data ops always use PostgREST. |
-
-**Composite**
-
-| Tool | What it does |
-|---|---|
-| `developer_context_load` | Concurrent: agent_registry + pending work_queue + unresolved errors + session_notes (cap 5) + claude_code_master config + system_status. master_prompt and recent_work excluded (on-demand via individual tools). |
-
-**Key implementation details:**
-- n8n API key is re-read from .env on every call (`get_n8n_headers()`) — key rotations require no server restart
-- All Supabase ops use PostgREST (`SUPABASE_URL/rest/v1/`) with service key
-- ChromaDB client is lazily created and shared (`chromadb.HttpClient`, port from .env)
-- `memory_search` fires `log_retrieval()` as `asyncio.ensure_future` — never blocks search
-- `retrieval_log` accumulates query-document pairs for eventual adapter training (goal: 1500 labeled pairs → +70% retrieval accuracy)
+- Do not jump into action. Think first, discuss, then act when Bill signals readiness.
+- Do not present numbered lists of setup instructions unprompted. Walk through them interactively.
+- Do not ask "what do you want to use this for?" when Bill is exploring a capability.
+- Do not frame corrections as Bill being annoyed or frustrated. He is helping the collaboration work better.
+- Do not use identifying details beyond "Bill."
+- Do not give Bill terminal commands to run on the Pi — use Claude Code instead.
 
 ---
 
-## 4. Stats Server (`~/aadp/stats-server/stats_server.py`)
+## 3. How We Operate
+*Last updated: 2026-04-18*
 
-FastAPI app, 3205 lines, systemd-managed, port 9100. Callable from n8n via `http://host.docker.internal:9100`. Claude Code calls it at `http://localhost:9100`.
+### Roles
 
-ChromaDB access: stats_server spawns subprocesses using `mcp-server/venv/bin/python` with inline scripts. It cannot import chromadb directly because it runs in its own venv.
+**Bill** — Directs, judges, approves. Edits DIRECTIVES.md (now also via Anvil dashboard). Decides what gets built next. Creates accounts and credentials that require browser interaction. The only person who can approve agent promotions, architectural changes, or new integrations.
 
-### All Endpoints
+**Desktop AI sessions (Opus or equivalent)** — Collaborate with Bill on strategy and direction. Research technical topics. Write backlog cards. Prepare resources for Claude Code (documentation, skills). Review session artifacts and system state. Do not build directly — produce cards and knowledge that Claude Code consumes.
 
-**System**
+**Claude Code** — Executes backlog cards. Reads LEAN_BOOT.md at startup, which triggers the full boot sequence (PROTECTED.md → DIRECTIVES.md → CATALOG.md → CONTEXT.md → TRAJECTORY.md). Writes code, commits, pushes. Writes session artifacts. Writes lessons to dual store (ChromaDB + Supabase). Operates within the scope boundaries defined in each card.
 
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/system_status` | GET | psutil snapshot: cpu, memory, disk, temperature, uptime |
-| `/healthz` | GET | `{"status": "ok"}` |
+### The Card System
 
-**Sentinel Control**
-
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/trigger_sentinel` | GET/POST | Checks `systemctl is-active aadp-sentinel.service`. If active+mid-task: returns `{"status":"mid_task"}` with task info (unless `?force=1`). Else: `sudo systemctl start --no-block aadp-sentinel.service` |
-| `/trigger_lean` | (inferred from lean_runner.sh) | TCA calls this to start lean sessions |
-
-**GitHub Operations**
-
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/gh` | GET | Dispatch `cmd` + `args` to `gh_cmd_dispatch()`. Commands: gh_status, gh_becoming, gh_attempts, gh_log, gh_review, gh_keep, gh_redirect, gh_close, gh_report |
-
-`gh_cmd_dispatch` operates on `~/aadp/claudis` repo. git pull/push use stored credentials (no `gh` CLI — uses GitHub REST API via GITHUB_TOKEN).
-
-**Data Operations**
-
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/append_experiment` | POST | Append content to `experiments/{path}`, git add+commit+push. Body: `{path, content}` |
-| `/write_experiment` | POST | Write session artifact to `experiments/sessions/{filename}`, commit+push. Filename must match `[\w\-]+\.md`. |
-| `/get_outputs` | GET | Fetch `experimental_outputs` from Supabase for agent_name. Wrapped in `{outputs, count}` (prevents n8n array-unwrap). Params: agent_name, limit, exclude_type |
-| `/get_audit` | GET | Fetch `audit_log` for actor=agent_name. Wrapped object. Params: agent_name, limit |
-
-**Research**
-
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/run_daily_research` | POST | Fetch arXiv + HN for 3 rotating topics. Haiku scores relevance ≥7/10. Write to experiments/research/ (GitHub) + ChromaDB research_findings + Supabase research_papers. Also fetches Reddit r/ClaudeAI + Anthropic GitHub releases (Anthropic signals). Idempotent: skips if today's file exists (override with force=true). |
-| `/run_research_synthesis` | POST | Weekly synthesis of ChromaDB research_findings over 21-day window. Delegates all logic. Two modes: accumulation (runs 1-3) / synthesis (run 4+). Idempotency guard (skips if ran <5 days ago). Calls Sonnet for synthesis. Writes to experimental_outputs + Telegram digest. |
-| `/get_research_window` | POST | Return ChromaDB research_findings filtered by date. Body: `{days_back, collection}`. Returns `{entries, count, date_range}` |
-
-**ChromaDB Proxy**
-
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/memory_query` | POST | Semantic query via subprocess. Body: `{collection, query_text, n_results, distance_threshold}`. Returns `{results, count}` wrapped (n8n safety). |
-
-**Lesson Injection**
-
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/inject_context_v2` | POST | Intent-expanded context with tiered memory (v2.1). Haiku expansion → 5 collections (lessons, errors, patterns, session_memory, research). Staleness penalty. 2000-token cap. Increments times_applied. |
-| `/inject_context_v3` | POST | **Current version (v3.1).** Task-type routing + confidence signal + zero_applied wildcards. Same interface as v2 plus: routing_applied, confidence_tier, min_distance, retrieve_recommendation. See routing table below. |
-| `/lessons_applied` | POST | Increment `times_applied` for lesson IDs. Called by n8n after lesson injection. Two RPCs: `increment_lessons_applied_by_id` (chromadb_id match) and `increment_lessons_applied` (content match fallback). |
-
-### inject_context_v3 Routing Table
-
-```python
-_V3_TASK_ROUTING = {
-    "agent_build":      [lessons, error_patterns, reference_material, session_memory, research_findings],
-    "research_cycle":   [research_findings, lessons, reference_material, session_memory],
-    "explore":          [lessons, session_memory, research_findings],
-    "self_diagnostic":  [self_diagnostics, error_patterns, lessons],
-    "directive":        [lessons, error_patterns, reference_material, session_memory],
-    "gh_weekly_search": [research_findings],
-    "gh_report":        [session_memory, lessons],
-    "gh_task":          [lessons, reference_material],
-    "agent_control":    [lessons, error_patterns],
-    "agent_test":       [lessons, error_patterns, reference_material],
-    # unknown → all 5 tiers
-}
-```
-
-Confidence signal thresholds: `min_dist < 0.8` → high/retrieve; `0.8–1.1` → medium/retrieve; `1.1+` → low/reason_with_context; no results → none/reason.
-
-Zero-applied wildcard: 2 random lessons with `times_applied=0 AND created_at < 3 days ago AND chromadb_id IS NOT NULL` are appended as "Uncirculated Lessons" section (trimmed first if budget tight). This ensures eventual coverage of niche lessons that never match semantic queries.
-
----
-
-## 5. Agent Fleet
-
-**Lifecycle:** `building` → `sandbox` → (behavioral_health_check + 4-Pillars evaluation) → `active` OR `retired/paused`
-
-**~25 active + sandbox agents** as of 2026-04-14. Full source at `~/aadp/claudis/agents/`.
-
-### Production Agents
-
-| agent_name | workflow_id | trigger | key behavior |
-|---|---|---|---|
-| telegram_command_agent | kddIKvA37UDw4x6e | Telegram long-poll | Routes /commands → work_queue or webhooks. **PROTECTED — never modify without explicit approval.** |
-| daily_briefing_agent | 1YaIxHK7kqARgaja | cron 0 14 * * * (6AM Pacific) | Daily digest: system health, agent status, errors, work queue |
-| weather_agent | F3khynqQBUXSnadu | GET /webhook/weather | Open-Meteo forecast for CA |
-| wiki_attention_monitor | IYaj3zv9xj79h9jg | cron 0 15 * * * (7AM Pacific) | Wikimedia pageview velocity spikes → Haiku clusters → Telegram |
-| serendipity_engine_prod | ROhfvqO3yJW6j955 | cron 30 15 * * * | Wikipedia On This Day → Haiku synthesis → Telegram |
-| github_issue_tracker | F2lRufWUOXAGv5GB | GET /webhook/github-issue-tracker | GitHub API scan for open issues >3 days unactioned |
-| morning_briefing | xt8Prqvi7iJlhrVG | /webhook/morning-briefing | No LLM. Work queue + agent counts + system health Telegram |
-| behavioral_health_check | kdzJPyZtchNA3Seq | GET /webhook/behavioral-health-check | Last 10 n8n executions → Haiku 0-10 reliability score + recommendation |
-| agent_health_monitor | w5vypq4vb2rSrwdl | /webhook/agent-health-monitor | Two branches: active agent error scan + building/sandbox stale scan |
-| research_synthesis_agent | JUBCbXJe3TwwpB2T | /webhook/research-synthesis | Delegates to stats_server /run_research_synthesis. Idempotency guard (<5 days). |
-| arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | /webhook/arxiv-aadp | arXiv preprints Mon/Wed/Fri. Haiku scores AADP implications. Writes research_papers + research_findings. |
-| github_weekly_search | — | Sunday 6AM UTC | GitHub API search for MCP/agent repos |
-
-### Platform Infrastructure Agents
-
-| agent_name | workflow_id | trigger | key behavior |
-|---|---|---|---|
-| lesson_injector | MFmk28ijs1wMig7h | POST /webhook/inject-context | Called by scheduler.sh before every claude -p. Calls /inject_context_v3. |
-| session_health_reporter | 5x6G8gFlCxX0YKdM | POST /webhook/session-health-report | After every sentinel session. No Anthropic API. Commits to experiments/sessions/ on GitHub. |
-| daily_research_scout | xNbmcFrNvqbmhlJW | cron 14:00 UTC + /webhook | Delegates to stats_server /run_daily_research |
-| autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h | If work_queue empty: insert explore/agent_build/research_cycle task (rotating). **Currently deactivated (Lean Mode).** |
-| usage_stats | NeVI0bEB6WsJEf6I | GET /webhook/usage-stats | On-demand Telegram: Claudis state, heartbeat, agent counts |
-| agent_evaluator_4pillars | kQ5OALBwexLQS7in | GET /webhook/evaluate-agent | Haiku 4-pillar scoring: behavior_consistency, output_quality, reliability, integration_fit |
-
-### Sandbox Agents
-- `architecture_review` (7mVc61pDCIObJFos) — biweekly research-to-architecture review, next promotion candidate
-
-### Retired
-- `haiku_self_critic` (1v0JFPdtVte5MJrO) — deactivated
-- `serendipity_engine` (ToMG7Y5hkp9UlyJM) — superseded by prod version
-
-### TCA Command Routing
-TCA (`kddIKvA37UDw4x6e`) handles all Telegram commands. Key commands:
-- `/oslean` → POST `host.docker.internal:9100/trigger_lean` → lean_runner.sh
-- `/wake` → trigger_sentinel
-- `/weather`, `/wiki`, `/usage`, `/gh_issues`, `/health_check`, `/evaluate` → route to respective webhook
-- `/approve`, `/reject` → inbox approval flow (PATCH inbox by `id=eq.{inbox_id}`)
-- `/gh_status`, `/gh_log`, etc. → GET `host.docker.internal:9100/gh?cmd=...`
-
----
-
-## 6. Database Schema
-
-### Active Tables (queried in production)
-
-**`work_queue`**
-- id (uuid PK), task_type (text), status (text, default pending), priority (integer, default 3)
-- assigned_agent, input_data (jsonb), output_data (jsonb), created_by
-- created_at, claimed_at, completed_at, error_message
-- Valid statuses: `pending`, `claimed`, `processing`, `complete`, `failed`
-- Priority: 1=normal, 2=high, 3=critical (INTEGER — not strings)
-- Reads: sentinel scheduler.sh, developer_context_load
-- Writes: autonomous_growth_scheduler, TCA command routing, Claude Code via MCP
-
-**`agent_registry`**
-- id (uuid), agent_name (text, unique), display_name, agent_type, description, status (default building)
-- input_types/output_types/data_sources (text[]), schedule, workflow_id, performance_metrics (jsonb)
-- protected (bool), telegram_command, created_at, updated_at
-- Valid statuses: `active`, `paused`, `retired`, `building`, `broken`, `sandbox`
-- Reads: developer_context_load, behavioral_health_check, agent_health_monitor
-- Writes: agent_register/agent_update MCP tools
-
-**`lessons_learned`**
-- id (uuid), title, category, content, confidence (float, default 0.5), times_applied (int, default 0)
-- source (default sentinel), created_at, updated_at, chromadb_id (text)
-- `chromadb_id` links to ChromaDB document. NULL = invisible to semantic search.
-- Reads: lesson_injector, wisdom-review, diagnose
-- Writes: memory_add (via session) + lessons_learned INSERT (dual-store rule)
-
-**`session_notes`**
-- id (uuid), content, category (default todo), created_at, consumed (bool, default false)
-- Valid categories: `todo`, `observation`
-- Reads: session_notes_load MCP tool (cap 5 in developer_context_load)
-- Writes: session_notes_save MCP tool, session close ritual
-
-**`audit_log`**
-- id (uuid), actor, action, target, details (jsonb), timestamp
-- Written by: every MCP tool operation (fire-and-forget, never blocks)
-
-**`error_logs`** (note: plural, not `error_log`)
-- id (uuid), workflow_id, workflow_name, node_name, error_type, error_message, execution_id
-- timestamp, resolved (bool, default false), resolution_notes, resolved_by, resolved_at
-
-**`experimental_outputs`**
-- id, agent_name, experiment_id, output_type, content (jsonb), confidence, promoted, reviewed_by_bill, created_at, api_usage (jsonb)
-- Written by: behavioral_health_check, agent_evaluator_4pillars, wiki_attention_monitor, etc.
-
-**`agent_prompts`**
-- id, agent_name, prompt_text, version (int), is_active (bool), created_at, created_by, change_notes
-- Versioned. Only one active per agent_name.
-
-**`agent_config`**
-- id, agent_name (unique), model (default claude-haiku-4-5-20251001), temperature (default 0.3), max_tokens (default 1024), metadata (jsonb), updated_at
-
-**`retrieval_log`**
-- id, query, collection, doc_id, distance, was_relevant (bool, nullable), session_id, created_at
-- Written by: memory_search MCP tool (fire-and-forget via log_retrieval())
-- Purpose: training data for ChromaDB linear adapter (goal: 1500 labeled pairs)
-
-**`research_papers`**
-- id, title, authors, abstract, publication_date, citation_count, source, source_id, url, pdf_url
-- topic_tags (text[]), relevance_score, status, discovered_at, reviewed_at, notes
-- component_tag, action_type, already_addressed_since, addressed_by
-- Written by: arxiv_aadp_pipeline, daily_research_scout, run_daily_research
-
-**`system_config`**
-- key (text PK), value (jsonb), updated_at
-- Stores: research_rotation_index, heartbeat state, etc.
-
-**`inbox`**
-- id, from_agent, message_type, subject, body, context (jsonb), status (default pending)
-- bill_reply, priority, created_at, responded_at
-- Valid message_types: `help_request`, `approval_request`, `recommendation`, `observation`, `question`, `alert`
-- Valid statuses: `pending`, `approved`, `denied`, `deferred`, `replied`
-
-**`capabilities`**
-- id, name, category, description, confidence (default 0.5), times_used (default 0), last_used, created_at, updated_at
-
-### Supporting Tables (present, less active)
-`agent_outputs`, `daily_digests`, `data_sources`, `directives`, `environmental_observations`, `experiments`, `feedback_log`, `ideas`, `inquiry_threads`, `projects`, `refinements`, `research_evidence`, `research_questions`, `research_topics`, `resources`, `wiki_monitor_config`, `wiki_page_baselines`
-
----
-
-## 7. ChromaDB Collections
-
-All collections use the default `all-MiniLM-L6-v2` embedding model. ChromaDB v0.5.20 at localhost:8000.
-
-**Live counts as of 2026-04-17:**
-
-| Collection | Count | Purpose | What writes to it |
-|---|---|---|---|
-| `lessons_learned` | 224 | Technical lessons from sessions | Session close dual-store writes |
-| `reference_material` | 173 | Architecture patterns, runbooks | Session writes |
-| `research_findings` | 141 | arXiv/HN research items | run_daily_research, arxiv_aadp_pipeline |
-| `session_memory` | 71 | Episodic session context | Session close writes |
-| `error_patterns` | 15 | Known failure modes | Session writes |
-| `self_diagnostics` | 11 | Diagnostic procedures | Session writes |
-| `agent_templates` | 4 | Agent scaffolding templates | Session writes |
-| `ag_research_data` | 8 | (appears to be legacy) | Unknown |
-
-**Distance thresholds (from ENVIRONMENT.md):**
-- < 0.8: high confidence match
-- 0.8–1.2: review carefully
-- > 1.2: weak match
-
-**Critical gotcha:** Never include `"embeddings"` in the `include` list for bulk-get operations — causes IndexError at scale. Use `["documents", "metadatas"]` only.
-
-**Store sync validation:** `SELECT COUNT(*) FROM lessons_learned WHERE chromadb_id IS NULL` — any value > 0 means lessons are invisible to semantic search. The correct sync metric is not COUNT comparison but NULL chromadb_ids.
-
----
-
-## 8. Lesson System End-to-End
-
-### Creation
-Any session (autonomous or lean) can write a lesson. The close ritual requires:
-1. `memory_add(collection="lessons_learned", content=..., metadata={date, category, source, permanent?})` → returns ChromaDB doc_id
-2. INSERT into Supabase `lessons_learned` with chromadb_id = ChromaDB doc_id
-
-Both writes are required. Either alone is a broken lesson.
-
-**Writing quality:** Lead with failure mode, not tool name. "When a webhook 404s even though the workflow exists" retrieves well. "n8n Webhook URL Format" does not.
-
-### Retrieval (inject_context_v3.1)
-1. scheduler.sh / lean_runner.sh calls `POST /webhook/inject-context` before `claude -p`
-2. lesson_injector workflow proxies to `POST host.docker.internal:9100/inject_context_v3`
-3. stats_server:
-   - Resolves task-type routing (which collections to query)
-   - Expands intent via Haiku: 3-4 specific technical phrases from task_type+description
-   - Queries `lessons_learned`: multi-phrase, threshold 1.4, n=8
-   - Applies staleness penalty: +0.05/week beyond 4 weeks (unless metadata.permanent=true)
-   - Queries other collections per routing table (single-phrase, lower thresholds)
-   - Deduplicates across all collections
-   - Fetches 2 zero_applied wildcards from Supabase (random, >3 days old, never retrieved)
-   - Assembles context block with section headers and distance scores
-   - Trims to 2000-token budget (cuts from bottom — research trimmed before lessons)
-   - Returns context_block + confidence signal
-
-### Injection
-Context block prepended as `## PRE-LOADED CONTEXT` before the session prompt.
-
-### Tracking
-`increment_lessons_applied_by_id(lesson_ids)` Supabase RPC fires after every injection — increments `times_applied` for each retrieved lesson including wildcards.
-
-**Quality signal (added 2026-04-17):** Session artifacts now include a "Lessons Applied" section listing lesson IDs that actually influenced decisions. This tracks application rate separately from retrieval rate.
-
-### Current Health
-- 224 lessons in ChromaDB, 224 in Supabase (gap = 0 as of 2026-04-13 sync repair)
-- zero_applied = 126 as of 2026-04-15, trending down. Validation: stay below 130 for 3 consecutive sessions.
-
----
-
-## 9. Session Mechanics
-
-### Autonomous Mode (`scheduler.sh`)
-
-```bash
-# Configuration
-MAX_TURNS=200
-STALE_LOCK_SECONDS=7200 (2h)
-LOG_FILE: ~/aadp/logs/sentinel_YYYYMMDD.log
-
-# Lock management
-/tmp/sentinel.lock — PID file, stale after 2h
-
-# Task claiming
-1. Supabase REST: GET work_queue (pending, priority.asc, limit=1)
-2. PATCH: status=claimed, claimed_at, assigned_agent=sentinel
-3. On rate-limit exit: PATCH back to pending (task preserved for next wake)
-
-# Lesson injection
-POST localhost:5678/webhook/inject-context → 10s timeout
-context_block prepended to wake_prompt.md
-
-# Claude invocation
-claude -p --dangerously-skip-permissions --max-turns 200 \
-  --system-prompt-file disk_prompt.md \
-  < ENRICHED_PROMPT
-
-# Post-session
-POST /webhook/session-health-report (fire-and-forget, non-fatal)
-Log rotation: keep 7 days
-
-# System prompt: ~/aadp/sentinel/disk_prompt.md (v29, ~407 lines, ~3500 tokens)
-# Wake prompt: ~/aadp/sentinel/wake_prompt.md
-```
-
-### Lean Mode (`lean_runner.sh`)
-
-```bash
-# Configuration
-MAX_TURNS=200, TIMEOUT_SECS=7200 (2h)
-LOCK_FILE=/tmp/oslean.lock
-
-# Sequence
-1. git -C claudis pull (abort+Telegram if fails)
-2. Read DIRECTIVES.md:
-   - If "Run: B-NNN": awk-extract card from BACKLOG.md
-   - Else: use DIRECTIVES.md content directly
-3. POST /webhook/inject-context (task_type=general, 25s timeout, graceful fail)
-4. Assemble: context_block + LESSON TRACKING instruction + "Read LEAN_BOOT.md"
-5. timeout 7200 claude -p --dangerously-skip-permissions --max-turns 200 < PROMPT_FILE
-6. Telegram: complete/timeout/error notification
-
-# No system-prompt-file — LEAN_BOOT.md serves as the operational frame
-# LEAN_BOOT.md triggers the full startup sequence upon Claude reading it
-```
-
-### Close Ritual (lean sessions)
-Write artifact to `~/aadp/claudis/sessions/lean/YYYY-MM-DD-descriptor.md`:
-```
-# Session: [date] — [descriptor]
-## Directive
-## What Changed
-## What Was Learned
-## Lessons Applied   ← lesson IDs that influenced decisions
-## Unfinished
-```
-Commit: `session artifact: YYYY-MM-DD-descriptor`
-
-### Close Ritual (autonomous sessions)
-10-step skill (`/close-session`):
-1. Close attempt branches
-2. Commit agents
-3. Update TRAJECTORY.md
-4. Archive prompt version
-5. Commit session artifact with capability delta
-6. Check wisdom-review cadence
-7. Write lessons to Supabase + ChromaDB
-8. Update capabilities counters
-9. Write session narrative to ChromaDB session_memory
-10. Write handoff note with intent queue check to Supabase session_notes
-
----
-
-## 10. Git and File Conventions
-
-### Repo: `thompsmanlearn/claudis` → `~/aadp/claudis/`
-
-Git uses stored credentials. `gh` CLI not installed — use GitHub REST API via GITHUB_TOKEN if needed.
-
-```
-claudis/
-  agents/
-    INDEX.md          — lightweight manifest, read at session start
-    production/       — active agent workflow JSONs (credentials replaced with {{PLACEHOLDER}})
-    sandbox/
-    retired/
-    critics/
-  architecture/
-    decisions/        — ADRs (inject-context-v3.md, arch-review-backward-loop-fix.md, etc.)
-    ENVIRONMENT.md    — operational facts, API gotchas, endpoint catalog. Append-only.
-    BECOMING.md       — aspirations/redirects from Bill via /gh_redirect
-  sessions/
-    lean/             — lean session artifacts (YYYY-MM-DD-descriptor.md)
-    monthly/
-    YYYY-MM-DD-HHMM.md — autonomous session artifacts
-  skills/
-    CATALOG.md        — skill routing table
-    PROTECTED.md      — resources requiring explicit approval
-    agent-development/SKILL.md
-    system-ops/SKILL.md
-    communication/SKILL.md
-    research/SKILL.md
-    triage/SKILL.md
-  experiments/
-    research/         — daily_research_scout outputs (YYYY-MM-DD.md + INDEX.md)
-    sessions/         — session_health_reporter outputs
-  CONTEXT.md          — system facts, bootstrap context
-  CONVENTIONS.md      — operational procedures
-  TRAJECTORY.md       — destinations + active vectors + operational state
-  DIRECTIVES.md       — Bill's standing instructions (only Bill edits). Can contain "Run: B-NNN" pointer.
-  BACKLOG.md          — lean session card queue, referenced for B-NNN pointers. Cards B-001 through B-021 archived 2026-04-16.
-  LEAN_BOOT.md        — lean mode startup protocol
-  COLLABORATOR_BRIEF.md, INQUIRIES.md — supporting docs
-  roblox/             — Lune pipeline artifacts
-  attempts/           — attempt branch close notes
-  archive/, processed/, docs/, experiments/ — supporting dirs
-```
-
-### DIRECTIVES.md and BACKLOG.md — How Lean Tasks Are Specified
-
-`DIRECTIVES.md` holds the current lean session task in one of two forms:
+DIRECTIVES.md holds the current lean session task in one of two forms:
 
 **Form 1 — Inline prose.** The full directive written directly. Claude Code reads and executes it.
 
-**Form 2 — Card pointer.** A single line:
-```
-Run: B-025
-```
-Claude Code reads `BACKLOG.md`, finds the card with that ID, and executes it. `lean_runner.sh` also extracts the first 300 characters of the card description for lesson injection before Claude starts.
+**Form 2 — Card pointer.** A single line like `Run: B-027`. Claude Code reads BACKLOG.md, finds the card with that ID, and executes it. lean_runner.sh also extracts the first 300 characters of the card description for lesson injection before Claude starts.
 
-**Context cost of BACKLOG.md:** The full file is loaded every time the pointer form is used. Cards should be archived periodically once completed — the archive note at the top of BACKLOG.md is load-bearing, not cosmetic.
+**Context cost of BACKLOG.md:** The full file is loaded every time the pointer form is used. Cards should be archived periodically once completed — the archive note at the top of BACKLOG.md is load-bearing, not cosmetic. Monitor boot-chain file sizes at session close (`wc -l` on PROTECTED.md, DIRECTIVES.md, CATALOG.md, CONTEXT.md, TRAJECTORY.md, BACKLOG.md).
 
 ### Backlog Card Format
 
-All cards follow this structure. Opus writes them; Claude Code executes them.
+All cards follow this structure. Desktop sessions write them; Claude Code executes them.
 
 ```markdown
 ## B-NNN: Short descriptive title
@@ -738,165 +126,622 @@ Do not touch: explicit list of things off-limits this session
 **Writing rules:**
 - **Goal**: what and why, not how. One paragraph.
 - **Context**: what Claude Code won't find by reading the code — prior decisions, active gotchas, related work from other sessions.
-- **Done when**: every item must be checkable. "Works correctly" is not a criterion. "curl localhost:9100/healthz returns `{\"status\":\"ok\"}`" is.
+- **Done when**: every item must be checkable. "Works correctly" is not a criterion. "curl localhost:9100/healthz returns `{"status":"ok"}`" is.
 - **Scope / Do not touch**: explicit guardrails prevent scope creep. Name the specific things that are off-limits.
 - **Two-hour ceiling**: if a card can't reasonably complete in one lean session, split it. Incomplete sessions leave the system in an unknown state and produce no artifact.
 - **Card numbers are sequential** and never reused. Archive completed cards in batches; add a note at the top of BACKLOG.md indicating the archived range.
 
-### Branching Convention
-- Main work: `main` branch
-- Non-trivial builds: `attempt/description` branch before starting
-- Commit outcome on attempt branches (including failures)
-- Close attempt branches at session end (`/close-session` step 1)
+### Sequential Cards
 
-### What Gets Committed
-- Sessions commit to `sessions/lean/` or `sessions/YYYY-MM-DD-HHMM.md`
-- Research writes to `experiments/research/`
-- Stats server changes go to disk only (NOT currently in git — fragility noted below)
-- Bill commits DIRECTIVES.md directly
+Cards can be written in dependency chains: B-026 enables B-027 which enables B-028. The `Depends on:` field captures this. At session close, Claude Code should set DIRECTIVES.md to point at the next card and note that the prior card is complete. Bill reviews and decides whether to proceed or redirect before triggering the next session.
 
----
+### Session Artifacts
 
-## 11. Key Configuration Files to Recreate
-
-| File | Purpose | Notes |
-|---|---|---|
-| `~/aadp/mcp-server/.env` | All credentials | Never commit. Keys: CHROMADB_HOST/PORT, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_MGMT_PAT, N8N_BASE_URL, N8N_API_KEY, ANTHROPIC_API_KEY, GITHUB_TOKEN, STATS_PORT |
-| `/etc/systemd/system/aadp-stats.service` | Systemd unit for stats server | Type=simple, ExecStart=mcp-server venv python stats_server.py, Restart=always |
-| `/etc/systemd/system/aadp-sentinel.service` | Systemd unit for sentinel (oneshot) | ExecStart=scheduler.sh, TimeoutStartSec=3600, WorkingDirectory=mcp-server |
-| `/etc/systemd/system/aadp-sentinel.timer` | Timer — fires every 8h | OnUnitActiveSec=8h, Persistent=true |
-| `~/n8n/docker-compose.yml` | n8n container | image n8nio/n8n:latest, port 5678, extra_hosts host.docker.internal |
-| `~/.claude/` | Claude Code settings | MCP server config pointing to server.py |
-| n8n credential: `y4YfKWpm20Z9sw7G` | Telegram bot ("Life OS Telegram Bot") | Bill's chat_id: 8513796837 |
-
-### n8n Credential IDs
-- Telegram credential ID: `y4YfKWpm20Z9sw7G`
-- Anthropic API: stored in n8n credential store (also in .env for stats_server)
-
-### Supabase RPC Functions (must exist for lesson system)
-```sql
--- Required: increment times_applied by chromadb_id
-CREATE FUNCTION increment_lessons_applied_by_id(lesson_ids text[]) ...
-
--- Required: increment by content (legacy fallback)  
-CREATE FUNCTION increment_lessons_applied(lesson_contents text[]) ...
+Every lean session writes an artifact to `~/aadp/claudis/sessions/lean/YYYY-MM-DD-descriptor.md`:
 ```
+# Session: [date] — [descriptor]
+## Directive
+## What Changed
+## What Was Learned
+## Lessons Applied   ← lesson IDs that influenced decisions
+## Unfinished
+```
+Commit message: `session artifact: YYYY-MM-DD-descriptor`
 
-These are called by inject_context_v3 and /lessons_applied endpoint. If they're missing, the system degrades gracefully (tries, fails silently) but tracking is broken.
+### Lesson Writing
 
----
+Both stores must be written for every lesson:
+1. `memory_add(collection="lessons_learned", ...)` → returns ChromaDB doc_id
+2. INSERT into Supabase `lessons_learned` with `chromadb_id` = ChromaDB doc_id
 
-## 12. Known Gaps, Fragilities, and Undocumented Dependencies
+Either alone is a broken lesson. chromadb_id links the two records.
 
-### Fragilities
-
-**stats_server.py is now in git** (added 2026-04-17, commit 56ba358). Production file committed to `claudis/stats-server/stats_server.py` exactly as-is. Systemd unit and Supabase RPC DDL also committed. This fragility is closed.
-
-**n8n API key expires silently.** The key in .env is read fresh on every call (fixed 2026-04-15), but the key itself has a TTL. When it expires, all workflow management fails. No monitoring exists for key expiration. The 2026-04-14 session was blocked by an expired key discovered by accident.
-
-**No Telegram alert for sentinel failures.** `send_telegram_alert()` in scheduler.sh logs to file but doesn't actually send a Telegram message — the function body just calls `log()`. Sentinel failures are only discoverable by checking logs manually.
-
-**ChromaDB version pinned at v0.5.20.** Client and server must match exactly. `chromadb==0.5.20` in mcp-server venv. v1.x client uses /api/v2 API path — incompatible. Do not upgrade without testing both sides.
-
-**stats_server ChromaDB access uses subprocess.** stats_server cannot import chromadb directly (different venv). Every ChromaDB operation spawns a Python subprocess using `mcp-server/venv/bin/python`. This adds ~200-500ms latency per ChromaDB call in stats_server.
-
-**Array column syntax must use cast form.** `ARRAY['a','b']` in SQL fails silently in Supabase Management API. Always use `'{"a","b"}'::text[]`. Failing to use this produces no error and no inserted row.
-
-**Management API Cloudflare-blocked from Pi.** `api.supabase.com` returns 403 for most operations from the Pi. The DDL endpoint (`/v1/projects/{ref}/database/query`) works. All CRUD must go through PostgREST (`SUPABASE_URL/rest/v1/`).
-
-**workflow_execute MCP tool always fails.** n8n public API has no execution endpoint. The MCP tool raises ValueError. To run a workflow: ensure it has a webhook trigger, activate it, POST to webhook. Or use work_queue for schedule-triggered workflows.
-
-**n8n webhooks need restart after activation.** Newly-activated workflows return 404 until n8n restarts (`docker restart n8n`). For sandbox testing without restart: write directly to Supabase via PostgREST.
-
-**Prompt caching only works on Sonnet 4.6+.** Haiku 4.5 silently ignores `cache_control` (returns cache_creation_input_tokens: 0, no error). Sonnet 4.6 requires ~2048 tokens in the system block to actually cache.
-
-### Undocumented Dependencies
-
-**Supabase RPC functions.** The RPCs `increment_lessons_applied_by_id` and `increment_lessons_applied` are called by inject_context_v3 and stats_server /lessons_applied. Their DDL is not checked into the repo (see `~/aadp/sentinel/supabase_tables.sql` for original schema, but RPCs may be more recent).
-
-**n8n credential IDs hardcoded in workflows.** All workflow JSONs in `agents/production/` have credentials replaced with `{{CREDENTIAL_NAME}}` placeholders. Recreating on a fresh n8n instance requires recreating credentials and updating all placeholder references.
-
-**Telegram chat_id hardcoded.** Bill's chat_id `8513796837` is in scheduler.sh, lean_runner.sh, stats_server.py, and many n8n workflow payloads.
-
-**`/webhook/telegram-quick-send` assumed always active.** Both scheduler.sh and lean_runner.sh call this webhook for notifications. If TCA is deactivated or the webhook changes, all Telegram notifications from sentinel/lean sessions silently fail.
-
-**Bill's Roblox account needed for pipeline.** Lune v0.10.4 is installed at `/usr/local/bin/lune` and can produce valid .rbxl files (verified: 888 bytes, magic bytes confirmed). Full pipeline completion requires a Roblox account + Studio session (Windows/Mac, ~15 minutes) to create a base game and get Universe ID + Place ID for Open Cloud API. This is blocked on Bill — not an automated task.
+**Writing quality:** Lead with the failure mode, not the tool name. "When a webhook 404s even though the workflow exists" retrieves well. "n8n Webhook URL Format" does not.
 
 ---
 
-## 13. Where We're Going — Anvil Dashboard
+## 4. Current Project: Anvil Dashboard
+*Last updated: 2026-04-18*
 
-*Captured 2026-04-17. Status: evaluating. Not yet a backlog card.*
+### Status: Live and Operational
 
-### The Problem Anvil Solves
+The Anvil dashboard is live. B-026 (account setup), B-027 (uplink service + read-only dashboard), B-028 (uplink key), B-029 (interactive controls), and B-030 (agent fleet governance) are all complete as of 2026-04-18.
 
-The current interface is Telegram-only. That works for alerts and commands but has real limits: no visual overview of system state, no way to browse the resource inbox comfortably, no interactive session control beyond typed commands, and no phone-native capabilities (camera, geolocation, push notifications). The monitoring agents (cosmos_report, daily_briefing_agent, session_health_reporter) produce output but there's no good place to look at it.
+**What's working now:**
+- System status display (CPU, RAM, disk, temp, uptime) — delegates to stats_server
+- Agent fleet detail view with descriptions, status icons, schedules, last updated
+- Activate/pause toggle per agent (active↔paused only, guards against other status changes)
+- Thumbs-up/thumbs-down feedback per agent with optional comments
+- Work queue display (non-complete tasks)
+- Inbox with approve/deny buttons
+- Write Directive — overwrites DIRECTIVES.md, commits, and pushes to claudis
+- Trigger Lean Session — fires stats_server /trigger_lean
+- Refresh All button
+
+**Not yet done:**
+- App not yet published (Bill needs to click Publish in Anvil editor to get a public URL and enable PWA install on phone)
+- Uplink connection watchdog (silent disconnects not yet detected — B-031)
+- Feedback loop consumer (agent_feedback table is being written to but nothing reads it yet)
+- Phone capabilities (camera, geolocation, push notifications)
+- Protected agent indicator in UI (⚠️ icon for agents flagged as protected)
 
 ### What Anvil Is
 
-Anvil (anvil.works) is a Python-only web app platform. The key capability for AADP is **Uplink**: a persistent websocket connection that the Pi initiates outbound to Anvil's cloud. Once connected, Anvil's server-side Python can call functions defined in the Pi-side uplink script directly.
+Anvil (anvil.works) is a Python-only web app platform. The key capability for AADP is Uplink: a persistent outbound websocket from the Pi to Anvil's cloud. No port forwarding, no reverse proxy, no nginx. The Pi initiates the connection, so it's firewall-friendly. Auto-reconnects on crash (but see Known Gaps — silent disconnects are not detected).
 
-Why this matters for a Pi behind a home router:
-- No port forwarding required
-- No reverse proxy or nginx config
-- Auto-reconnects on failure
-- The Pi is always the initiator — firewall-friendly
+The Anvil app is accessible from any browser and installable as a PWA on a phone.
 
-The resulting Anvil web app is accessible from any browser and installable as a PWA on a phone.
+**Decision: cloud-hosted on anvil.works**, not self-hosted App Server. App ID: `PUCVGRU3KBBGPNPH`.
 
-### Proposed Architecture
+### Architecture
 
 ```
-Pi uplink script (systemd service)
+Pi uplink script (systemd service: aadp-anvil.service)
   ↕ websocket (outbound from Pi)
 Anvil cloud
   ↕
 Anvil web app (browser / phone PWA)
 ```
 
-The uplink script is a thin wrapper — it doesn't contain business logic, just exposes existing infrastructure:
+### How Claude Code Builds Anvil Apps
 
-| Uplink function | Delegates to |
-|---|---|
-| `get_system_status()` | stats_server `/system_status` |
-| `get_agent_fleet()` | Supabase `agent_registry` |
-| `get_work_queue()` | Supabase `work_queue` |
-| `get_session_notes()` | Supabase `session_notes` |
-| `get_resource_inbox()` | Supabase `resources` |
-| `approve_inbox_item(id)` | Supabase `inbox` PATCH |
-| `trigger_lean_session()` | stats_server `/trigger_lean` |
-| `write_directive(text)` | claudis git → DIRECTIVES.md |
+The Anvil app syncs bidirectionally with `thompsmanlearn/claude-dashboard` (GitHub, **master** branch — not main). Claude Code pushes to that repo and Anvil picks up changes automatically.
 
-### Phone Capabilities Anvil Unlocks
+The dashboard is built using the **programmatic approach** — `add_component()` calls in `client_code/Form1/__init__.py`. This is more natural for Claude Code than writing YAML.
 
-Anvil apps running in the browser on a phone can access:
-- **Camera** — Bill could photograph something and route the image into the system
-- **Geolocation** — location-aware agents (weather, local context)
+Material Design 3 theme. Component roles used: `'outlined-card'`, `'filled-button'`, `'tonal-button'`, `'outlined-button'`, `'headline'`, `'title'`, `'body'`.
+
+A Claude Code skill reference exists at `skills/anvil/REFERENCE.md` — loaded automatically by CATALOG.md for any Anvil-related card.
+
+### Uplink Callable Functions (current)
+
+| Callable | Delegates to | Direction |
+|---|---|---|
+| `get_system_status()` | stats_server `/system_status` | Read |
+| `get_agent_fleet()` | Supabase `agent_registry` | Read |
+| `get_work_queue()` | Supabase `work_queue` | Read |
+| `get_inbox()` | Supabase `inbox` (pending only) | Read |
+| `set_agent_status(agent_name, status)` | Supabase `agent_registry` PATCH | Write |
+| `submit_agent_feedback(agent_name, rating, comment)` | Supabase `agent_feedback` POST | Write |
+| `approve_inbox_item(item_id)` | Supabase `inbox` PATCH | Write |
+| `deny_inbox_item(item_id)` | Supabase `inbox` PATCH | Write |
+| `trigger_lean_session()` | stats_server `/trigger_lean` | Write |
+| `write_directive(text)` | claudis git → DIRECTIVES.md | Write |
+
+### Phone Capabilities Anvil Unlocks (future)
+
+- **Camera** — route images into the system as visual input
+- **Geolocation** — context-aware agents (knowing whether Bill is home changes what's relevant)
 - **Web push notifications** — replace Telegram alerts with native phone notifications
 
-### Planned First Milestone
-
-Read-only dashboard:
-- System status (CPU, RAM, disk, temp)
-- Agent fleet health (active count, any paused/broken)
-- Work queue (pending tasks)
-- Last 5 session notes
-
-This proves the uplink architecture before adding interactive controls. No writes, no session launching — just visibility.
-
-### What's Needed Before Claude Code Can Build
-
-1. **Bill creates an Anvil account** at anvil.works (free tier)
-2. **Bill prototypes the uplink connection** — installs `anvil-uplink` Python package on the Pi, runs the minimal hello-world uplink to confirm the websocket connects from behind the home router
-3. **Bill shares the uplink key** (Anvil generates one per app) — goes in `.env` as `ANVIL_UPLINK_KEY`
-4. **Backlog card written** once the connection is proven
-
-Until steps 1-3 are done, Claude Code has nothing to build against. This is a Bill action.
-
-### What Doesn't Change
-
-The Anvil layer is additive. Telegram commands keep working. The MCP server, stats_server, n8n, and all existing agents are unchanged. Anvil is a new read/write surface on top of existing infrastructure, not a replacement.
+These aren't UI improvements — they make the system's boundary with the physical world porous.
 
 ---
 
-*This document was written from direct inspection. Every claim traces to a file read, a SQL query result, or a live system query. As of 2026-04-17. Anvil section added 2026-04-18.*
+## 5. Capabilities Inventory
+*Last updated: 2026-04-18*
+
+This section tracks what the system as a whole can actually accomplish today. This is distinct from the skills list (what Claude Code knows how to do) and the agent fleet (what's deployed). Capabilities are end-to-end outcomes.
+
+**Note:** A `capabilities` table exists in Supabase with fields for name, category, confidence, times_used, and last_used. As of 2026-04-18, it is unclear whether this table has been populated. Reconciling this table with actual system capabilities is a review task (see Section 6).
+
+### Known Working Capabilities
+
+**Information Gathering:**
+- Scan arXiv for relevant preprints and score them for AADP implications
+- Monitor Wikipedia for pageview velocity spikes and cluster trending topics (paused)
+- Search GitHub weekly for MCP/agent repos
+- Fetch daily research across rotating topics (arXiv, Hacker News, Reddit)
+- Synthesize weekly research findings into digests
+
+**Operational Awareness:**
+- System health monitoring (CPU, RAM, disk, temperature, uptime)
+- Agent fleet health scanning (consecutive error detection, auto-pause at ≥3)
+- Stale agent detection (building/sandbox status >7 days)
+- Daily briefing digest (system health, agent status, errors, work queue)
+
+**Memory and Learning:**
+- Semantic lesson retrieval with task-type routing and staleness penalty
+- Dual-store lesson writing (ChromaDB + Supabase)
+- Context injection before every session (inject_context_v3.1)
+- Zero-applied wildcard injection for uncirculated lessons
+- Retrieval logging for future adapter training
+
+**Development:**
+- Execute focused build sessions from backlog cards
+- Write and commit session artifacts
+- Manage n8n workflows (create, update, activate/deactivate)
+- Agent lifecycle management (register, update, promote)
+
+**Communication:**
+- Telegram command routing (deprioritized but functional when Telegram is working)
+- Daily weather forecast
+- Serendipity engine (Wikipedia On This Day synthesis — paused)
+
+**Dashboard & Governance (NEW — Anvil):**
+- View system status, agent fleet, work queue, inbox from any browser
+- Activate/pause agents from dashboard
+- Approve/deny inbox items from dashboard
+- Write directives and trigger lean sessions from dashboard
+- Submit per-agent thumbs-up/thumbs-down feedback with comments
+
+### Not Yet Working or Unverified
+
+- Anvil app not yet published as PWA (Bill action needed)
+- Uplink connection watchdog (silent disconnects — B-031)
+- Feedback loop consumer (agent_feedback table written but not read)
+- Autonomous task decomposition
+- Capabilities table in Supabase (may be empty)
+- Protected agent indicator in dashboard UI
+
+---
+
+## 6. System Health and Review
+*Last updated: 2026-04-18*
+
+### The Governance Gap — Partially Closed
+
+The Anvil dashboard now provides the review surface that was previously missing. Bill can see the full agent fleet with descriptions, status, and controls. The first governance action was taken on 2026-04-18: 10 non-critical agents paused, 7 agents flagged as protected.
+
+**What the dashboard enables now:**
+- Visual fleet review without terminal access
+- Immediate activate/pause action on any active/paused agent
+- Feedback capture (thumbs up/down + comments) per agent
+
+**Remaining governance gaps:**
+- **Feedback not consumed.** The `agent_feedback` table captures ratings and comments but nothing reads them. A periodic review agent should surface thumbs-down patterns.
+- **Capabilities table still unverified.** May be empty.
+- **Lesson quality decay.** Lessons accumulate but there's no curation.
+- **Research agent value unclear.** Research agents run daily but nobody checks whether what they surface is actually useful to Bill.
+- **Sandbox blockage partially resolved.** Agent approval now possible via Anvil inbox, but the flow hasn't been tested end-to-end with a real sandbox agent.
+
+### What Review Looks Like
+
+Periodically (cadence TBD — every few sessions or weekly), a desktop session should conduct a system audit:
+
+1. **Agent fleet review.** Open the Anvil dashboard. For each active agent: is the description accurate? When did it last update? Is anyone consuming its output? Use thumbs-down + comment to flag concerns. Pause low-value agents.
+2. **Capabilities reconciliation.** Populate the capabilities table if empty. Cross-reference against what actually works end-to-end.
+3. **Lesson sampling.** Pull a random sample of recent lessons. Are they well-written (failure-mode-first)? Are older lessons still accurate? Are any now redundant with established convention?
+4. **Feedback review.** Query `agent_feedback` for thumbs-down patterns. Act on repeated negative signals.
+5. **Research value check.** Sample recent research outputs. Is the arxiv_aadp_pipeline surfacing things Bill cares about?
+
+---
+
+## 7. Technical Architecture
+*Last updated: 2026-04-18*
+
+### Services Map
+
+| Service | Container/Process | Port | Start mechanism | Config location |
+|---|---|---|---|---|
+| n8n 2.6.4 | Docker container `n8n` | 5678 | Docker (auto-restart) | `~/n8n/docker-compose.yml`, `~/n8n/n8n_data/` |
+| ChromaDB v0.5.20 | Docker container | 8000 | Docker (auto-restart) | Do NOT upgrade — v1.x client uses /api/v2, incompatible |
+| Stats Server | systemd `aadp-stats.service` | 9100 | systemd (always-on) | `~/aadp/stats-server/stats_server.py`, `~/aadp/mcp-server/.env` |
+| MCP Server | Claude Code stdio subprocess | stdio | Claude Code spawns it | `~/aadp/mcp-server/server.py`, `~/aadp/mcp-server/.env` |
+| Anvil Uplink | systemd `aadp-anvil.service` | — | systemd (always-on, Restart=always) | `~/aadp/claudis/anvil/uplink_server.py`, `~/aadp/mcp-server/.env` |
+| Sentinel | systemd `aadp-sentinel.service` (oneshot) | — | `aadp-sentinel.timer` every 8h (currently disabled) | `/etc/systemd/system/aadp-sentinel.{service,timer}` |
+| Supabase | Remote SaaS | 443 | External | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_MGMT_PAT` in .env |
+
+Key infrastructure facts:
+- All compute runs on a Raspberry Pi 5, 16GB RAM, always-on
+- n8n hosts the agent fleet as workflows; `host.docker.internal:host-gateway` lets n8n reach Pi services
+- ChromaDB stores semantic memory — pinned at v0.5.20, do not upgrade
+- Stats server handles lesson injection, research, GitHub ops, and sentinel/lean triggers
+- MCP server provides Claude Code with tools for memory, Supabase, n8n, and system operations
+- Anvil Uplink maintains persistent outbound websocket to Anvil cloud; registers callable functions that the dashboard invokes
+- Supabase stores structured data — all CRUD via PostgREST, DDL via Management API
+- Credentials live in `~/aadp/mcp-server/.env` — never committed
+
+### Credentials in .env
+
+Keys present (do not expose values): CHROMADB_HOST, CHROMADB_PORT, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_MGMT_PAT, N8N_BASE_URL, N8N_API_KEY, ANTHROPIC_API_KEY, GITHUB_TOKEN, STATS_PORT (default 9100), ANVIL_UPLINK_KEY.
+
+### MCP Server Tools
+
+The MCP server (`~/aadp/mcp-server/server.py`) exposes tools across these categories:
+
+**Memory (ChromaDB):** memory_search, memory_add, memory_delete, memory_list_collections
+
+**Supabase tables via dedicated tools:**
+- Prompts: prompt_get, prompt_update, prompt_history, prompt_rollback
+- Config: config_get, config_set
+- Agent Registry: agent_register, agent_update
+- Error Logs: error_log_query, error_log_resolve
+- Ideas: idea_capture, idea_list
+- Work Queue: work_queue_add, work_queue_query, work_queue_update
+- Audit Log: audit_log_query
+- Session Notes: session_notes_save, session_notes_load
+- DDL: supabase_exec_sql (Management API — works from Pi for DDL only)
+
+**n8n Workflows:** workflow_list, workflow_get, workflow_create, workflow_update, workflow_activate, workflow_deactivate, execution_list, execution_get. Note: workflow_execute always raises ValueError — n8n has no public execution API.
+
+**System:** system_status, service_status, logs_fetch
+
+**Composite:** developer_context_load (concurrent pull of registry + queue + errors + notes + config + system status)
+
+Key implementation details:
+- n8n API key re-read from .env on every call — key rotations need no restart
+- All Supabase ops use PostgREST with service key
+- ChromaDB client lazily created and shared
+- memory_search fires retrieval logging as fire-and-forget — never blocks
+- retrieval_log accumulates query-document pairs for eventual adapter training (goal: 1500 labeled pairs)
+
+### Stats Server Endpoints
+
+The stats server (`~/aadp/stats-server/stats_server.py`, 3205 lines, port 9100) is now in git (commit 56ba358, 2026-04-17).
+
+**Core:** /system_status, /healthz
+
+**Session triggers:** /trigger_sentinel, /trigger_lean
+
+**GitHub:** /gh (dispatches to gh_status, gh_becoming, gh_attempts, gh_log, gh_review, gh_keep, gh_redirect, gh_close, gh_report)
+
+**Data:** /append_experiment, /write_experiment, /get_outputs, /get_audit
+
+**Research:** /run_daily_research, /run_research_synthesis, /get_research_window
+
+**Memory:** /memory_query (ChromaDB proxy via subprocess)
+
+**Lesson injection:** /inject_context_v2, /inject_context_v3 (current — v3.1 with task-type routing, confidence signal, zero_applied wildcards), /lessons_applied
+
+### inject_context_v3 Task-Type Routing
+
+```python
+_V3_TASK_ROUTING = {
+    "agent_build":      [lessons, error_patterns, reference_material, session_memory, research_findings],
+    "research_cycle":   [research_findings, lessons, reference_material, session_memory],
+    "explore":          [lessons, session_memory, research_findings],
+    "self_diagnostic":  [self_diagnostics, error_patterns, lessons],
+    "directive":        [lessons, error_patterns, reference_material, session_memory],
+    "gh_weekly_search": [research_findings],
+    "gh_report":        [session_memory, lessons],
+    "gh_task":          [lessons, reference_material],
+    "agent_control":    [lessons, error_patterns],
+    "agent_test":       [lessons, error_patterns, reference_material],
+    # unknown → all 5 tiers
+}
+```
+
+Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → low; no results → none.
+
+### Database Schema — Active Tables
+
+**work_queue** — id (uuid), task_type, status (pending/claimed/processing/complete/failed), priority (integer 1-3, 1=normal 3=critical), assigned_agent, input_data (jsonb), output_data (jsonb), created_by, created_at, claimed_at, completed_at, error_message
+
+**agent_registry** — id (uuid), agent_name (unique), display_name, agent_type, description, status (active/paused/retired/building/broken/sandbox), input_types/output_types/data_sources (text[]), schedule, workflow_id, performance_metrics (jsonb), protected (bool), telegram_command, created_at, updated_at
+
+**agent_feedback** — id (uuid), agent_name (text), rating (int, CHECK IN (1,-1)), comment (text nullable), created_at (timestamptz). Created 2026-04-18. No consumer yet — data is captured but not acted on.
+
+**lessons_learned** — id (uuid), title, category, content, confidence (float, default 0.5), times_applied (int, default 0), source (default sentinel), created_at, updated_at, chromadb_id (text). NULL chromadb_id = invisible to semantic search.
+
+**session_notes** — id (uuid), content, category (todo/observation), created_at, consumed (bool)
+
+**audit_log** — id (uuid), actor, action, target, details (jsonb), timestamp
+
+**error_logs** — id (uuid), workflow_id, workflow_name, node_name, error_type, error_message, execution_id, timestamp, resolved (bool), resolution_notes, resolved_by, resolved_at
+
+**experimental_outputs** — id, agent_name, experiment_id, output_type, content (jsonb), confidence, promoted, reviewed_by_bill, created_at, api_usage (jsonb)
+
+**agent_prompts** — id, agent_name, prompt_text, version (int), is_active (bool), created_at, created_by, change_notes. Versioned — only one active per agent_name.
+
+**agent_config** — id, agent_name (unique), model, temperature, max_tokens, metadata (jsonb), updated_at
+
+**retrieval_log** — id, query, collection, doc_id, distance, was_relevant (bool nullable), session_id, created_at
+
+**research_papers** — id, title, authors, abstract, publication_date, citation_count, source, source_id, url, pdf_url, topic_tags (text[]), relevance_score, status, discovered_at, reviewed_at, notes, component_tag, action_type, already_addressed_since, addressed_by
+
+**system_config** — key (text PK), value (jsonb), updated_at
+
+**inbox** — id, from_agent, message_type (help_request/approval_request/recommendation/observation/question/alert), subject, body, context (jsonb), status (pending/approved/denied/deferred/replied), bill_reply, priority, created_at, responded_at
+
+**capabilities** — id, name, category, description, confidence (default 0.5), times_used (default 0), last_used, created_at, updated_at
+
+### ChromaDB Collections
+
+All collections use `all-MiniLM-L6-v2` embeddings. ChromaDB v0.5.20 at localhost:8000.
+
+| Collection | Count (approx) | Purpose |
+|---|---|---|
+| `lessons_learned` | 224+ | Technical lessons from sessions |
+| `reference_material` | 173 | Architecture patterns, runbooks |
+| `research_findings` | 141 | arXiv/HN research items |
+| `session_memory` | 71+ | Episodic session context |
+| `error_patterns` | 15 | Known failure modes |
+| `self_diagnostics` | 11 | Diagnostic procedures |
+| `agent_templates` | 4 | Agent scaffolding templates |
+
+Distance thresholds: < 0.8 high confidence; 0.8–1.2 review carefully; > 1.2 weak match.
+
+Critical gotcha: Never include `"embeddings"` in the include list for bulk-get operations — causes IndexError at scale. Use `["documents", "metadatas"]` only.
+
+Store sync validation: `SELECT COUNT(*) FROM lessons_learned WHERE chromadb_id IS NULL` — any value > 0 means lessons invisible to semantic search.
+
+### Data Flow — Lesson System End-to-End
+
+**Creation:** Session writes lesson → memory_add to ChromaDB (returns doc_id) → INSERT to Supabase with chromadb_id = doc_id. Both writes required.
+
+**Retrieval:** scheduler.sh or lean_runner.sh calls POST /webhook/inject-context → lesson_injector workflow → stats_server /inject_context_v3 → Haiku intent expansion → collection queries with task-type routing → staleness penalty → zero_applied wildcards → 2000-token budget assembly → returns context_block.
+
+**Injection:** Context block prepended as `## PRE-LOADED CONTEXT` before session prompt.
+
+**Tracking:** increment_lessons_applied_by_id Supabase RPC fires after injection.
+
+---
+
+## 8. Agent Fleet
+*Last updated: 2026-04-18*
+
+**Lifecycle:** `building` → `sandbox` → (behavioral_health_check + 4-Pillars evaluation) → `active` OR `retired/paused`
+
+32 agents total. 7 flagged as protected. 10 paused on 2026-04-18 as part of first governance review via Anvil dashboard. Full source at `~/aadp/claudis/agents/`.
+
+### Protected Agents (do not pause)
+
+| agent_name | Why protected |
+|---|---|
+| telegram_command_agent | In PROTECTED.md — severs primary control if broken |
+| lesson_injector | Core learning loop — used every session |
+| agent_health_monitor | Self-healing depends on this |
+| arxiv_aadp_pipeline | Feeds all research findings |
+| research_synthesis_agent | Weekly synthesis — turns papers into direction |
+| morning_briefing | Daily system pulse |
+| claude_code_master | The operator agent |
+
+### Paused Agents (2026-04-18)
+
+ai_frontier_scout, coast_intelligence, cosmos_report, daily_briefing_agent, daily_research_scout, heritage_watch, macro_pulse, serendipity_engine_prod, session_report_agent, wiki_attention_monitor
+
+These were paused because they are personal briefings with no active consumer, overlap with other agents, or have no workflow consuming their output. They can be reactivated from the Anvil dashboard.
+
+### Active Production Agents
+
+| agent_name | workflow_id | trigger | key behavior |
+|---|---|---|---|
+| telegram_command_agent | kddIKvA37UDw4x6e | Telegram long-poll | Routes /commands. **PROTECTED.** |
+| weather_agent | F3khynqQBUXSnadu | webhook | Open-Meteo forecast |
+| github_issue_tracker | F2lRufWUOXAGv5GB | webhook | Open issues >3 days scan |
+| morning_briefing | xt8Prqvi7iJlhrVG | webhook | No LLM. Queue + agents + health |
+| behavioral_health_check | kdzJPyZtchNA3Seq | webhook | Haiku 0-10 reliability score |
+| agent_health_monitor | w5vypq4vb2rSrwdl | webhook | Error scan + stale scan |
+| research_synthesis_agent | JUBCbXJe3TwwpB2T | webhook | Weekly synthesis |
+| arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | webhook | arXiv preprints Mon/Wed/Fri |
+| github_weekly_search | — | Sunday 6AM UTC | GitHub API for MCP/agent repos |
+
+### Platform Infrastructure Agents
+
+| agent_name | workflow_id | trigger | key behavior |
+|---|---|---|---|
+| lesson_injector | MFmk28ijs1wMig7h | webhook | Context injection before sessions |
+| session_health_reporter | 5x6G8gFlCxX0YKdM | webhook | Post-session artifact to GitHub |
+| autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h | **Currently deactivated (Lean Mode)** |
+
+### n8n Credential IDs
+- Telegram credential ID: y4YfKWpm20Z9sw7G
+- Bill's Telegram chat_id: 8513796837 (hardcoded in multiple places)
+
+---
+
+## 9. Skills and Knowledge Resources
+*Last updated: 2026-04-18*
+
+### Claude Code Skills
+
+Claude Code has a skill system — domain-specific knowledge packages loaded when relevant. Skills live in `~/aadp/claudis/skills/` and are routed via `CATALOG.md`.
+
+Existing skills: agent-development, system-ops, communication, research, triage, **anvil**.
+
+The **anvil** skill (`skills/anvil/REFERENCE.md`) covers: error propagation, timeout behavior, connection stability, portable types, app structure, MD3 component roles, and uplink server location. It is loaded automatically for any card matching keywords: anvil, uplink, dashboard.
+
+### What Desktop Sessions Should Produce
+
+A key role for desktop sessions is researching technical topics and packaging that knowledge for Claude Code. For any new platform integration, the desktop session should:
+
+1. Research the platform's API, conventions, and gotchas
+2. Produce documentation Claude Code can consume — either as a skill file or reference material committed to the repo
+3. Include concrete examples (working YAML, Python patterns, CSS conventions)
+4. Anticipate the gotchas Claude Code will hit and document them preemptively
+
+---
+
+## 10. Platform Roadmap
+*Last updated: 2026-04-18*
+
+These are integration candidates, not commitments. The system grows by connecting to new platforms that extend its reach. Bill's interests will determine which get built and when.
+
+**Anvil (MILESTONE — B-026 through B-030 complete 2026-04-18):** Dashboard and UI layer. Live and operational. Replaces Telegram as primary control surface. Next: publish as PWA, connection watchdog (B-031), feedback loop consumer. See Section 4.
+
+**Replicate:** Cloud GPU inference via API. Enables image generation, video processing, model inference. Single API key, no Pi infrastructure.
+
+**Notion or similar:** Structured knowledge base for longer-form documents that don't fit in ChromaDB chunks.
+
+**Home Assistant:** Free environmental context if smart home infrastructure exists.
+
+**Publishing APIs:** Itch.io, YouTube, GitHub Pages. Autonomous publishing of creative artifacts.
+
+**Anthropic Usage API:** Precise token cost tracking per agent and session type.
+
+**Communication beyond Telegram:** Gmail API, Discord (bots, webhooks, community overlap with creative domains).
+
+### Note on Creative Domains
+
+Game development (on Unreal Engine, not Roblox) is one example of a creative domain Bill may pursue. It is not the definition. The system should be capable across creative domains — the specific direction will change.
+
+---
+
+## 11. Desktop Session Playbook
+*Last updated: 2026-04-18*
+
+### What a Desktop Session Is For
+
+A desktop session collaborates with Bill. It does not build directly. Its outputs are:
+- Strategic thinking and direction-setting
+- Well-specified backlog cards
+- Research and documentation that Claude Code consumes
+- System reviews and audits (see Section 6)
+- Guided assistance with web-based setup tasks (see Section 2)
+
+### Starting a Desktop Session
+
+1. Read this document.
+2. Check the "Last updated" dates on each section. Flag anything that seems stale.
+3. Be prepared to discuss current project state, write cards, think strategically, or help Bill with a guided task.
+4. Do not summarize the document back to Bill. He knows what's in it. Start from where he wants to start.
+
+### Writing Good Cards
+
+The most common failure modes:
+- Goal describes how instead of what — Claude Code should choose its own approach
+- Done-when criteria are aspirational rather than verifiable
+- Scope is too broad for one lean session
+- Context assumes Claude Code knows things from prior sessions that it doesn't
+
+Before writing a card, consider: could Claude Code execute this without any follow-up questions? If not, the Context section is incomplete.
+
+### Researching for Claude Code
+
+When Bill decides to integrate a new platform:
+- Read the platform's actual documentation
+- Find the specific API patterns, file formats, and conventions Claude Code will need
+- Produce concrete examples (working code, valid YAML, tested API calls)
+- Package as a skill file or reference material in the claudis repo
+- Anticipate gotchas and document them preemptively
+
+### Session Close
+
+Before ending a desktop session:
+- Does the brief need updating? If so, which sections?
+- Are there cards ready to be added to BACKLOG.md?
+- Were any decisions made that should be captured?
+- Is there research or documentation that should be committed to the repo?
+
+---
+
+## 12. Known Gaps and Fragilities
+*Last updated: 2026-04-18*
+
+**Anvil uplink silent disconnects.** The websocket can die without the systemd service noticing. Restart=always only catches crashes. B-031 adds a watchdog. Until then, if the dashboard stops responding, `sudo systemctl restart aadp-anvil.service` fixes it.
+
+**anvil-uplink 0.7.0 tracer crash.** Must call `set_internal_tracer_provider(TracerProvider())` before any RPC dispatch or the handler thread crashes. Already fixed in uplink_server.py. Lesson captured.
+
+**agent_feedback table has no consumer.** Ratings and comments are stored but nothing reads them or acts on patterns.
+
+**Do not smoke-test live trigger endpoints.** The `/trigger_lean` endpoint actually launches sessions. During B-029 development, an accidental call launched a rogue lean session. Use status-check endpoints or dry-run flags for testing. Lesson captured.
+
+**n8n API key expires silently.** The key in .env is read fresh on every call, but the key has a TTL. No monitoring for expiration.
+
+**No alert for sentinel failures.** send_telegram_alert() in scheduler.sh logs to file but doesn't send a Telegram message.
+
+**ChromaDB version pinned at v0.5.20.** Client and server must match. v1.x uses /api/v2 — incompatible.
+
+**stats_server ChromaDB access uses subprocess.** Different venv. Adds ~200-500ms latency per call.
+
+**Array column syntax must use cast form.** `ARRAY['a','b']` fails silently. Use `'{"a","b"}'::text[]`.
+
+**Management API Cloudflare-blocked from Pi.** DDL endpoint works. All CRUD must use PostgREST.
+
+**workflow_execute MCP tool always fails.** No n8n public execution API.
+
+**n8n webhooks need restart after activation.** 404 until `docker restart n8n`.
+
+**Prompt caching only works on Sonnet 4.6+.** Haiku 4.5 silently ignores cache_control.
+
+**Agent approval flow partially fixed.** Can now approve via Anvil inbox, but the end-to-end sandbox→active flow hasn't been tested through the dashboard yet.
+
+**Capabilities table may be empty.** Unverified.
+
+**Telegram chat_id hardcoded** in scheduler.sh, lean_runner.sh, stats_server.py, and many n8n workflows.
+
+**`/webhook/telegram-quick-send` assumed always active.** If TCA deactivated, all session Telegram notifications silently fail.
+
+**Supabase RPC functions** (increment_lessons_applied_by_id, increment_lessons_applied) must exist for lesson tracking. DDL committed to claudis/stats-server/.
+
+---
+
+## 13. Git and File Conventions
+*Last updated: 2026-04-18*
+
+### Repo: `thompsmanlearn/claudis` → `~/aadp/claudis/`
+
+Git uses stored credentials. `gh` CLI not installed — use GitHub REST API via GITHUB_TOKEN.
+
+```
+claudis/
+  agents/
+    INDEX.md, production/, sandbox/, retired/, critics/
+  architecture/
+    decisions/        — ADRs
+    ENVIRONMENT.md    — operational facts, API gotchas. Append-only.
+    BECOMING.md       — aspirations/redirects from Bill
+  sessions/
+    lean/             — lean session artifacts
+    monthly/
+  skills/
+    CATALOG.md        — skill routing table
+    PROTECTED.md      — resources requiring explicit approval
+    agent-development/, system-ops/, communication/, research/, triage/, anvil/
+  stats-server/
+    stats_server.py   — production stats server (in git since 2026-04-17)
+  experiments/
+    research/, sessions/
+  anvil/
+    uplink_server.py  — Anvil uplink service (callable registrations)
+  tools/
+    anvil_test.py     — one-shot uplink connection test
+  CONTEXT.md          — system facts, bootstrap context
+  CONVENTIONS.md      — operational procedures
+  TRAJECTORY.md       — destinations + active vectors + operational state
+  DIRECTIVES.md       — Bill's standing instructions. "Run: B-NNN" pointer form.
+  BACKLOG.md          — lean session card queue. B-001 through B-021 archived. B-022–B-030 pending archive (B-031).
+  LEAN_BOOT.md        — lean mode startup protocol
+  COLLABORATOR_BRIEF.md — card format guide
+  DEEP_DIVE_BRIEF.md  — this document
+```
+
+### Repo: `thompsmanlearn/claude-dashboard` → `~/aadp/claude-dashboard/`
+
+Anvil app synced via GitHub integration. **Default branch: master (not main).** GITHUB_TOKEN works for both repos.
+
+```
+claude-dashboard/
+  client_code/
+    Form1/
+      __init__.py       — dashboard UI (programmatic add_component approach)
+      form_template.yaml
+  server_code/
+  theme/
+    assets/
+      theme.css
+      standard-page.html
+    parameters.yaml
+  anvil.yaml            — app config (App ID: PUCVGRU3KBBGPNPH)
+```
+
+### Branching Convention
+- Main work: `main` branch (claudis), `master` branch (claude-dashboard)
+- Non-trivial builds: `attempt/description` branch before starting
+- Commit outcome on attempt branches (including failures)
+- Close attempt branches at session end
+
+---
+
+*This document is a living reference. Update section dates when modifying. Technical Architecture (Section 7) changes rarely. Working With Bill (Section 2) evolves slowly. Current Project (Section 4) changes with each major pivot. Capabilities Inventory (Section 5) should be reconciled periodically.*
