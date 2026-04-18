@@ -56,13 +56,62 @@ def get_agent_fleet():
         f'{_SUPABASE_URL}/rest/v1/agent_registry',
         headers=_HEADERS,
         params={
-            'select': 'id,agent_name,status,workflow_id',
+            'select': 'agent_name,display_name,description,status,schedule,updated_at',
             'order': 'agent_name.asc',
         },
         timeout=10,
     )
     r.raise_for_status()
     return r.json()
+
+
+@anvil.server.callable
+def set_agent_status(agent_name, status):
+    if status not in ('active', 'paused'):
+        raise Exception(f'Invalid status "{status}". Only active or paused allowed.')
+    # Read current status to enforce active↔paused only
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_registry',
+        headers=_HEADERS,
+        params={'select': 'status', 'agent_name': f'eq.{agent_name}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Agent "{agent_name}" not found.')
+    current = rows[0]['status']
+    if current not in ('active', 'paused'):
+        raise Exception(f'Cannot toggle agent with status "{current}" from dashboard.')
+    now = datetime.now(timezone.utc).isoformat()
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/agent_registry',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'agent_name': f'eq.{agent_name}'},
+        json={'status': status, 'updated_at': now},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Agent %s status set to %s', agent_name, status)
+    return {'status': status}
+
+
+@anvil.server.callable
+def submit_agent_feedback(agent_name, rating, comment=None):
+    if rating not in (1, -1):
+        raise Exception('Rating must be 1 (thumbs up) or -1 (thumbs down).')
+    payload = {'agent_name': agent_name, 'rating': rating}
+    if comment:
+        payload['comment'] = comment.strip()[:500]
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        json=payload,
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Feedback submitted for %s: rating=%d', agent_name, rating)
+    return {'submitted': True}
 
 
 @anvil.server.callable
