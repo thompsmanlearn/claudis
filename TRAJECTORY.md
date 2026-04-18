@@ -83,13 +83,13 @@
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil (anvil.works) selected as the UI layer. B-026–B-030 all complete as of 2026-04-18. Dashboard now has full agent fleet governance: per-agent detail cards, activate/pause toggle, thumbs-up/down feedback with comments. agent_feedback Supabase table created. 10 non-critical agents paused via dashboard. Protected agent list established (7 agents). Next: B-031 — feedback loop consumer (agent that reads agent_feedback and surfaces patterns) or uplink connection watchdog.
+Anvil (anvil.works) selected as the UI layer. B-026–B-031 all complete as of 2026-04-18. Dashboard now has full agent fleet governance: per-agent detail cards, activate/pause toggle, thumbs-up/down feedback with comments. agent_feedback Supabase table created. 10 non-critical agents paused via dashboard. Protected agent list established (7 agents). Uplink watchdog active (localhost:9101/ping health endpoint; aadp-anvil-watchdog.timer fires every 15 min). BACKLOG.md now 21 lines. Next card: B-032 when Bill writes one.
 
 ---
 
 ## Parked Directions
 
-- **Anvil integration (MILESTONE: B-026–B-030 all complete 2026-04-18).** Dashboard is the primary governance surface. Full fleet detail view with controls live. Feedback table seeded but not yet consumed — B-031 should close that loop. Skill reference at skills/anvil/REFERENCE.md.
+- **Anvil integration (MILESTONE: B-026–B-031 all complete 2026-04-18).** Dashboard is the primary governance surface. Full fleet detail view with controls live. Uplink watchdog installed and tested. Feedback table seeded but not yet consumed — next card could add an agent that reads agent_feedback and surfaces patterns. Skill reference at skills/anvil/REFERENCE.md.
 
 - **Bill's monitoring interface audit** — 10 personal-briefing and overlapping agents paused 2026-04-18 (ai_frontier_scout, coast_intelligence, cosmos_report, daily_briefing_agent, daily_research_scout, heritage_watch, macro_pulse, serendipity_engine_prod, session_report_agent, wiki_attention_monitor). 7 agents flagged as protected. Fleet now leaner — active agents are all system-critical or pipeline-feeding.
 - **Haiku self-critic** — retired 2026-04-05. Replaced by behavioral_health_check for agent quality assessment.
