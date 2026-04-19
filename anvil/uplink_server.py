@@ -578,6 +578,44 @@ def get_table_rows(table, limit=25):
     return r.json()
 
 
+# ── Skills callables ─────────────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_skills():
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/skills_registry',
+        headers=_HEADERS,
+        params={
+            'select': 'id,name,description,trigger_keywords,file_path,times_loaded,last_loaded',
+            'order': 'name.asc',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def get_skill(name):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/skills_registry',
+        headers=_HEADERS,
+        params={'select': 'file_path', 'name': f'eq.{name}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Skill "{name}" not found in registry.')
+    file_path = rows[0]['file_path'].replace('~', os.path.expanduser('~'))
+    try:
+        with open(file_path) as f:
+            content = f.read()
+    except FileNotFoundError:
+        raise Exception(f'Skill file not found at {file_path}')
+    return {'name': name, 'file_path': file_path, 'content': content}
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
