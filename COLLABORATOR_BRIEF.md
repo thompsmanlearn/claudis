@@ -38,7 +38,7 @@ GitHub repo: `thompsmanlearn/claudis` — contains CONTEXT.md, CONVENTIONS.md, T
 Agents live in n8n as workflows. Lifecycle: **sandbox → active** (promoted after passing behavioral_health_check) or retired. Managed via `agent_registry` Supabase table and Telegram commands.
 
 Key agents currently active:
-- **Telegram Command Agent (TCA)** — protected workflow, the command router. `/approve`, `/reject`, `/run_research_synthesis`, etc. (`/oslean` broken as of 2026-04-17 — Anvil dashboard is now the primary control surface)
+- **Telegram Command Agent (TCA)** — protected workflow, the command router. `/approve`, `/reject`, `/run_research_synthesis`, etc. Lean sessions are triggered from Anvil dashboard — `/oslean` removed 2026-04-18.
 - **agent_health_monitor** — scans for stale building/sandbox agents, notifies Bill
 - **research_synthesis_agent** — weekly synthesis of ChromaDB findings into Supabase
 - **arxiv_aadp_pipeline** — pulls recent AI/ML papers, stores findings in ChromaDB
@@ -80,7 +80,7 @@ B-026–B-041 complete as of 2026-04-18. Dashboard has: Fleet (agent control, fe
 
 ## How Sessions Work
 
-**Lean mode (current):** Bill edits `DIRECTIVES.md` on GitHub (or via Anvil dashboard Write Directive control), then triggers from Anvil dashboard (Trigger Lean Session button). `/oslean` Telegram command is broken as of 2026-04-17. `lean_runner.sh` on the Pi: pulls claudis git, resolves the backlog card description, calls lesson injector (25s timeout), prepends context block + lesson tracking instruction, then runs `claude -p --dangerously-skip-permissions --max-turns 200 < prompt_file`. Telegram gets three messages: ack → start → completion/error.
+**Lean mode (current):** Bill edits `DIRECTIVES.md` on GitHub (or via Anvil dashboard Write Directive control), then triggers from the Anvil dashboard (Trigger Lean Session button). `lean_runner.sh` on the Pi: pulls claudis git, resolves the backlog card description, calls lesson injector (25s timeout), prepends context block + lesson tracking instruction, then runs `claude -p --dangerously-skip-permissions --max-turns 200 < prompt_file`. Telegram gets three messages: ack → start → completion/error.
 
 **Autonomous mode (paused as of 2026-04-15):** Sentinel timer fires, Claude Code session starts from `disk_prompt.md`, picks work from TRAJECTORY.md and work_queue, runs for up to 3 hours, closes with artifact + TRAJECTORY.md update. To resume: `sudo systemctl enable aadp-sentinel.timer && sudo systemctl start aadp-sentinel.timer`, then reactivate `autonomous_growth_scheduler` in n8n.
 
@@ -132,7 +132,6 @@ The Pi Claude Code instance is resource-constrained (16GB RAM, Raspberry Pi). Co
 - Artifacts tab on dashboard — agent_artifacts table has live data (3 agents writing), tab not yet built
 - Feedback consumer agent — agent_feedback table seeded but no agent reads it yet
 - Roblox publish pipeline — full path clear, blocked on Bill's one-time Studio setup
-- `/oslean` Telegram command fix — currently broken, Anvil is the workaround
 
 ---
 
@@ -140,7 +139,7 @@ The Pi Claude Code instance is resource-constrained (16GB RAM, Raspberry Pi). Co
 
 Ask Bill what the current directive is. If he's in a lean session, the directive is in `DIRECTIVES.md` (editable on GitHub or via Anvil dashboard). If autonomous mode is running, check TRAJECTORY.md vectors and work_queue. Your job is to either (a) help Bill think through a design decision before it goes to Claude Code, or (b) help Bill write a DIRECTIVES.md entry that is specific, scoped to 2 hours, and leaves the system measurably more capable.
 
-Current open threads: Artifacts tab (agent_artifacts data flowing, tab not built), feedback consumer agent, `/oslean` fix, intention decomposition ADR.
+Current open threads: feedback consumer agent, intention decomposition ADR.
 
 ---
 

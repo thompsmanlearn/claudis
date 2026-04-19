@@ -30,7 +30,7 @@
 **Session 2026-04-14 (explore) update:** MILESTONE COMPLETE. arxiv_aadp_pipeline promoted from sandbox to active. 10 papers in research_papers (April 5-7); live webhook test 200 OK with dedup logic; Haiku cost ~$0.10/mo; Bill notified. behavioral_health_check unavailable (n8n API key expired 2026-04-14 — Bill alerted, needs renewal). Used direct evidence assessment instead. Commit 9a7b224.
 **Session 2026-04-15 (lean-mode-setup) update:** n8n API key renewed and live. server.py patched — `get_n8n_headers()` re-reads key from .env on every call; key rotations no longer require MCP server restart. Autonomous loop paused (sentinel timer stopped, autonomous_growth_scheduler deactivated) for directed work period.
 **Session 2026-04-18 update:** MILESTONE COMPLETE. architecture_review agent already active (TRAJECTORY was stale). behavioral_health_check confirmed: 9/10, 100% success rate, 3 execs, 0 errors. Live review run 2026-04-18: 2 papers, 2 findings — memory_architecture gap (investigate_further: no memory tier taxonomy in AADP), multi-agent coordination (defer: premature). 0 implement decisions, 0 work_queue items queued. Next review 2026-05-02.
-**Next milestone:** Feedback consumer — add agent_feedback summary to morning_briefing (negative feedback patterns → Telegram alert or work_queue item). `/oslean` Telegram command broken as of 2026-04-17 — deferred, Anvil dashboard is now the primary control surface.
+**Next milestone:** Feedback consumer — add agent_feedback summary to morning_briefing (negative feedback patterns → Telegram alert or work_queue item).
 **Validation:** `SELECT COUNT(*) FROM lessons_learned` returns a value within 2 of the ChromaDB lessons_learned collection count.
 **Research:** Self-healing system patterns; circuit breaker implementations in distributed systems.
 
@@ -77,14 +77,14 @@
 - `autonomous_growth_scheduler` — deactivated in n8n (workflow `Lm68vpmIyLfeFawa`)
 - 1 pending `explore` task in work_queue (safe to leave; will run when autonomous mode resumes)
 - To resume: `sudo systemctl enable aadp-sentinel.timer && sudo systemctl start aadp-sentinel.timer`, then reactivate `autonomous_growth_scheduler` in n8n UI
-- **Known broken (2026-04-17): `/oslean` Telegram command not working.** Investigate TCA routing or lean_runner.sh before next lean session.
+- `/oslean` Telegram command removed 2026-04-18 — lean sessions triggered from Anvil dashboard only.
 
 ---
 
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil (anvil.works) selected as the UI layer. B-026–B-041 all complete as of 2026-04-18. B-041 delivered: Skills tab — registry of all 6 skills with description, trigger keywords, load stats, and full content viewer via filesystem callable. **Active focus: curation surface.** Architecture defined in `architecture/decisions/anvil-curation-surface.md` (committed B-034). agent_artifacts table live with data from 3 agents. Next: Artifacts tab (B-037/B-038 area) or feedback consumer agent. /oslean fix deferred — Anvil is the primary control surface.
+Anvil (anvil.works) selected as the UI layer. B-026–B-041 all complete as of 2026-04-18. B-041 delivered: Skills tab — registry of all 6 skills with description, trigger keywords, load stats, and full content viewer via filesystem callable. **Active focus: curation surface.** Architecture defined in `architecture/decisions/anvil-curation-surface.md` (committed B-034). agent_artifacts table live with data from 3 agents. Next: feedback consumer agent.
 
 ---
 
