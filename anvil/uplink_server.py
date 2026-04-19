@@ -256,6 +256,19 @@ def trigger_lean_session():
 
 
 @anvil.server.callable
+def get_lean_status():
+    try:
+        result = subprocess.run(['ps', 'aux'], capture_output=True, text=True, timeout=5)
+        procs = [l for l in result.stdout.splitlines() if 'claude -p' in l and 'grep' not in l]
+        if procs:
+            return {'running': True, 'pid': int(procs[0].split()[1])}
+        return {'running': False, 'pid': None}
+    except Exception as e:
+        log.warning('get_lean_status error: %s', e)
+        return {'running': False, 'pid': None}
+
+
+@anvil.server.callable
 def write_directive(text):
     text = (text or '').strip()
     if not text:
