@@ -15,3 +15,20 @@ Both repos committed and pushed (claudis main, claude-dashboard master)
 Scope
 Touch: ~/aadp/claudis/anvil/uplink_server.py, ~/aadp/claude-dashboard/client_code/Form1/__init__.py
 Do not touch: stats_server.py, agent fleet, n8n workflows
+
+B-034: Commit curation surface ADR and update brief
+Status: ready
+Goal
+Commit the Anvil curation surface ADR to the repo and update DEEP_DIVE_BRIEF.md Sections 4 and 10 to reference it. This establishes the design foundation that all subsequent dashboard and artifact convention cards depend on. Also update TRAJECTORY.md to drop the /oslean fix as next milestone and reflect the curation surface direction.
+Context
+The ADR was produced in a desktop session on 2026-04-18 and saved externally. It defines the tab structure for the evolving Anvil dashboard, the cross-agent artifact convention, agent input/output declarations, routing discipline, and sequencing. The file goes to ~/aadp/claudis/architecture/decisions/anvil-curation-surface.md. The brief's Section 4 (Current Project: Anvil Dashboard) should add a subsection pointing to the ADR as the next phase. Section 10 (Platform Roadmap) Anvil entry should reference it. TRAJECTORY.md next milestone should read: "B-033 — lean session status indicator on Anvil dashboard" and reference the curation surface ADR as the broader direction. Remove any /oslean references from next milestone.
+Done when
+
+ADR file committed at ~/aadp/claudis/architecture/decisions/anvil-curation-surface.md
+DEEP_DIVE_BRIEF.md Sections 4 and 10 updated with references to the ADR
+TRAJECTORY.md next milestone updated, /oslean removed
+Committed and pushed to main
+
+Scope
+Touch: architecture/decisions/, DEEP_DIVE_BRIEF.md, TRAJECTORY.md
+Do not touch: BACKLOG.md, uplink_server.py, dashboard code, stats_server.py, agent fleet
