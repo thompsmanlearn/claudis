@@ -32,3 +32,23 @@ Committed and pushed to main
 Scope
 Touch: architecture/decisions/, DEEP_DIVE_BRIEF.md, TRAJECTORY.md
 Do not touch: BACKLOG.md, uplink_server.py, dashboard code, stats_server.py, agent fleet
+
+B-035: Add agent feedback summary to morning briefing
+Status: ready
+Depends on: B-034
+Goal
+Close the feedback loop gap. The agent_feedback table captures thumbs-up/thumbs-down ratings and comments from the Anvil dashboard but nothing reads them. Add a feedback summary section to the morning briefing so Bill sees agents with recent negative feedback alongside the existing health and error reporting. This is the minimum viable feedback consumer — no new agent or workflow, just extending what already works.
+Context
+The morning briefing workflow (xt8Prqvi7iJlhrVG) already aggregates system health, agent status, and error counts. It uses no LLM — it's a structured data pull. The agent_feedback table has fields: agent_name, rating (1 or -1), comment, created_at. The briefing should query for feedback received since the last briefing (roughly 24 hours) and include a section listing any agents with thumbs-down ratings and the associated comments. Thumbs-up can be summarized as a count. The briefing output goes to Telegram and/or the dashboard — match whatever the current delivery mechanism is. See ADR at architecture/decisions/anvil-curation-surface.md for broader context on why feedback consumption matters.
+Done when
+
+Morning briefing output includes a "Recent Feedback" section
+Section lists agents with thumbs-down ratings from the last 24 hours, including comments
+Section shows thumbs-up count if any exist
+Section shows "No feedback" if the table has no recent entries (not an error, just quiet)
+Briefing still works correctly when agent_feedback table is empty
+Committed and pushed to main
+
+Scope
+Touch: Morning briefing workflow (xt8Prqvi7iJlhrVG) in n8n, any supporting stats_server endpoint if the briefing delegates there
+Do not touch: agent_feedback table schema, Anvil dashboard code, other agent workflows
