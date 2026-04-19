@@ -1828,6 +1828,26 @@ def run_arxiv_aadp(payload: dict = {}):
             lines.append(f"  {e.get('url', '')}\n")
         _send_telegram("\n".join(lines), env)
 
+    # Write artifact to agent_artifacts
+    try:
+        artifact_content = {
+            "date": today,
+            "candidates_fetched": len(candidates),
+            "papers_written": len(entries),
+            "papers": [{"title": e["title"], "score": e["score"], "url": e["url"], "implication": e.get("implication", "")} for e in entries],
+        }
+        top_paper = entries[0]["title"][:80] if entries else "none"
+        summary = f"{len(entries)} papers ingested on {today} (top: {top_paper})" if entries else f"No papers met threshold on {today}"
+        _sb_upsert(env, "agent_artifacts", {
+            "agent_name": "arxiv_aadp_pipeline",
+            "artifact_type": "research_papers_supabase",
+            "content": artifact_content,
+            "summary": summary,
+            "confidence": 0.9,
+        })
+    except Exception:
+        pass
+
     return JSONResponse({
         "status": "complete",
         "date": today,
