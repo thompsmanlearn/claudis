@@ -21,3 +21,23 @@ Done when
 Scope
 
 Touch: Supabase schema (new table), ~/aadp/claudis/anvil/uplink_server.py, ~/aadp/claude-dashboard/client_code/Form1/__init__.py Do not touch: Skill file content, CATALOG.md routing logic, stats_server.py, agent workflows
+
+## B-042: Autonomous project node cycling
+Status: ready
+Depends on: none
+Goal
+Cycle through the remaining 7 nodes of the "Document AADP on the Site" project autonomously. For each node: mark it in_progress in aadp_project_nodes, build the page content, update generate_site.py if a new page template is needed, mark the node done, regenerate the site, and move to the next unblocked pending node. Continue until all nodes are complete or a node genuinely requires Bill's input — in which case, write the question to the site's Current Focus section and stop cleanly.
+Context
+The one-page loop is proven as of 2026-04-19. generate_site.py regenerates index.html and status.json from live Supabase data and pushes to the GitHub Pages repo. lean_runner.sh calls it automatically on session success. The project graph is in aadp_projects and aadp_project_nodes tables in Supabase — 8 nodes total, 1 complete (home page refinement), 7 pending. The site repo is at ~/aadp/thompsmanlearn.github.io. The Anvil embed is live at https://inborn-rotating-anole.anvil.app#EmbedControl. Desktop sessions read the site via https://thompsmanlearn.github.io and status.json to give Bill strategic direction. Agent data comes from agent_registry, lessons from lessons_learned, session artifacts from ~/aadp/claudis/sessions/lean/. Architecture decisions are in ~/aadp/claudis/architecture/decisions/. Bill does not want approval gates between nodes — keep moving, document decisions, let Bill steer via the direction input if he disagrees.
+Done when
+
+All 8 nodes in aadp_project_nodes have status done
+Site has working multi-page navigation (or single-page sections) covering: fleet, capabilities, architecture, session log, direction log
+Each page/section renders from live Supabase data where applicable
+generate_site.py handles all pages in a single run
+Site regenerated and pushed after final node
+Session artifact written
+
+Scope
+Touch: ~/aadp/thompsmanlearn.github.io/ (all site files), aadp_project_nodes table (status updates), generate_site.py
+Do not touch: Anvil dashboard (Form1), uplink_server.py, lean_runner.sh, agent workflows, PROTECTED.md resources
