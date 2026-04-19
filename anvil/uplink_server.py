@@ -558,7 +558,7 @@ def get_table_rows(table, limit=25):
             'select': 'id,title,relevance_score,status,discovered_at',
             'order': 'discovered_at.desc',
         },
-        'error_log': {
+        'error_logs': {
             'select': 'id,workflow_name,error_message,created_at',
             'resolved': 'eq.false',
             'order': 'created_at.desc',

@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-18 (session: cleanup — B-027/B-029 confirmed complete; aadp-anvil.service verified running; lesson written re live trigger safety; Anvil skill reference added to CATALOG; stats_server.py confirmed in git)*
+*Last updated: 2026-04-18 (session: B-041 skills tab complete; error_logs table name fix; artifact_type data reconciled; COLLABORATOR_BRIEF updated)*
 
 ---
 
@@ -84,13 +84,13 @@
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil (anvil.works) selected as the UI layer. B-026–B-039 all complete as of 2026-04-18. B-039 delivered: Sessions tab — live session phase + card ID display, last 15 artifacts with full-content drill-down; `session_status` Supabase table; lean_runner.sh writes started/executing/complete phases. **Active focus: curation surface.** Architecture defined in `architecture/decisions/anvil-curation-surface.md` (committed B-034). Next: B-037 (agent input/output declarations) or B-038 (agent_artifacts table). /oslean fix deferred — Anvil is the primary control surface.
+Anvil (anvil.works) selected as the UI layer. B-026–B-041 all complete as of 2026-04-18. B-041 delivered: Skills tab — registry of all 6 skills with description, trigger keywords, load stats, and full content viewer via filesystem callable. **Active focus: curation surface.** Architecture defined in `architecture/decisions/anvil-curation-surface.md` (committed B-034). agent_artifacts table live with data from 3 agents. Next: Artifacts tab (B-037/B-038 area) or feedback consumer agent. /oslean fix deferred — Anvil is the primary control surface.
 
 ---
 
 ## Parked Directions
 
-- **Anvil integration (MILESTONE: B-026–B-031 all complete 2026-04-18).** Dashboard is the primary governance surface. Full fleet detail view with controls live. Uplink watchdog installed and tested. Feedback table seeded but not yet consumed — next card could add an agent that reads agent_feedback and surfaces patterns. Skill reference at skills/anvil/REFERENCE.md.
+- **Anvil integration (MILESTONE: B-026–B-041 all complete 2026-04-18).** Dashboard is the primary governance surface. Tabs: Fleet, Sessions, Lessons, Memory, Skills. Uplink watchdog running. Feedback table seeded but not yet consumed. agent_artifacts table live. Skill reference at skills/anvil/REFERENCE.md.
 
 - **Bill's monitoring interface audit** — 10 personal-briefing and overlapping agents paused 2026-04-18 (ai_frontier_scout, coast_intelligence, cosmos_report, daily_briefing_agent, daily_research_scout, heritage_watch, macro_pulse, serendipity_engine_prod, session_report_agent, wiki_attention_monitor). 7 agents flagged as protected. Fleet now leaner — active agents are all system-critical or pipeline-feeding.
 - **Haiku self-critic** — retired 2026-04-05. Replaced by behavioral_health_check for agent quality assessment.

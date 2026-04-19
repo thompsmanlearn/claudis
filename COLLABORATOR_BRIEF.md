@@ -2,7 +2,7 @@
 
 *For fresh Opus 4.6 / Sonnet 4.6 desktop sessions with no prior context. Read this, then ask Bill what help he needs. Updated at lean session close.*
 
-*Last updated: 2026-04-17 (lean session: B-024 + inbox fixes + /oslean + lesson injection)*
+*Last updated: 2026-04-18 (lean session: B-041 skills tab + Opus feedback reconciliation)*
 
 ---
 
@@ -38,15 +38,14 @@ GitHub repo: `thompsmanlearn/claudis` — contains CONTEXT.md, CONVENTIONS.md, T
 Agents live in n8n as workflows. Lifecycle: **sandbox → active** (promoted after passing behavioral_health_check) or retired. Managed via `agent_registry` Supabase table and Telegram commands.
 
 Key agents currently active:
-- **Telegram Command Agent (TCA)** — protected workflow, the command router. `/approve`, `/reject`, `/oslean`, `/run_research_synthesis`, etc.
+- **Telegram Command Agent (TCA)** — protected workflow, the command router. `/approve`, `/reject`, `/run_research_synthesis`, etc. (`/oslean` broken as of 2026-04-17 — Anvil dashboard is now the primary control surface)
 - **agent_health_monitor** — scans for stale building/sandbox agents, notifies Bill
 - **research_synthesis_agent** — weekly synthesis of ChromaDB findings into Supabase
 - **arxiv_aadp_pipeline** — pulls recent AI/ML papers, stores findings in ChromaDB
-- **Resource Scout (Reddit + YouTube)** — surfaces AI/gamedev resources from Reddit and YouTube, scored by Haiku, reviewed in Resource Inbox
-- **serendipity_engine_prod**, **cosmos_report**, **session_health_reporter**, **daily_briefing_agent** — various monitoring and enrichment agents
-- **architecture_review** (workflow 7mVc61pDCIObJFos) — sandbox, queries arxiv_aadp_pipeline findings, pending promotion
+- **architecture_review** (workflow 7mVc61pDCIObJFos) — **active**, confirmed 2026-04-18 (9/10 behavioral health, 100% success rate, runs live reviews against arxiv findings)
+- **behavioral_health_check** — quality gate for agent promotion
 
-**architecture_review** is the next promotion candidate. behavioral_health_check needed to confirm.
+10 personal-briefing agents paused 2026-04-18 (ai_frontier_scout, coast_intelligence, cosmos_report, daily_briefing_agent, daily_research_scout, heritage_watch, macro_pulse, serendipity_engine_prod, session_report_agent, wiki_attention_monitor). Fleet is lean — active agents are system-critical or pipeline-feeding.
 
 ---
 
@@ -60,25 +59,28 @@ Lean sessions now also receive injected lessons (wired 2026-04-17). Session arti
 
 ---
 
-## Active Vectors (as of 2026-04-17)
+## Active Vectors (as of 2026-04-18)
 
 ### 1. Fault Detection and Recovery → Destination 4
-Health monitoring is solid. agent_health_monitor active, store sync gap closed (ChromaDB = Supabase = 214). **Next**: promote architecture_review agent after behavioral_health_check.
+Health monitoring solid. agent_health_monitor active, store sync gap closed (ChromaDB = Supabase = 214). architecture_review promoted and running live. **Next**: feedback consumer — add agent_feedback summary to morning_briefing; negative patterns → Telegram alert or work_queue item.
 
 ### 2. Lesson System Effectiveness → Destination 1
-zero_applied trending down. Wildcard injection deployed. Lean sessions now receive lessons. **Next**: monitor zero_applied for 2 more sessions, keep below 130.
+zero_applied at 126, trending down from 142. Wildcard injection covers both autonomous and lean sessions. **Next**: monitor zero_applied for 2 more sessions, confirm stays below 130.
 
 ### 3. Autonomous Task Decomposition → Destination 1
-Not started. The gap: system can schedule autonomous tasks (rotate explore/build/research) but cannot take a high-level Bill intention and decompose it into concrete subtasks. No pipeline exists for this yet. **Next**: design the intention decomposition workflow, write as ADR.
+Not started. Gap: system schedules tasks autonomously but cannot decompose a high-level Bill intention into concrete subtasks. **Next**: design intention decomposition workflow, write as ADR.
 
 ### 4. Roblox Build Pipeline → Destination 2
-Lune v0.10.4 installed, .rbxl serialization verified. **Blocked on**: Bill creating a Roblox account + one-time Studio session (Win/Mac) to get Universe ID and Place ID for Open Cloud API. This is a Bill action.
+Lune v0.10.4 installed, .rbxl serialization verified. **Blocked on**: Bill creating a Roblox account + one-time Studio session (Win/Mac) for Universe ID and Place ID. Bill action.
+
+### 5. Anvil Dashboard → Destination 3
+B-026–B-041 complete as of 2026-04-18. Dashboard has: Fleet (agent control, feedback), Sessions, Lessons (CRUD + search), Memory (ChromaDB + Supabase), Skills (registry + content viewer). Uplink watchdog running. **Next**: Artifacts tab (B-037/B-038 area — agent_artifacts table has live data from 3 agents); or feedback consumer agent.
 
 ---
 
 ## How Sessions Work
 
-**Lean mode (current):** Bill edits `DIRECTIVES.md` on GitHub with the task, sends `/oslean` via Telegram. `lean_runner.sh` on the Pi: pulls claudis git, resolves the backlog card description, calls lesson injector (25s timeout), prepends context block + lesson tracking instruction, then runs `claude -p --dangerously-skip-permissions --max-turns 200 < prompt_file`. Telegram gets three messages: ack → start → completion/error.
+**Lean mode (current):** Bill edits `DIRECTIVES.md` on GitHub (or via Anvil dashboard Write Directive control), then triggers from Anvil dashboard (Trigger Lean Session button). `/oslean` Telegram command is broken as of 2026-04-17. `lean_runner.sh` on the Pi: pulls claudis git, resolves the backlog card description, calls lesson injector (25s timeout), prepends context block + lesson tracking instruction, then runs `claude -p --dangerously-skip-permissions --max-turns 200 < prompt_file`. Telegram gets three messages: ack → start → completion/error.
 
 **Autonomous mode (paused as of 2026-04-15):** Sentinel timer fires, Claude Code session starts from `disk_prompt.md`, picks work from TRAJECTORY.md and work_queue, runs for up to 3 hours, closes with artifact + TRAJECTORY.md update. To resume: `sudo systemctl enable aadp-sentinel.timer && sudo systemctl start aadp-sentinel.timer`, then reactivate `autonomous_growth_scheduler` in n8n.
 
@@ -118,24 +120,27 @@ The Pi Claude Code instance is resource-constrained (16GB RAM, Raspberry Pi). Co
 
 ## What's Working Well
 
-- Telegram as the primary interface — works reliably, Bill uses it constantly
-- Lesson system improving (zero_applied trend is down)
-- Lean mode fully operational with lesson injection as of this session
+- **Anvil dashboard** — fully operational at phone width. Fleet, Sessions, Lessons, Memory, Skills tabs all live. Primary control surface for lean sessions (directive writing + trigger).
+- Lesson system improving (zero_applied 126, down from 142, trend sustained)
+- Lean mode with lesson injection covers both lean and autonomous sessions
 - Agent health monitoring catches stale builds automatically
-- Resource Scout (Reddit + YouTube) surfaces good AI/gamedev content on schedule
+- architecture_review agent active — running live reviews against arxiv findings
 
 ## What's Still Being Built
 
 - Intention decomposition — the gap between "Bill says build X" and "system executes X autonomously"
-- Bill's monitoring interface — cosmos_report, session_health_reporter, daily_briefing_agent exist but haven't been audited against what Bill actually needs
-- architecture_review agent — nearly ready to promote, one behavioral_health_check away
+- Artifacts tab on dashboard — agent_artifacts table has live data (3 agents writing), tab not yet built
+- Feedback consumer agent — agent_feedback table seeded but no agent reads it yet
 - Roblox publish pipeline — full path clear, blocked on Bill's one-time Studio setup
+- `/oslean` Telegram command fix — currently broken, Anvil is the workaround
 
 ---
 
 ## How to Be Useful Right Now
 
-Ask Bill what the current directive is. If he's in a lean session, the directive is in `DIRECTIVES.md`. If autonomous mode is running, check TRAJECTORY.md vectors and work_queue. Your job is to either (a) help Bill think through a design decision before it goes to Claude Code, or (b) help Bill write a DIRECTIVES.md entry that is specific, scoped to 2 hours, and leaves the system measurably more capable.
+Ask Bill what the current directive is. If he's in a lean session, the directive is in `DIRECTIVES.md` (editable on GitHub or via Anvil dashboard). If autonomous mode is running, check TRAJECTORY.md vectors and work_queue. Your job is to either (a) help Bill think through a design decision before it goes to Claude Code, or (b) help Bill write a DIRECTIVES.md entry that is specific, scoped to 2 hours, and leaves the system measurably more capable.
+
+Current open threads: Artifacts tab (agent_artifacts data flowing, tab not built), feedback consumer agent, `/oslean` fix, intention decomposition ADR.
 
 ---
 
