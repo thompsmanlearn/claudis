@@ -295,6 +295,76 @@ def write_directive(text):
     return {'status': 'written', 'message': 'Directive written and pushed to claudis.'}
 
 
+# ── Autonomous mode callables ────────────────────────────────────────────────
+
+_N8N_SCHEDULER_ID = 'Lm68vpmIyLfeFawa'
+_N8N_BASE = 'http://localhost:5678/api/v1'
+
+
+def _n8n_headers():
+    return {'X-N8N-API-KEY': _ENV.get('N8N_API_KEY', ''), 'Content-Type': 'application/json'}
+
+
+@anvil.server.callable
+def get_autonomous_mode():
+    """Returns scheduler_active (bool|None) and auto_cycle_enabled (bool)."""
+    try:
+        r = requests.get(f'{_N8N_BASE}/workflows/{_N8N_SCHEDULER_ID}', headers=_n8n_headers(), timeout=10)
+        r.raise_for_status()
+        scheduler_active = r.json().get('active', False)
+    except Exception as e:
+        log.warning('get_autonomous_mode n8n error: %s', e)
+        scheduler_active = None
+
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/system_config',
+            headers=_HEADERS,
+            params={'key': 'eq.auto_cycle_enabled', 'select': 'value'},
+            timeout=5,
+        )
+        r.raise_for_status()
+        rows = r.json()
+        auto_cycle = rows[0]['value'] if rows else False
+    except Exception:
+        auto_cycle = False
+
+    return {'scheduler_active': scheduler_active, 'auto_cycle_enabled': auto_cycle}
+
+
+@anvil.server.callable
+def set_autonomous_mode(enabled):
+    """Enable or disable the autonomous growth scheduler and auto-cycle."""
+    enabled = bool(enabled)
+    errors = []
+
+    action = 'activate' if enabled else 'deactivate'
+    try:
+        r = requests.post(
+            f'{_N8N_BASE}/workflows/{_N8N_SCHEDULER_ID}/{action}',
+            headers=_n8n_headers(),
+            timeout=10,
+        )
+        r.raise_for_status()
+    except Exception as e:
+        errors.append(f'n8n: {e}')
+
+    try:
+        r = requests.patch(
+            f'{_SUPABASE_URL}/rest/v1/system_config',
+            headers={**_HEADERS, 'Prefer': 'return=minimal'},
+            params={'key': 'eq.auto_cycle_enabled'},
+            json={'value': enabled},
+            timeout=5,
+        )
+        r.raise_for_status()
+    except Exception as e:
+        errors.append(f'auto_cycle: {e}')
+
+    log.info('Autonomous mode set to %s', enabled)
+    return {'enabled': enabled, 'errors': errors}
+
+
 # ── Lesson callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
