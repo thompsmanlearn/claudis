@@ -453,6 +453,131 @@ def get_session_artifacts(limit=10):
     return results
 
 
+# ── Memory callables ─────────────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_collection_stats():
+    r = requests.get(f'{_CHROMADB_URL}/api/v1/collections', timeout=5)
+    r.raise_for_status()
+    collections = r.json()
+    result = []
+    for coll in collections:
+        rc = requests.get(f'{_CHROMADB_URL}/api/v1/collections/{coll["id"]}/count', timeout=5)
+        count = rc.json() if rc.ok else 0
+        result.append({'name': coll['name'], 'id': coll['id'], 'count': count})
+    result.sort(key=lambda x: x['name'])
+    return result
+
+
+@anvil.server.callable
+def browse_collection(name, limit=15, offset=0):
+    coll_id = _get_chromadb_collection_id(name)
+    rc = requests.get(f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/count', timeout=5)
+    rc.raise_for_status()
+    total = rc.json()
+    r = requests.post(
+        f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/get',
+        json={'limit': limit, 'offset': offset, 'include': ['documents', 'metadatas']},
+        timeout=15,
+    )
+    r.raise_for_status()
+    data = r.json()
+    ids = data.get('ids') or []
+    documents = data.get('documents') or []
+    metadatas = data.get('metadatas') or []
+    docs = [
+        {
+            'id': ids[i],
+            'document': (documents[i] if i < len(documents) else '')[:300],
+            'metadata': metadatas[i] if i < len(metadatas) else {},
+        }
+        for i in range(len(ids))
+    ]
+    return {'total': total, 'offset': offset, 'limit': limit, 'docs': docs}
+
+
+@anvil.server.callable
+def search_collection(name, query, n_results=15):
+    coll_id = _get_chromadb_collection_id(name)
+    r = requests.post(
+        f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/query',
+        json={
+            'query_texts': [query],
+            'n_results': n_results,
+            'include': ['documents', 'metadatas', 'distances'],
+        },
+        timeout=15,
+    )
+    r.raise_for_status()
+    data = r.json()
+    if not data.get('ids') or not data['ids'][0]:
+        return []
+    ids = data['ids'][0]
+    documents = (data.get('documents') or [[]])[0]
+    metadatas = (data.get('metadatas') or [[]])[0]
+    distances = (data.get('distances') or [[]])[0]
+    return [
+        {
+            'id': ids[i],
+            'document': (documents[i] if i < len(documents) else '')[:300],
+            'metadata': metadatas[i] if i < len(metadatas) else {},
+            'distance': distances[i] if i < len(distances) else None,
+        }
+        for i in range(len(ids))
+    ]
+
+
+@anvil.server.callable
+def delete_document(collection, doc_id):
+    coll_id = _get_chromadb_collection_id(collection)
+    r = requests.post(
+        f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/delete',
+        json={'ids': [doc_id]},
+        timeout=10,
+    )
+    r.raise_for_status()
+    if collection == 'lessons_learned':
+        try:
+            rd = requests.delete(
+                f'{_SUPABASE_URL}/rest/v1/lessons_learned',
+                headers={**_HEADERS, 'Prefer': 'return=minimal'},
+                params={'chromadb_id': f'eq.{doc_id}'},
+                timeout=10,
+            )
+            rd.raise_for_status()
+        except Exception as e:
+            log.warning('Supabase delete for chromadb_id %s failed: %s', doc_id, e)
+    log.info('Deleted document %s from %s', doc_id, collection)
+    return {'deleted': True}
+
+
+@anvil.server.callable
+def get_table_rows(table, limit=25):
+    _curated = {
+        'research_papers': {
+            'select': 'id,title,relevance_score,status,discovered_at',
+            'order': 'discovered_at.desc',
+        },
+        'error_log': {
+            'select': 'id,workflow_name,error_message,created_at',
+            'resolved': 'eq.false',
+            'order': 'created_at.desc',
+        },
+    }
+    if table not in _curated:
+        raise Exception(f'Table "{table}" is not in curated views.')
+    params = dict(_curated[table])
+    params['limit'] = str(limit)
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/{table}',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
