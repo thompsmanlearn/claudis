@@ -84,7 +84,7 @@
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil (anvil.works) selected as the UI layer. B-026–B-033 all complete as of 2026-04-18. B-033 delivered: lean session status indicator (🟢 Idle / 🟡 Running) next to Trigger button; button disabled when session running; auto-refresh on trigger. **Active focus: curation surface.** Architecture defined in `architecture/decisions/anvil-curation-surface.md` (committed B-034). Next: feedback consumer for morning_briefing, then Lessons tab (highest curation value, data already exists). /oslean fix deferred — Anvil is the primary control surface.
+Anvil (anvil.works) selected as the UI layer. B-026–B-036 all complete as of 2026-04-18. B-036 delivered: Lessons tab with 5 views (Recent, Top Used, Never Applied, Broken, Search), per-lesson 👍👎🗑️ actions, semantic search via ChromaDB. **Active focus: curation surface.** Architecture defined in `architecture/decisions/anvil-curation-surface.md` (committed B-034). Next: B-035 — feedback consumer for morning_briefing. /oslean fix deferred — Anvil is the primary control surface.
 
 ---
 
