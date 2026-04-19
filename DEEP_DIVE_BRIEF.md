@@ -1,13 +1,5 @@
 # DEEP_DIVE_BRIEF.md — AADP Comprehensive Reference
 
-Update 2026-04-19 — not yet integrated into sections below:
-GitHub Pages site live. thompsmanlearn.github.io — 6 pages (home, fleet, capabilities, architecture, sessions, direction) all generated from live Supabase data by generate_site.py. Auto-regenerates at session close via lean_runner.sh. Repo: thompsmanlearn/thompsmanlearn.github.io.
-Anvil app published. URL: https://inborn-rotating-anole.anvil.app. EmbedControl form (separate from Form1) embedded as iframe on the site. Provides: heartbeat indicator, session status, direction input, start session button. allow_embedding: true in anvil.yaml. Hash routing in Form1 __init__ redirects #EmbedControl to the embed form.
-Bidirectional direction loop proven. Bill types direction on the site → write_directive() callable writes DIRECTIVES.md → Bill hits Start → session runs → generate_site.py updates the site automatically → Bill sees results on same page.
-Project graph infrastructure. New Supabase tables: aadp_projects and aadp_project_nodes (status, dependencies, acceptance_criteria, context, session_budget, parent_id). First project "Document AADP on the Site" — 8 nodes, all complete (B-042). The system cycled through 7 nodes autonomously in one session.
-New uplink callables: get_site_status(), update_site(), get_lean_status(), get_session_artifacts().
-Stale items in brief: Section 4 still says "App not yet published" — it is. Section 5 missing site generation and project graph capabilities. Section 7 missing aadp_projects/aadp_project_nodes tables and the site repo. Section 12 should add: lean_runner.sh is disk-only (not in version control). /oslean Telegram command removed.
-Desktop session workflow change. New sessions can read the site directly via https://thompsmanlearn.github.io and status.json. Direction is drafted in desktop sessions and pasted into the site's direction input by Bill. No more editing DIRECTIVES.md on GitHub as primary workflow.
 
 *Revised 2026-04-18. This document is the primary onboarding reference for fresh desktop and Claude Code sessions. It bridges memory between sessions and gets a new instance to productive collaboration as fast as possible.*
 
@@ -83,11 +75,11 @@ A regular part of the workload involves Bill navigating web interfaces — creat
 ---
 
 ## 3. How We Operate
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-19*
 
 ### Roles
 
-**Bill** — Directs, judges, approves. Edits DIRECTIVES.md (now also via Anvil dashboard). Decides what gets built next. Creates accounts and credentials that require browser interaction. The only person who can approve agent promotions, architectural changes, or new integrations.
+**Bill** — Directs, judges, approves. Sets direction via the GitHub Pages site (https://thompsmanlearn.github.io) — the site's direction input writes DIRECTIVES.md via write_directive(). Decides what gets built next. Creates accounts and credentials that require browser interaction. The only person who can approve agent promotions, architectural changes, or new integrations.
 
 **Desktop AI sessions (Opus or equivalent)** — Collaborate with Bill on strategy and direction. Research technical topics. Write backlog cards. Prepare resources for Claude Code (documentation, skills). Review session artifacts and system state. Do not build directly — produce cards and knowledge that Claude Code consumes.
 
@@ -144,6 +136,14 @@ Do not touch: explicit list of things off-limits this session
 
 Cards can be written in dependency chains: B-026 enables B-027 which enables B-028. The `Depends on:` field captures this. At session close, Claude Code should set DIRECTIVES.md to point at the next card and note that the prior card is complete. Bill reviews and decides whether to proceed or redirect before triggering the next session.
 
+### Auto-Cycle (B-043)
+
+When `auto_cycle_enabled = true` in system_config, lean_runner.sh chains sessions automatically after success. After a card completes and the site regenerates, lean_runner.sh queries `aadp_project_nodes` for the next unblocked pending node in any active project. If found, it writes the node's goal and context to DIRECTIVES.md, commits and pushes, releases the session lock, and calls `/trigger_lean` to start the next session immediately. If all nodes are complete, the project is marked `complete` in `aadp_projects`. `auto_cycle_enabled` defaults to false and is toggled from the Anvil dashboard or site control panel.
+
+### Desktop Session Workflow
+
+Desktop sessions (Opus or equivalent) read the site directly at https://thompsmanlearn.github.io to orient on current system state. Direction is drafted in the desktop session and entered into the site's direction input by Bill — this calls `write_directive()` via the EmbedControl panel, which writes and pushes DIRECTIVES.md without Bill touching GitHub. Desktop sessions do not edit DIRECTIVES.md on GitHub directly.
+
 ### Session Artifacts
 
 Every lean session writes an artifact to `~/aadp/claudis/sessions/lean/YYYY-MM-DD-descriptor.md`:
@@ -170,11 +170,11 @@ Either alone is a broken lesson. chromadb_id links the two records.
 ---
 
 ## 4. Current Project: Anvil Dashboard
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-19*
 
 ### Status: Live and Operational
 
-The Anvil dashboard is live. B-026 (account setup), B-027 (uplink service + read-only dashboard), B-028 (uplink key), B-029 (interactive controls), and B-030 (agent fleet governance) are all complete as of 2026-04-18.
+The Anvil dashboard is live. B-026 through B-041 are all complete as of 2026-04-18. The app is published at https://inborn-rotating-anole.anvil.app and embedded as an iframe on the GitHub Pages site.
 
 **What's working now:**
 - System status display (CPU, RAM, disk, temp, uptime) — delegates to stats_server
@@ -185,11 +185,16 @@ The Anvil dashboard is live. B-026 (account setup), B-027 (uplink service + read
 - Inbox with approve/deny buttons
 - Write Directive — overwrites DIRECTIVES.md, commits, and pushes to claudis
 - Trigger Lean Session — fires stats_server /trigger_lean
-- Refresh All button
+- Autonomous Mode toggle — enables/disables n8n autonomous_growth_scheduler and auto_cycle_enabled atomically
+- Sessions tab — live session status + recent artifact list
+- Lessons tab — browse lessons by recency or most-applied; view full content
+- Memory tab — browse ChromaDB collections; semantic search
+- Skills tab — list all skills with trigger keywords, times loaded, last loaded; view content
+- Artifacts tab — browse agent_artifacts by agent and type
+- EmbedControl form — separate lightweight form embedded on the GitHub Pages site; heartbeat, session status, direction input, start session button, autonomous mode toggle
+- Uplink connection watchdog (B-031) — watchdog hits localhost:9101/ping; systemd restarts if unhealthy
 
 **Not yet done:**
-- App not yet published (Bill needs to click Publish in Anvil editor to get a public URL and enable PWA install on phone)
-- Uplink connection watchdog (silent disconnects not yet detected — B-031)
 - Feedback loop consumer (agent_feedback table is being written to but nothing reads it yet)
 - Phone capabilities (camera, geolocation, push notifications)
 - Protected agent indicator in UI (⚠️ icon for agents flagged as protected)
@@ -230,23 +235,29 @@ A Claude Code skill reference exists at `skills/anvil/REFERENCE.md` — loaded a
 | `get_agent_fleet()` | Supabase `agent_registry` | Read |
 | `get_work_queue()` | Supabase `work_queue` | Read |
 | `get_inbox()` | Supabase `inbox` (pending only) | Read |
+| `get_lean_status()` | subprocess `ps aux` | Read |
+| `get_session_status()` | Supabase `session_status` | Read |
+| `get_session_artifacts(limit)` | claudis `sessions/lean/` filesystem | Read |
+| `get_site_status()` | thompsmanlearn.github.io repo + Supabase | Read |
+| `get_lessons(filter, limit)` | Supabase `lessons_learned` | Read |
+| `get_lesson_content(lesson_id)` | Supabase `lessons_learned` | Read |
+| `get_collection_stats()` | ChromaDB `/api/v1/collections` | Read |
+| `search_memory(collection, query, limit)` | ChromaDB query | Read |
+| `get_skills()` | Supabase `skills_registry` | Read |
+| `get_skill_content(name)` | claudis `skills/` filesystem | Read |
+| `get_artifacts(agent_name, artifact_type, limit)` | Supabase `agent_artifacts` | Read |
+| `get_autonomous_mode()` | n8n API + Supabase `system_config` | Read |
 | `set_agent_status(agent_name, status)` | Supabase `agent_registry` PATCH | Write |
 | `submit_agent_feedback(agent_name, rating, comment)` | Supabase `agent_feedback` POST | Write |
 | `approve_inbox_item(item_id)` | Supabase `inbox` PATCH | Write |
 | `deny_inbox_item(item_id)` | Supabase `inbox` PATCH | Write |
 | `trigger_lean_session()` | stats_server `/trigger_lean` | Write |
 | `write_directive(text)` | claudis git → DIRECTIVES.md | Write |
+| `set_autonomous_mode(enabled)` | n8n API activate/deactivate + Supabase `system_config` | Write |
 
-### Next Phase: Curation Surface
+### Architecture Decision Record
 
-The ADR defining the next evolution of the Anvil dashboard is committed at `architecture/decisions/anvil-curation-surface.md`. It covers:
-
-- **Tab structure** — Fleet (exists), Sessions, Lessons, Memory, Skills, Artifacts
-- **Cross-agent artifact convention** — `agent_artifacts` table, agent input/output declarations, structured routing between agents
-- **Data logging discipline** — every agent writes artifacts to Supabase; only distilled insights go to ChromaDB
-- **Sequencing** — B-033 (done) → feedback consumer → Lessons tab → artifact convention → Sessions tab → Memory tab → Skills tab → Artifacts tab
-
-Read the ADR before designing any new Anvil tab or modifying agent output patterns.
+The ADR defining the curation surface design is committed at `architecture/decisions/anvil-curation-surface.md`. It covers the tab structure, cross-agent artifact convention, data logging discipline, and agent I/O declarations. Read it before designing any new Anvil tab or modifying agent output patterns.
 
 ### Phone Capabilities Anvil Unlocks (future)
 
@@ -259,7 +270,7 @@ These aren't UI improvements — they make the system's boundary with the physic
 ---
 
 ## 5. Capabilities Inventory
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-19*
 
 This section tracks what the system as a whole can actually accomplish today. This is distinct from the skills list (what Claude Code knows how to do) and the agent fleet (what's deployed). Capabilities are end-to-end outcomes.
 
@@ -298,17 +309,28 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Daily weather forecast
 - Serendipity engine (Wikipedia On This Day synthesis — paused)
 
-**Dashboard & Governance (NEW — Anvil):**
+**Dashboard & Governance (Anvil + GitHub Pages):**
 - View system status, agent fleet, work queue, inbox from any browser
 - Activate/pause agents from dashboard
 - Approve/deny inbox items from dashboard
-- Write directives and trigger lean sessions from dashboard
+- Write directives and trigger lean sessions from dashboard and site
 - Submit per-agent thumbs-up/thumbs-down feedback with comments
+- Browse sessions, lessons, memory, skills, artifacts in dashboard tabs
+- Toggle autonomous mode (scheduler + auto-cycle) from dashboard and site
+
+**GitHub Pages Site (https://thompsmanlearn.github.io):**
+- 6-page site generated from live Supabase data: Home, Fleet, Capabilities, Architecture, Sessions, Direction
+- Auto-regenerates at every lean session close via lean_runner.sh
+- Embedded AADP Control panel (EmbedControl) — direction input, start session, autonomous mode toggle
+- Bidirectional direction loop: Bill types direction on site → DIRECTIVES.md updated → session runs → site regenerates → results visible on same page
+
+**Project Graph Execution:**
+- aadp_projects / aadp_project_nodes tables in Supabase model multi-session build projects
+- Auto-cycle (auto_cycle_enabled) chains sessions across nodes without human intervention
+- Completed project "Document AADP on the Site" — 8 nodes executed across sessions (B-042)
 
 ### Not Yet Working or Unverified
 
-- Anvil app not yet published as PWA (Bill action needed)
-- Uplink connection watchdog (silent disconnects — B-031)
 - Feedback loop consumer (agent_feedback table written but not read)
 - Autonomous task decomposition
 - Capabilities table in Supabase (may be empty)
@@ -348,7 +370,7 @@ Periodically (cadence TBD — every few sessions or weekly), a desktop session s
 ---
 
 ## 7. Technical Architecture
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-19*
 
 ### Services Map
 
@@ -398,6 +420,8 @@ The MCP server (`~/aadp/mcp-server/server.py`) exposes tools across these catego
 **System:** system_status, service_status, logs_fetch
 
 **Composite:** developer_context_load (concurrent pull of registry + queue + errors + notes + config + system status)
+
+**lean_runner.sh** — `~/aadp/sentinel/lean_runner.sh` (live) and `~/aadp/claudis/sentinel/lean_runner.sh` (version-controlled). Stats server hardcodes the sentinel path; claudis copy is canonical source. After successful session: regenerates GitHub Pages site, then runs auto-cycle check if `auto_cycle_enabled=true`.
 
 Key implementation details:
 - n8n API key re-read from .env on every call — key rotations need no restart
@@ -470,7 +494,11 @@ Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → l
 
 **research_papers** — id, title, authors, abstract, publication_date, citation_count, source, source_id, url, pdf_url, topic_tags (text[]), relevance_score, status, discovered_at, reviewed_at, notes, component_tag, action_type, already_addressed_since, addressed_by
 
-**system_config** — key (text PK), value (jsonb), updated_at
+**aadp_projects** — id (uuid), name (text), status (text: active/complete)
+
+**aadp_project_nodes** — id (uuid), project_id (uuid FK), parent_id (uuid nullable), name (text), type (text), status (text: pending/in_progress/done), dependencies (uuid[]), acceptance_criteria (text), context (text), session_budget (int), output (text nullable), created_at, updated_at
+
+**system_config** — key (text PK), value (jsonb), updated_at. Notable keys: `auto_cycle_enabled` (bool, default false — controls lean session chaining), `global_pause` (bool), `wake_interval_hours` (int)
 
 **inbox** — id, from_agent, message_type (help_request/approval_request/recommendation/observation/question/alert), subject, body, context (jsonb), status (pending/approved/denied/deferred/replied), bill_reply, priority, created_at, responded_at
 
@@ -553,7 +581,7 @@ These were paused because they are personal briefings with no active consumer, o
 |---|---|---|---|
 | lesson_injector | MFmk28ijs1wMig7h | webhook | Context injection before sessions |
 | session_health_reporter | 5x6G8gFlCxX0YKdM | webhook | Post-session artifact to GitHub |
-| autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h | **Currently deactivated (Lean Mode)** |
+| autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h | Queues explore/build/research tasks. Toggle via Anvil Autonomous Mode switch. |
 
 ### n8n Credential IDs
 - Telegram credential ID: y4YfKWpm20Z9sw7G
@@ -657,7 +685,7 @@ Before ending a desktop session:
 ---
 
 ## 12. Known Gaps and Fragilities
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-19*
 
 **Anvil uplink silent disconnects.** The websocket can die without the systemd service noticing. Restart=always only catches crashes. B-031 adds a watchdog. Until then, if the dashboard stops responding, `sudo systemctl restart aadp-anvil.service` fixes it.
 
@@ -689,6 +717,10 @@ Before ending a desktop session:
 
 **Capabilities table may be empty.** Unverified.
 
+**Project auto-complete has no approval gate.** When lean_runner.sh finds no unblocked pending nodes, it marks the project `complete` in `aadp_projects` automatically — Bill does not review or approve first.
+
+**lean_runner.sh dual-location.** Live copy at `~/aadp/sentinel/lean_runner.sh`; version-controlled copy at `claudis/sentinel/lean_runner.sh`. Changes must be made to both manually — no sync mechanism.
+
 **Telegram chat_id hardcoded** in scheduler.sh, lean_runner.sh, stats_server.py, and many n8n workflows.
 
 **`/webhook/telegram-quick-send` assumed always active.** If TCA deactivated, all session Telegram notifications silently fail.
@@ -698,7 +730,7 @@ Before ending a desktop session:
 ---
 
 ## 13. Git and File Conventions
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-19*
 
 ### Repo: `thompsmanlearn/claudis` → `~/aadp/claudis/`
 
@@ -719,6 +751,8 @@ claudis/
     CATALOG.md        — skill routing table
     PROTECTED.md      — resources requiring explicit approval
     agent-development/, system-ops/, communication/, research/, triage/, anvil/
+  sentinel/
+    lean_runner.sh    — lean session launcher (version-controlled copy; live copy at ~/aadp/sentinel/)
   stats-server/
     stats_server.py   — production stats server (in git since 2026-04-17)
   experiments/
@@ -731,10 +765,26 @@ claudis/
   CONVENTIONS.md      — operational procedures
   TRAJECTORY.md       — destinations + active vectors + operational state
   DIRECTIVES.md       — Bill's standing instructions. "Run: B-NNN" pointer form.
-  BACKLOG.md          — lean session card queue. B-001 through B-021 archived. B-022–B-030 pending archive (B-031).
+  BACKLOG.md          — lean session card queue. B-001 through B-021 archived. B-043 is the latest completed card.
   LEAN_BOOT.md        — lean mode startup protocol
   COLLABORATOR_BRIEF.md — card format guide
   DEEP_DIVE_BRIEF.md  — this document
+```
+
+### Repo: `thompsmanlearn/thompsmanlearn.github.io` → `~/aadp/thompsmanlearn.github.io/`
+
+GitHub Pages site. Default branch: `main`. Auto-published at https://thompsmanlearn.github.io.
+
+```
+thompsmanlearn.github.io/
+  generate_site.py    — generates all 6 HTML pages from live Supabase data; run at session close
+  index.html          — home page
+  fleet.html          — live agent fleet
+  capabilities.html   — capabilities from Supabase capabilities table
+  architecture.html   — static architecture narrative
+  sessions.html       — recent lean session artifacts
+  direction.html      — direction history
+  status.json         — machine-readable system snapshot for desktop session orientation
 ```
 
 ### Repo: `thompsmanlearn/claude-dashboard` → `~/aadp/claude-dashboard/`
@@ -745,7 +795,10 @@ Anvil app synced via GitHub integration. **Default branch: master (not main).** 
 claude-dashboard/
   client_code/
     Form1/
-      __init__.py       — dashboard UI (programmatic add_component approach)
+      __init__.py       — full dashboard UI (Fleet, Sessions, Lessons, Memory, Skills, Artifacts tabs)
+      form_template.yaml
+    EmbedControl/
+      __init__.py       — lightweight embed form (heartbeat, session status, direction input, autonomous toggle)
       form_template.yaml
   server_code/
   theme/
