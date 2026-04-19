@@ -84,7 +84,7 @@
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil dashboard: B-026–B-041 complete. GitHub Pages site: thompsmanlearn.github.io live 2026-04-19. Multi-page site: **B-042 COMPLETE 2026-04-19** — 6 pages (Home, Fleet, Capabilities, Architecture, Sessions, Direction) all live, nav on every page, all rendering from live Supabase data. generate_site.py extended to generate all pages in single run. "Document AADP on the Site" project: 8/8 nodes done. **Next: park this project, identify next B-card.** Risk: lean_runner.sh and stats_server.py are disk-only — add to version control.
+Anvil dashboard: B-026–B-041 complete. GitHub Pages site: thompsmanlearn.github.io live 2026-04-19. Multi-page site: **B-042 COMPLETE 2026-04-19** — 6 pages live, nav on every page, all from live Supabase data. **B-043 COMPLETE 2026-04-19** — auto-cycle between sessions: lean_runner.sh checks `auto_cycle_enabled` (system_config) after success, writes next unblocked node to DIRECTIVES.md, and triggers next session. lean_runner.sh now in version control (claudis/sentinel/). `auto_cycle_enabled=false` by default — Bill enables from Anvil when ready. Risk: stats_server.py still disk-only.
 
 ---
 
