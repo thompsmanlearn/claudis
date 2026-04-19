@@ -228,6 +228,17 @@ A Claude Code skill reference exists at `skills/anvil/REFERENCE.md` — loaded a
 | `trigger_lean_session()` | stats_server `/trigger_lean` | Write |
 | `write_directive(text)` | claudis git → DIRECTIVES.md | Write |
 
+### Next Phase: Curation Surface
+
+The ADR defining the next evolution of the Anvil dashboard is committed at `architecture/decisions/anvil-curation-surface.md`. It covers:
+
+- **Tab structure** — Fleet (exists), Sessions, Lessons, Memory, Skills, Artifacts
+- **Cross-agent artifact convention** — `agent_artifacts` table, agent input/output declarations, structured routing between agents
+- **Data logging discipline** — every agent writes artifacts to Supabase; only distilled insights go to ChromaDB
+- **Sequencing** — B-033 (done) → feedback consumer → Lessons tab → artifact convention → Sessions tab → Memory tab → Skills tab → Artifacts tab
+
+Read the ADR before designing any new Anvil tab or modifying agent output patterns.
+
 ### Phone Capabilities Anvil Unlocks (future)
 
 - **Camera** — route images into the system as visual input
@@ -568,7 +579,7 @@ A key role for desktop sessions is researching technical topics and packaging th
 
 These are integration candidates, not commitments. The system grows by connecting to new platforms that extend its reach. Bill's interests will determine which get built and when.
 
-**Anvil (MILESTONE — B-026 through B-030 complete 2026-04-18):** Dashboard and UI layer. Live and operational. Replaces Telegram as primary control surface. Next: publish as PWA, connection watchdog (B-031), feedback loop consumer. See Section 4.
+**Anvil (MILESTONE — B-026 through B-033 complete 2026-04-18):** Dashboard and UI layer. Live and operational. Replaces Telegram as primary control surface. Next phase: curation surface — tabs for Sessions, Lessons, Memory, Skills, and Artifacts, plus cross-agent artifact convention. Design is in `architecture/decisions/anvil-curation-surface.md`. See Section 4.
 
 **Replicate:** Cloud GPU inference via API. Enables image generation, video processing, model inference. Single API key, no Pi infrastructure.
 

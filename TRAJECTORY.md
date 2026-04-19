@@ -30,7 +30,7 @@
 **Session 2026-04-14 (explore) update:** MILESTONE COMPLETE. arxiv_aadp_pipeline promoted from sandbox to active. 10 papers in research_papers (April 5-7); live webhook test 200 OK with dedup logic; Haiku cost ~$0.10/mo; Bill notified. behavioral_health_check unavailable (n8n API key expired 2026-04-14 — Bill alerted, needs renewal). Used direct evidence assessment instead. Commit 9a7b224.
 **Session 2026-04-15 (lean-mode-setup) update:** n8n API key renewed and live. server.py patched — `get_n8n_headers()` re-reads key from .env on every call; key rotations no longer require MCP server restart. Autonomous loop paused (sentinel timer stopped, autonomous_growth_scheduler deactivated) for directed work period.
 **Session 2026-04-18 update:** MILESTONE COMPLETE. architecture_review agent already active (TRAJECTORY was stale). behavioral_health_check confirmed: 9/10, 100% success rate, 3 execs, 0 errors. Live review run 2026-04-18: 2 papers, 2 findings — memory_architecture gap (investigate_further: no memory tier taxonomy in AADP), multi-agent coordination (defer: premature). 0 implement decisions, 0 work_queue items queued. Next review 2026-05-02.
-**Next milestone:** Fix `/oslean` Telegram command (TCA routing or lean_runner.sh broken as of 2026-04-17).
+**Next milestone:** Feedback consumer — add agent_feedback summary to morning_briefing (negative feedback patterns → Telegram alert or work_queue item). `/oslean` Telegram command broken as of 2026-04-17 — deferred, Anvil dashboard is now the primary control surface.
 **Validation:** `SELECT COUNT(*) FROM lessons_learned` returns a value within 2 of the ChromaDB lessons_learned collection count.
 **Research:** Self-healing system patterns; circuit breaker implementations in distributed systems.
 
@@ -84,7 +84,7 @@
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil (anvil.works) selected as the UI layer. B-026–B-032 all complete as of 2026-04-18. B-032 delivered: collapsible sections, agent fleet grouped by status with count badges, compact expandable agent cards, ⚠️ protected indicators, search/filter, font sizes bumped for mobile (body=16, title=20). **Active focus: Anvil dashboard.** Next card (Bill writing): lean session status indicator next to Trigger button — shows 🟢 Idle / 🟡 Running so Bill knows if Claude is available before triggering. After that: live test of directive+lean trigger from Anvil. /oslean fix intentionally deferred — not current priority.
+Anvil (anvil.works) selected as the UI layer. B-026–B-033 all complete as of 2026-04-18. B-033 delivered: lean session status indicator (🟢 Idle / 🟡 Running) next to Trigger button; button disabled when session running; auto-refresh on trigger. **Active focus: curation surface.** Architecture defined in `architecture/decisions/anvil-curation-surface.md` (committed B-034). Next: feedback consumer for morning_briefing, then Lessons tab (highest curation value, data already exists). /oslean fix deferred — Anvil is the primary control surface.
 
 ---
 
