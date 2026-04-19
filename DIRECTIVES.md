@@ -1,1 +1,1 @@
-Write a session artifact titled "site-loop-test" that describes what AADP is, what was built today (the GitHub Pages site at thompsmanlearn.github.io, the EmbedControl Anvil form, and the direction loop), and what the system can do right now. Keep it under 300 words. No code changes needed — just the artifact.
+Run: B-042
