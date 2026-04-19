@@ -1,5 +1,14 @@
 # DEEP_DIVE_BRIEF.md — AADP Comprehensive Reference
 
+Update 2026-04-19 — not yet integrated into sections below:
+GitHub Pages site live. thompsmanlearn.github.io — 6 pages (home, fleet, capabilities, architecture, sessions, direction) all generated from live Supabase data by generate_site.py. Auto-regenerates at session close via lean_runner.sh. Repo: thompsmanlearn/thompsmanlearn.github.io.
+Anvil app published. URL: https://inborn-rotating-anole.anvil.app. EmbedControl form (separate from Form1) embedded as iframe on the site. Provides: heartbeat indicator, session status, direction input, start session button. allow_embedding: true in anvil.yaml. Hash routing in Form1 __init__ redirects #EmbedControl to the embed form.
+Bidirectional direction loop proven. Bill types direction on the site → write_directive() callable writes DIRECTIVES.md → Bill hits Start → session runs → generate_site.py updates the site automatically → Bill sees results on same page.
+Project graph infrastructure. New Supabase tables: aadp_projects and aadp_project_nodes (status, dependencies, acceptance_criteria, context, session_budget, parent_id). First project "Document AADP on the Site" — 8 nodes, all complete (B-042). The system cycled through 7 nodes autonomously in one session.
+New uplink callables: get_site_status(), update_site(), get_lean_status(), get_session_artifacts().
+Stale items in brief: Section 4 still says "App not yet published" — it is. Section 5 missing site generation and project graph capabilities. Section 7 missing aadp_projects/aadp_project_nodes tables and the site repo. Section 12 should add: lean_runner.sh is disk-only (not in version control). /oslean Telegram command removed.
+Desktop session workflow change. New sessions can read the site directly via https://thompsmanlearn.github.io and status.json. Direction is drafted in desktop sessions and pasted into the site's direction input by Bill. No more editing DIRECTIVES.md on GitHub as primary workflow.
+
 *Revised 2026-04-18. This document is the primary onboarding reference for fresh desktop and Claude Code sessions. It bridges memory between sessions and gets a new instance to productive collaboration as fast as possible.*
 
 *Each section has a Last Updated date. Sections with stale dates should be verified before relying on them. Session close should include: "Does the brief need updating? If so, which sections?"*
