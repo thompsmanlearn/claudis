@@ -578,6 +578,107 @@ def get_table_rows(table, limit=25):
     return r.json()
 
 
+# ── Site callables ───────────────────────────────────────────────────────────
+
+_SITE_DIR = os.path.expanduser('~/aadp/thompsmanlearn.github.io')
+_CLAUDIS_SESSIONS_DIR = os.path.join(_CLAUDIS_DIR, 'sessions', 'lean')
+
+
+@anvil.server.callable
+def get_site_status():
+    """Return compact project state for status.json and desktop session fetch."""
+    sessions = []
+    try:
+        files = sorted(
+            [f for f in os.listdir(_CLAUDIS_SESSIONS_DIR) if f.endswith('.md')],
+            reverse=True,
+        )[:3]
+        for fname in files:
+            path = os.path.join(_CLAUDIS_SESSIONS_DIR, fname)
+            with open(path) as f:
+                content = f.read()
+            title = fname
+            outcome = ''
+            for line in content.splitlines():
+                if line.startswith('# '):
+                    title = line[2:].strip()
+                for section in ('## What Changed', '## Summary'):
+                    if line.startswith(section):
+                        pass
+            # Extract first bullet from What Changed as outcome
+            in_changed = False
+            for line in content.splitlines():
+                if line.startswith('## What Changed'):
+                    in_changed = True
+                    continue
+                if in_changed and line.startswith('##'):
+                    break
+                if in_changed and line.strip().startswith('-'):
+                    outcome = line.strip().lstrip('- ').strip()[:120]
+                    break
+            sessions.append({
+                'date': fname[:10],
+                'descriptor': fname[11:-3] if len(fname) > 14 else fname,
+                'outcome': outcome,
+            })
+    except Exception:
+        pass
+
+    directive = ''
+    try:
+        with open(os.path.join(_CLAUDIS_DIR, 'DIRECTIVES.md')) as f:
+            directive = f.read().strip()
+    except Exception:
+        pass
+
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/agent_registry',
+            headers=_HEADERS,
+            params={'select': 'agent_name', 'status': 'eq.active'},
+            timeout=5,
+        )
+        agent_count = len(r.json()) if r.ok else 0
+    except Exception:
+        agent_count = 0
+
+    return {
+        'generated_at': datetime.now(timezone.utc).isoformat(),
+        'system': 'online',
+        'mode': 'lean',
+        'agent_count': agent_count,
+        'last_sessions': sessions,
+        'current_directive': directive,
+    }
+
+
+@anvil.server.callable
+def update_site():
+    """Regenerate status.json from live data and push to GitHub Pages repo."""
+    if not os.path.isdir(_SITE_DIR):
+        raise Exception(f'Site directory not found: {_SITE_DIR}')
+
+    status = get_site_status()
+
+    import json as _json
+    status_path = os.path.join(_SITE_DIR, 'status.json')
+    with open(status_path, 'w') as f:
+        _json.dump(status, f, indent=2, default=str)
+
+    cmds = [
+        ['git', '-C', _SITE_DIR, 'add', 'status.json'],
+        ['git', '-C', _SITE_DIR, 'commit', '-m', f'site update: {status["generated_at"][:10]}'],
+        ['git', '-C', _SITE_DIR, 'push', 'origin', 'main'],
+    ]
+    for cmd in cmds:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0 and 'nothing to commit' not in result.stdout:
+            raise Exception(f'{cmd[2]} failed: {result.stderr.strip()}')
+
+    log.info('Site updated and pushed')
+    return {'updated': True, 'generated_at': status['generated_at']}
+
+
 # ── Artifacts callables ──────────────────────────────────────────────────────
 
 @anvil.server.callable
