@@ -149,6 +149,95 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
         >> "${LOG_FILE}" 2>&1 && log "SITE: updated" || log "SITE: update failed (non-fatal)"
 
     send_telegram "Lean session complete (${MINS}m ${SECS}s). Artifact in claudis/sessions/lean/"
+
+    # AUTO-CYCLE: if enabled and an unblocked project node exists, trigger the next session
+    CYCLE_SCRIPT=$(mktemp /tmp/cycle_XXXXXX.py)
+    cat > "${CYCLE_SCRIPT}" << 'PYEOF'
+import sys, os, json, urllib.request
+
+url = os.environ.get('SUPABASE_URL', '')
+key = os.environ.get('SUPABASE_KEY', '')
+if not url or not key:
+    sys.exit(0)
+headers = {'apikey': key, 'Authorization': 'Bearer ' + key}
+
+def get(path):
+    req = urllib.request.Request(url + path, headers=headers)
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read())
+
+try:
+    cfg = get('/rest/v1/system_config?key=eq.auto_cycle_enabled&select=value')
+    if not cfg or not cfg[0].get('value'):
+        sys.exit(0)
+
+    projects = get('/rest/v1/aadp_projects?status=eq.active&select=id')
+    if not projects:
+        sys.exit(0)
+    proj_ids = {p['id'] for p in projects}
+
+    nodes = get('/rest/v1/aadp_project_nodes?select=id,name,status,dependencies,context,acceptance_criteria,project_id')
+    nodes = [n for n in nodes if n['project_id'] in proj_ids]
+    done_ids = {n['id'] for n in nodes if n['status'] == 'done'}
+
+    for node in sorted([n for n in nodes if n['status'] == 'pending'], key=lambda x: x['id']):
+        deps = node.get('dependencies') or []
+        if all(d in done_ids for d in deps):
+            print(json.dumps(node))
+            sys.exit(0)
+
+    # No pending nodes — mark active projects complete
+    if not any(n['status'] != 'done' for n in nodes) and nodes:
+        for pid in proj_ids:
+            req = urllib.request.Request(
+                url + f'/rest/v1/aadp_projects?id=eq.{pid}',
+                data=json.dumps({'status': 'complete'}).encode(),
+                headers={**headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
+                method='PATCH'
+            )
+            with urllib.request.urlopen(req, timeout=10):
+                pass
+        print('PROJECT_COMPLETE', file=sys.stderr)
+
+except Exception as e:
+    print(f'CYCLE_ERROR: {e}', file=sys.stderr)
+PYEOF
+
+    export SUPABASE_URL SUPABASE_KEY
+    NEXT_NODE=$(python3 "${CYCLE_SCRIPT}" 2>> "${LOG_FILE}")
+    rm -f "${CYCLE_SCRIPT}"
+
+    if [ -n "${NEXT_NODE}" ]; then
+        NODE_LABEL=$(echo "${NEXT_NODE}" | python3 -c "import sys,json; print(json.load(sys.stdin)['name'])")
+        echo "${NEXT_NODE}" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+lines = ['# Project Node: ' + d['name'], '',
+         '## Goal', d.get('acceptance_criteria', ''), '',
+         '## Context', d.get('context', ''), '',
+         '## Node ID', d['id'], '']
+with open('${DIRECTIVES}', 'w') as f:
+    f.write('\n'.join(lines))
+" && log "CYCLE: wrote directive for node: ${NODE_LABEL}"
+
+        git -C "${CLAUDIS_DIR}" add "${DIRECTIVES}" \
+            && git -C "${CLAUDIS_DIR}" commit -m "auto-cycle: directive → ${NODE_LABEL}" \
+            && git -C "${CLAUDIS_DIR}" push >> "${LOG_FILE}" 2>&1 \
+            && log "CYCLE: DIRECTIVES.md committed" \
+            || log "CYCLE: git commit failed (non-fatal)"
+
+        # Release lock before triggering — next session creates its own
+        rm -f "${LOCK_FILE}"
+        trap 'rm -f "${PROMPT_FILE}"; log "Cleanup done."' EXIT
+
+        sleep 2
+        curl -s http://localhost:9100/trigger_lean >> "${LOG_FILE}" 2>&1
+        send_telegram "Auto-cycle → '${NODE_LABEL}'"
+        log "CYCLE: triggered next session"
+    else
+        log "CYCLE: no unblocked nodes — session chain complete"
+    fi
+
 elif [ "${EXIT_CODE}" -eq 124 ]; then
     log "TIMEOUT: killed after ${TIMEOUT_SECS}s"
     write_phase "timeout" "timed out after ${MINS}m"
