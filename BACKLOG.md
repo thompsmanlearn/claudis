@@ -41,3 +41,21 @@ Session artifact written
 Scope
 Touch: ~/aadp/thompsmanlearn.github.io/ (all site files), aadp_project_nodes table (status updates), generate_site.py
 Do not touch: Anvil dashboard (Form1), uplink_server.py, lean_runner.sh, agent workflows, PROTECTED.md resources
+
+B-043: Auto-cycle between sessions
+Status: ready
+Goal
+When a lean session completes successfully and the active project has remaining unblocked pending nodes, automatically trigger the next lean session. The system should cycle through a project graph without human intervention until all nodes are done, a node fails, or Bill sets a stop flag. Also: add sentinel/lean_runner.sh to version control — it's disk-only and at risk.
+Context
+lean_runner.sh already calls generate_site.py on success. The project graph is in aadp_projects and aadp_project_nodes. A node is unblocked when all its dependencies have status done. The trigger endpoint is localhost:9100/trigger_lean. Bill does not want approval gates between nodes — the system should keep moving. A stop mechanism is needed: check a flag in Supabase (e.g., system_config key auto_cycle_enabled) before triggering. Bill can set this to false from the Anvil dashboard or site to pause cycling. DIRECTIVES.md should be auto-populated with the next node's context before triggering.
+Done when
+
+lean_runner.sh checks for unblocked nodes after successful session close
+If unblocked node exists and auto-cycle is enabled, sets DIRECTIVES.md and triggers next session
+Stop flag in system_config respected — if false, session ends normally without re-triggering
+lean_runner.sh committed to claudis repo
+Session artifact written
+
+Scope
+Touch: lean_runner.sh, ~/aadp/claudis/ (to add lean_runner.sh), system_config table
+Do not touch: Anvil dashboard, uplink_server.py, generate_site.py, agent workflows
