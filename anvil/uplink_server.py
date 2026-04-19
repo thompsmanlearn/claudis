@@ -578,6 +578,79 @@ def get_table_rows(table, limit=25):
     return r.json()
 
 
+# ── Artifacts callables ──────────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_artifacts(agent_name=None, artifact_type=None, limit=30):
+    params = {
+        'select': 'id,agent_name,artifact_type,summary,confidence,reviewed_by_bill,bill_rating,created_at',
+        'order': 'created_at.desc',
+        'limit': str(limit),
+    }
+    if agent_name:
+        params['agent_name'] = f'eq.{agent_name}'
+    if artifact_type:
+        params['artifact_type'] = f'eq.{artifact_type}'
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_artifacts',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def get_artifact(artifact_id):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_artifacts',
+        headers=_HEADERS,
+        params={'select': '*', 'id': f'eq.{artifact_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Artifact {artifact_id} not found.')
+    return rows[0]
+
+
+@anvil.server.callable
+def rate_artifact(artifact_id, rating, comment=None):
+    if rating not in (1, -1):
+        raise Exception('Rating must be 1 or -1.')
+    payload = {'reviewed_by_bill': True, 'bill_rating': rating}
+    if comment:
+        payload['bill_comment'] = comment.strip()[:500]
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/agent_artifacts',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{artifact_id}'},
+        json=payload,
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Artifact %s rated %d', artifact_id, rating)
+    return {'rated': True}
+
+
+@anvil.server.callable
+def get_artifact_agents():
+    """Return distinct agent names and artifact types for filter UI."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_artifacts',
+        headers=_HEADERS,
+        params={'select': 'agent_name,artifact_type', 'order': 'agent_name.asc'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    agents = sorted({row['agent_name'] for row in rows if row.get('agent_name')})
+    types = sorted({row['artifact_type'] for row in rows if row.get('artifact_type')})
+    return {'agents': agents, 'types': types}
+
+
 # ── Skills callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
