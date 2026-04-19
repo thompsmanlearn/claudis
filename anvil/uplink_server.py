@@ -411,6 +411,48 @@ def delete_lesson(lesson_id, chromadb_id=None):
     return {'deleted': True}
 
 
+# ── Session callables ────────────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_session_status():
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/session_status',
+        headers=_HEADERS,
+        params={'order': 'updated_at.desc', 'limit': '1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    return rows[0] if rows else None
+
+
+@anvil.server.callable
+def get_session_artifacts(limit=10):
+    sessions_dir = os.path.join(_CLAUDIS_DIR, 'sessions', 'lean')
+    if not os.path.isdir(sessions_dir):
+        return []
+    files = sorted(
+        [f for f in os.listdir(sessions_dir) if f.endswith('.md')],
+        reverse=True,
+    )[:limit]
+    results = []
+    for fname in files:
+        path = os.path.join(sessions_dir, fname)
+        try:
+            with open(path) as f:
+                content = f.read()
+            title = fname
+            for line in content.splitlines():
+                if line.startswith('# '):
+                    title = line[2:].strip()
+                    break
+            date = fname[:10] if len(fname) >= 10 else ''
+            results.append({'filename': fname, 'title': title, 'date': date, 'content': content})
+        except Exception:
+            pass
+    return results
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
