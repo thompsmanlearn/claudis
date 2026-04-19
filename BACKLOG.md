@@ -43,3 +43,29 @@ Committed and pushed to main
 Scope
 Touch: Supabase schema (new table), workflows or stats_server endpoints for the 2-3 selected agents
 Do not touch: Anvil dashboard, uplink_server.py, lesson system, ChromaDB, agents not selected for this card
+
+
+
+B-039: Sessions tab on Anvil dashboard
+
+Status: ready Depends on: B-033
+Goal
+
+Add a Sessions tab to the Anvil dashboard so Bill can see what Claude Code is doing right now and review completed session artifacts from a browser or phone. This closes the visibility gap — currently Bill has no way to know what a session accomplished unless he opens the repo or asks in a desktop session.
+Context
+
+There are two parts to this: live status and history. Live status depends on B-033's get_lean_status() callable which returns whether a session is running. This card extends that with richer state. Create a session_status Supabase table that lean sessions write to as they progress. The lean boot chain (LEAN_BOOT.md → PROTECTED.md → DIRECTIVES.md → etc.) has natural phase boundaries. Adding a Supabase write at each phase transition gives Bill a live view of where the session is: booting, reading context, executing, committing, writing artifact. The current card ID and a short current_action text field give additional context. Schema: CREATE TABLE session_status (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, session_id text, card_id text, phase text, current_action text, started_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()); History is simpler. Session artifacts already land in ~/aadp/claudis/sessions/lean/ as markdown files. A callable that reads the directory listing and returns file contents gives the tab a chronological session history with drill-down. The tab navigation pattern already exists from B-036 (Lessons tab). This card adds a third tab. See ADR at architecture/decisions/anvil-curation-surface.md, Sessions section. Anvil skill reference at skills/anvil/REFERENCE.md.
+Done when
+
+    session_status table exists in Supabase with the schema above
+    lean_runner.sh (or boot chain scripts) writes phase transitions to session_status — at minimum: started, executing, complete
+    Sessions tab on dashboard shows current session state (idle, or running with phase and card ID)
+    Sessions tab shows a list of recent session artifacts with titles and dates
+    Tapping a session artifact shows its full content
+    Uplink callables registered: get_session_status(), get_session_artifacts(limit)
+    Usable at phone width
+    Both repos committed and pushed (claudis main, claude-dashboard master)
+
+Scope
+
+Touch: ~/aadp/claudis/anvil/uplink_server.py, ~/aadp/claude-dashboard/client_code/Form1/__init__.py, Supabase schema (new table), lean_runner.sh or boot chain scripts (phase writes only) Do not touch: stats_server.py core logic, agent workflows, lesson system, LEAN_BOOT.md content (only add writes, don't change boot sequence)
