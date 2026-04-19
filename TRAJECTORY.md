@@ -2,7 +2,7 @@
 
 *Updated at every session close — early, before context pressure. Minimum viable update: one sentence per vector. Bill edits Destinations directly or via Telegram intention. Closing instance proposes destination changes; Bill confirms.*
 
-*Last updated: 2026-04-18 (session: B-041 skills tab complete; error_logs table name fix; artifact_type data reconciled; COLLABORATOR_BRIEF updated)*
+*Last updated: 2026-04-19 (session: one-page loop proven; GitHub Pages site live at thompsmanlearn.github.io; EmbedControl form embedded; project graph schema + "Document AADP" project in Supabase; generate_site.py wired to lean_runner.sh)*
 
 ---
 
@@ -84,7 +84,7 @@
 ## Destinations (addendum)
 
 **Destination 5: Bill has a proper visual dashboard and interactive controls accessible from any device.**
-Anvil (anvil.works) selected as the UI layer. B-026–B-041 all complete as of 2026-04-18. B-041 delivered: Skills tab — registry of all 6 skills with description, trigger keywords, load stats, and full content viewer via filesystem callable. **Active focus: curation surface.** Architecture defined in `architecture/decisions/anvil-curation-surface.md` (committed B-034). agent_artifacts table live with data from 3 agents. Next: feedback consumer agent.
+Anvil dashboard: B-026–B-041 complete. GitHub Pages site: thompsmanlearn.github.io live 2026-04-19. One-page loop proven: Bill writes direction on site → Pi picks it up → session runs → site auto-regenerates. EmbedControl form embedded as iframe. Project graph schema (aadp_projects/aadp_project_nodes) in Supabase. Active project: "Document AADP on the Site" — 8 nodes, 1 done, 7 pending. **Next: cycle fleet page node (no dependencies, unblocked).** Risk: lean_runner.sh is disk-only — add sentinel/ to version control.
 
 ---
 
