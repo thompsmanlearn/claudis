@@ -36,12 +36,19 @@ _ENV = _load_env(os.path.expanduser('~/aadp/mcp-server/.env'))
 _SUPABASE_URL = _ENV['SUPABASE_URL']
 _SUPABASE_KEY = _ENV['SUPABASE_SERVICE_KEY']
 _STATS_URL = 'http://localhost:9100'
+_CHROMADB_URL = 'http://localhost:8000'
 _HEADERS = {
     'apikey': _SUPABASE_KEY,
     'Authorization': f'Bearer {_SUPABASE_KEY}',
     'Content-Type': 'application/json',
 }
 _CLAUDIS_DIR = os.path.expanduser('~/aadp/claudis')
+
+
+def _get_chromadb_collection_id(name: str) -> str:
+    r = requests.get(f'{_CHROMADB_URL}/api/v1/collections/{name}', timeout=5)
+    r.raise_for_status()
+    return r.json()['id']
 
 
 # ── Health server (localhost:9101) ───────────────────────────────────────────
@@ -286,6 +293,122 @@ def write_directive(text):
             raise Exception(f'{cmd[2]} failed: {result.stderr.strip()}')
     log.info('Directive written and pushed: %s', text[:80])
     return {'status': 'written', 'message': 'Directive written and pushed to claudis.'}
+
+
+# ── Lesson callables ─────────────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_lessons(filter='recent', limit=25):
+    params = {
+        'select': 'id,title,category,times_applied,confidence,chromadb_id,created_at',
+        'limit': str(limit),
+    }
+    if filter == 'most_applied':
+        params['order'] = 'times_applied.desc'
+    elif filter == 'never_applied':
+        params['times_applied'] = 'eq.0'
+        params['order'] = 'created_at.desc'
+    elif filter == 'broken':
+        params['chromadb_id'] = 'is.null'
+        params['order'] = 'created_at.desc'
+    else:  # recent (default)
+        params['order'] = 'created_at.desc'
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/lessons_learned',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def search_lessons(query):
+    collection_id = _get_chromadb_collection_id('lessons_learned')
+    r = requests.post(
+        f'{_CHROMADB_URL}/api/v1/collections/{collection_id}/query',
+        json={'query_texts': [query], 'n_results': 20, 'include': ['documents', 'metadatas', 'distances']},
+        timeout=15,
+    )
+    r.raise_for_status()
+    data = r.json()
+    if not data.get('ids') or not data['ids'][0]:
+        return []
+    chromadb_ids = data['ids'][0]
+    distances = dict(zip(chromadb_ids, data['distances'][0]))
+    ids_csv = ','.join(f'"{cid}"' for cid in chromadb_ids)
+    r2 = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/lessons_learned',
+        headers=_HEADERS,
+        params={
+            'select': 'id,title,category,times_applied,confidence,chromadb_id,created_at',
+            'chromadb_id': f'in.({ids_csv})',
+        },
+        timeout=10,
+    )
+    r2.raise_for_status()
+    rows = {row['chromadb_id']: row for row in r2.json()}
+    results = []
+    for cid in chromadb_ids:
+        row = dict(rows.get(cid, {
+            'chromadb_id': cid, 'id': None, 'title': '(not in Supabase)',
+            'category': None, 'times_applied': None, 'confidence': None, 'created_at': None,
+        }))
+        row['distance'] = distances.get(cid)
+        results.append(row)
+    return results
+
+
+@anvil.server.callable
+def update_lesson(lesson_id, delta):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/lessons_learned',
+        headers=_HEADERS,
+        params={'select': 'confidence', 'id': f'eq.{lesson_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Lesson {lesson_id} not found.')
+    current = float(rows[0].get('confidence') or 0.5)
+    new_conf = round(max(0.0, min(1.0, current + float(delta))), 4)
+    now = datetime.now(timezone.utc).isoformat()
+    r2 = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/lessons_learned',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{lesson_id}'},
+        json={'confidence': new_conf, 'updated_at': now},
+        timeout=10,
+    )
+    r2.raise_for_status()
+    log.info('Lesson %s confidence: %.4f → %.4f', lesson_id, current, new_conf)
+    return {'confidence': new_conf}
+
+
+@anvil.server.callable
+def delete_lesson(lesson_id, chromadb_id=None):
+    r = requests.delete(
+        f'{_SUPABASE_URL}/rest/v1/lessons_learned',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{lesson_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    if chromadb_id:
+        try:
+            coll_id = _get_chromadb_collection_id('lessons_learned')
+            rd = requests.post(
+                f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/delete',
+                json={'ids': [chromadb_id]},
+                timeout=10,
+            )
+            rd.raise_for_status()
+        except Exception as e:
+            log.warning('ChromaDB delete failed for %s: %s', chromadb_id, e)
+    log.info('Lesson deleted: %s (chromadb_id=%s)', lesson_id, chromadb_id)
+    return {'deleted': True}
 
 
 log.info('Connecting to Anvil uplink...')
