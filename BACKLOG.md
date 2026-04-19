@@ -52,3 +52,41 @@ Committed and pushed to main
 Scope
 Touch: Morning briefing workflow (xt8Prqvi7iJlhrVG) in n8n, any supporting stats_server endpoint if the briefing delegates there
 Do not touch: agent_feedback table schema, Anvil dashboard code, other agent workflows
+
+B-036: Lessons tab on Anvil dashboard
+Status: ready
+Depends on: B-033
+Goal
+Add a Lessons tab to the Anvil dashboard so Bill can browse, search, judge, and curate the lesson corpus from a browser or phone. This is the highest-value curation surface — 224+ lessons exist with no visibility into quality, usage, or staleness. Bill's review actions become the signal that keeps the knowledge base healthy.
+Context
+Lesson data lives in two stores: Supabase lessons_learned table (structured fields including times_applied, confidence, chromadb_id, created_at) and ChromaDB lessons_learned collection (semantic search). The tab needs callables in uplink_server.py to query both. The dashboard is programmatic (add_component() in Form1/__init__.py). The current dashboard is single-page — this card introduces tab navigation. Use Anvil's Link components with click handlers to switch between Fleet and Lessons views, or whatever MD3-compatible navigation pattern works at phone width. See ADR at architecture/decisions/anvil-curation-surface.md, Lessons section, for the full design. Anvil skill reference at skills/anvil/REFERENCE.md.
+Views to implement:
+
+Recent lessons (newest first — quality review)
+Most applied (sorted by times_applied desc — what's influencing sessions)
+Never applied (times_applied = 0)
+Broken (chromadb_id IS NULL — invisible to semantic search)
+Semantic search (text input, queries ChromaDB, returns ranked results)
+
+Actions per lesson:
+
+Thumbs-up: increment confidence by 0.1 (cap at 1.0)
+Thumbs-down: decrement confidence by 0.1 (floor at 0.0)
+Delete: remove from both Supabase and ChromaDB
+
+Done when
+
+Tab navigation exists on the dashboard (Fleet and Lessons at minimum)
+Lessons tab displays lessons with title, category, times_applied, confidence, created_at
+All five views listed above are selectable
+Semantic search returns results from ChromaDB collection
+Thumbs-up and thumbs-down update confidence in Supabase
+Delete removes lesson from both Supabase and ChromaDB (using chromadb_id to find the ChromaDB document)
+Broken lessons view correctly identifies records with null chromadb_id
+Usable at phone width
+Uplink callables registered: get_lessons(filter, sort, limit), search_lessons(query), update_lesson(id, fields), delete_lesson(id)
+Both repos committed and pushed (claudis main, claude-dashboard master)
+
+Scope
+Touch: ~/aadp/claudis/anvil/uplink_server.py, ~/aadp/claude-dashboard/client_code/Form1/__init__.py
+Do not touch: stats_server.py, lesson injection logic, agent workflows, ChromaDB collection structure
