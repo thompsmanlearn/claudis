@@ -69,3 +69,28 @@ Done when
 Scope
 
 Touch: ~/aadp/claudis/anvil/uplink_server.py, ~/aadp/claude-dashboard/client_code/Form1/__init__.py, Supabase schema (new table), lean_runner.sh or boot chain scripts (phase writes only) Do not touch: stats_server.py core logic, agent workflows, lesson system, LEAN_BOOT.md content (only add writes, don't change boot sequence)
+
+B-040: Memory tab on Anvil dashboard
+
+Status: ready Depends on: B-036
+Goal
+
+Add a Memory tab to the Anvil dashboard so Bill can browse, search, and clean up ChromaDB collections and key Supabase tables directly from a browser or phone. Right now the only way to see what's in the system's memory is through Claude Code terminal queries. This gives Bill direct visibility into the knowledge the system is operating on, and the ability to remove stale or bad entries without needing a session.
+Context
+
+ChromaDB has seven collections: lessons_learned (224+), reference_material (173), research_findings (141), session_memory (71+), error_patterns (15), self_diagnostics (11), agent_templates (4). All use all-MiniLM-L6-v2 embeddings at localhost:8000. Critical gotcha: never include "embeddings" in the include list for bulk-get operations — causes IndexError at scale. Use ["documents", "metadatas"] only. The tab has two sections. ChromaDB browser: collection picker showing name and document count. Selecting a collection shows a paginated list of documents with metadata. Semantic search input queries the selected collection and returns ranked results with distances. Delete button per document removes from ChromaDB (and from Supabase lessons_learned if the collection is lessons_learned — use the chromadb_id link). Supabase browser: not a generic SQL console. Curated views for key tables — research_papers (title, relevance_score, status, discovered_at), error_logs (unresolved errors, workflow_name, timestamp), agent_artifacts (recent artifacts by type). Each view has sensible default filters and sort order. The tab navigation pattern exists from B-036 and B-039. Anvil skill reference at skills/anvil/REFERENCE.md. See ADR at architecture/decisions/anvil-curation-surface.md, Memory section.
+Done when
+
+    Memory tab exists on the dashboard with ChromaDB and Supabase sections
+    ChromaDB section shows collection list with document counts
+    Selecting a collection displays paginated documents with metadata
+    Semantic search works against the selected collection
+    Delete removes a document from ChromaDB (and Supabase lessons_learned if applicable)
+    Supabase section shows curated views for at least research_papers and error_logs
+    Usable at phone width
+    Uplink callables registered: get_collection_stats(), browse_collection(name, limit, offset), search_collection(name, query), delete_document(collection, doc_id), get_table_rows(table, filters, limit)
+    Both repos committed and pushed (claudis main, claude-dashboard master)
+
+Scope
+
+Touch: ~/aadp/claudis/anvil/uplink_server.py, ~/aadp/claude-dashboard/client_code/Form1/__init__.py Do not touch: ChromaDB collection structure or embeddings model, stats_server.py, agent workflows, lesson injection logic
