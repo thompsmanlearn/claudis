@@ -73,6 +73,12 @@ What's left, if anything.
 
 **Commit message format:** `session artifact: YYYY-MM-DD-descriptor`
 
+**Site regeneration (always, before session ends):**
+```bash
+cd ~/aadp/mcp-server && source venv/bin/activate && python3 ~/aadp/thompsmanlearn.github.io/generate_site.py
+```
+Run this before ending every session — lean or interactive. The site is the primary status surface; a stale site gives Bill stale information. lean_runner.sh runs this automatically after non-interactive sessions, but interactive sessions must run it explicitly.
+
 ---
 
 ## Infrastructure Quick-Reference
