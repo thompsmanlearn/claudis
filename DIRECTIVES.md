@@ -1,1 +1,1 @@
-The website could use a how I built this section that give the procedures to install Claude code and do all of the other things that went into building this system. what do you think before you build?
+When can you see this?  Right away, only when I ask, or only after reboot?
