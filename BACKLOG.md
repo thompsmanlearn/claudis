@@ -54,3 +54,48 @@ Prior session B-044 established:
 - MCP server has no systemd unit and uses stdio transport — standard restart patterns don't apply. See lesson written 2026-04-22.
 
 This session is a working session w
+
+## B-046: Anvil uplink watchdog — systemd timer + restart-on-503
+Status: ready
+Depends on: B-045 (/ping now reflects websocket state)
+
+### Goal
+Close the §13 "Anvil uplink silent disconnects" item. With `/ping` now honest (B-045), an external poller that restarts `aadp-anvil.service` on 503 converts silent failures into automatic recovery. Target mean-time-to-recovery: under one minute from disconnect to reconnected uplink.
+
+### Context
+B-045 made `localhost:9101/ping` return 503 when the Anvil websocket is disconnected (or Supabase keepalive stale). Nothing currently consumes that signal. This card adds a systemd timer that polls `/ping` every 30 seconds and runs `systemctl restart aadp-anvil.service` on 503.
+
+Design choices already made (do not re-litigate):
+- systemd timer + oneshot service, not a daemon. Simpler, standard pattern, survives reboot.
+- 30-second interval. Faster than needed for most disconnects; still cheap.
+- Restart on any non-200. A `ws_unknown` response (see B-045 library-upgrade fallback) returns 200, so restart-storms from library changes are already prevented at the /ping layer.
+- No rate limiting in v1. If restart storms become a concern, add a cooldown later. Observe first.
+- Log to journald only. No separate log file.
+
+Files to create:
+1. `/etc/systemd/system/aadp-anvil-watchdog.service` — oneshot, runs the check script.
+2. `/etc/systemd/system/aadp-anvil-watchdog.timer` — every 30s, persistent, `OnBootSec=60s` for boot delay.
+3. `~/aadp/sentinel/anvil_watchdog.sh` — the check script. Curl `/ping` with 5s timeout. On non-200, log the status code and body, then `systemctl restart aadp-anvil.service`. Exit 0 either way (oneshot "failure" semantics aren't useful here).
+
+Keep the script small and readable — it's infrastructure, not clever. Script should be executable (`chmod +x`) and committed to `~/aadp/claudis/sentinel/` in addition to `~/aadp/sentinel/` (the dual-copy pattern per §13). Since we know the two copies aren't drifting today, this is acceptable for now.
+
+Verification before session close:
+- Systemd units loaded (`systemctl daemon-reload`, `systemctl enable --now aadp-anvil-watchdog.timer`).
+- Timer shows as active (`systemctl list-timers | grep anvil-watchdog`).
+- First run fires — check `journalctl -u aadp-anvil-watchdog.service` for at least one successful execution logged.
+- Healthy-state behavior confirmed: `/ping` returns 200, watchdog runs, no restart triggered. Log shows the check happened.
+
+Do not simulate a disconnect this session. A real disconnect will exercise the restart path on its own; fabricating one risks destabilizing the uplink for a test that provides limited additional confidence.
+
+### Done when
+- Three files created at the paths above, with correct permissions (script executable, unit files 644).
+- `aadp-anvil-watchdog.timer` enabled and active.
+- `journalctl -u aadp-anvil-watchdog.service` shows at least one successful check in healthy state.
+- `aadp-anvil.service` was NOT restarted by the watchdog during verification (it only restarts on 503).
+- Script and unit files committed to `~/aadp/claudis/sentinel/` with descriptive commit message.
+- Session artifact at `~/aadp/claudis/sessions/lean/2026-04-23-b046-anvil-watchdog.md` (date prefix required) containing: files created, verification output, any open concerns.
+- Site regenerates and pushes per normal lean-session close.
+
+### Scope
+Touch: `/etc/systemd/system/aadp-anvil-watchdog.service`, `/etc/systemd/system/aadp-anvil-watchdog.timer`, `~/aadp/sentinel/anvil_watchdog.sh`, `~/aadp/claudis/sentinel/anvil_watchdog.sh` (versioned copy), `~/aadp/claudis/sentinel/aadp-anvil-watchdog.service`, `~/aadp/claudis/sentinel/aadp-anvil-watchdog.timer` (versioned copies of unit files), session artifact (new file).
+Do not touch: `uplink_server.py`, `aadp-anvil.service` unit file, `.env`, any Supabase row or schema, any n8n workflow, any ChromaDB collection, DIRECTIVES.md, BACKLOG.md, MCP server process. Do not simulate an uplink disconnect.
