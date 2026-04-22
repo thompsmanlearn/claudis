@@ -537,51 +537,51 @@ Store sync validation: `SELECT COUNT(*) FROM lessons_learned WHERE chromadb_id I
 ---
 
 ## 8. Agent Fleet
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-22*
 
 **Lifecycle:** `building` → `sandbox` → (behavioral_health_check + 4-Pillars evaluation) → `active` OR `retired/paused`
 
-32 agents total. 7 flagged as protected. 10 paused on 2026-04-18 as part of first governance review via Anvil dashboard. Full source at `~/aadp/claudis/agents/`.
+32 agents total. Full source at `~/aadp/claudis/agents/`.
 
-### Protected Agents (do not pause)
+### Protected Agents — source of truth: agent_registry
 
-| agent_name | Why protected |
-|---|---|
-| telegram_command_agent | In PROTECTED.md — severs primary control if broken |
-| lesson_injector | Core learning loop — used every session |
-| agent_health_monitor | Self-healing depends on this |
-| arxiv_aadp_pipeline | Feeds all research findings |
-| research_synthesis_agent | Weekly synthesis — turns papers into direction |
-| morning_briefing | Daily system pulse |
-| claude_code_master | The operator agent |
+`agent_registry.protected = true` is the single source of truth for which agents are load-bearing. Do not maintain a separate list here — it drifts. Query directly:
 
-### Paused Agents (2026-04-18)
+```sql
+SELECT agent_name FROM agent_registry WHERE protected = true ORDER BY agent_name;
+```
 
+**claude_code_master is a registry marker, not an executable agent.** It has no workflow_id and no n8n workflow. It exists so the registry has an entry representing Claude Code sessions. Do not attempt to pause, trigger, or treat it as a running agent.
+
+### Paused Agents
+
+Paused 2026-04-18 (personal briefings, no active consumer):
 ai_frontier_scout, coast_intelligence, cosmos_report, daily_briefing_agent, daily_research_scout, heritage_watch, macro_pulse, serendipity_engine_prod, session_report_agent, wiki_attention_monitor
 
-These were paused because they are personal briefings with no active consumer, overlap with other agents, or have no workflow consuming their output. They can be reactivated from the Anvil dashboard.
+Paused 2026-04-22 (aspirations not attained — pruned to load-bearing core):
+agent_evaluator_4pillars, behavioral_health_check, feedback_agent, github_issue_tracker, processed_content_agent, resource_scout_reddit, usage_stats, weather_agent
+
+All paused agents can be reactivated from the Anvil dashboard.
 
 ### Active Production Agents
 
 | agent_name | workflow_id | trigger | key behavior |
 |---|---|---|---|
 | telegram_command_agent | kddIKvA37UDw4x6e | Telegram long-poll | Routes /commands. **PROTECTED.** |
-| weather_agent | F3khynqQBUXSnadu | webhook | Open-Meteo forecast |
-| github_issue_tracker | F2lRufWUOXAGv5GB | webhook | Open issues >3 days scan |
-| morning_briefing | xt8Prqvi7iJlhrVG | webhook | No LLM. Queue + agents + health |
-| behavioral_health_check | kdzJPyZtchNA3Seq | webhook | Haiku 0-10 reliability score |
-| agent_health_monitor | w5vypq4vb2rSrwdl | webhook | Error scan + stale scan |
-| research_synthesis_agent | JUBCbXJe3TwwpB2T | webhook | Weekly synthesis |
-| arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | webhook | arXiv preprints Mon/Wed/Fri |
-| github_weekly_search | — | Sunday 6AM UTC | GitHub API for MCP/agent repos |
+| morning_briefing | xt8Prqvi7iJlhrVG | daily 7AM PT | No LLM. Queue + agents + health. **PROTECTED.** |
+| agent_health_monitor | w5vypq4vb2rSrwdl | webhook | Error scan + stale scan. **PROTECTED.** |
+| research_synthesis_agent | JUBCbXJe3TwwpB2T | Sunday 14:00 UTC | Weekly synthesis of research corpus. **PROTECTED.** |
+| arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | Mon/Wed/Fri 15:00 UTC | arXiv preprints → research_findings + research_papers. **PROTECTED.** |
+| architecture_review | 7mVc61pDCIObJFos | Biweekly Sunday 16:00 UTC | Research findings → design decisions → work_queue items. |
+| github_weekly_search | — | Sunday 6AM UTC | GitHub API for MCP/agent repos. |
 
 ### Platform Infrastructure Agents
 
 | agent_name | workflow_id | trigger | key behavior |
 |---|---|---|---|
-| lesson_injector | MFmk28ijs1wMig7h | webhook | Context injection before sessions |
-| session_health_reporter | 5x6G8gFlCxX0YKdM | webhook | Post-session artifact to GitHub |
-| autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h | Queues explore/build/research tasks. Toggle via Anvil Autonomous Mode switch. |
+| lesson_injector | MFmk28ijs1wMig7h | webhook | Context injection before sessions. **PROTECTED.** |
+| session_health_reporter | 5x6G8gFlCxX0YKdM | webhook | Post-sentinel-session artifact to GitHub. **PROTECTED.** |
+| autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h | Queues explore/build/research tasks (autonomous mode only). Toggle via Anvil. **PROTECTED.** |
 
 ### n8n Credential IDs
 - Telegram credential ID: y4YfKWpm20Z9sw7G

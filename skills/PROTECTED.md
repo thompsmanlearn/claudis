@@ -5,6 +5,18 @@ When in doubt, ask before touching.
 
 ---
 
+## Load-Bearing Agents — do not pause
+
+`agent_registry.protected = true` is the source of truth. Do not duplicate the list here.
+
+```sql
+SELECT agent_name FROM agent_registry WHERE protected = true ORDER BY agent_name;
+```
+
+**claude_code_master** is a registry marker with no workflow — it cannot be paused or triggered. The protected flag exists to prevent it from being confused with a running agent.
+
+---
+
 ## n8n Workflows
 
 | Workflow | ID | Why Protected |
