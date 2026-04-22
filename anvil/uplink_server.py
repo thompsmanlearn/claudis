@@ -84,14 +84,22 @@ class _HealthHandler(BaseHTTPRequestHandler):
         if self.path == '/ping':
             with _keepalive_lock:
                 age = time.monotonic() - _last_keepalive
-            if age < 1200:  # 20 minutes — 2 keepalive cycles
+            conn = anvil.server._connection
+            ws_ok = conn is not None and conn.is_ready()
+            supabase_ok = age < 1200  # 20 minutes — 2 keepalive cycles
+            if ws_ok and supabase_ok:
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(b'ok')
             else:
                 self.send_response(503)
                 self.end_headers()
-                self.wfile.write(b'stale')
+                reasons = []
+                if not ws_ok:
+                    reasons.append('ws_disconnected')
+                if not supabase_ok:
+                    reasons.append('supabase_stale')
+                self.wfile.write(','.join(reasons).encode())
         else:
             self.send_response(404)
             self.end_headers()
