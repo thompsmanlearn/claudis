@@ -1,41 +1,41 @@
-## B-044: Silent-failure diagnostic sweep
+## B-044: Open diagnostic collaboration session on silent-failure surface
 Status: ready
 Depends on: none
 
 ### Goal
-The system has several documented silent-failure modes (DEEP_DIVE_BRIEF §13). Current state of each is unknown. This card produces one diagnostic artifact reporting the status of each probe with evidence, so follow-up fix cards can be written against findings rather than assumptions. This card diagnoses only. It does not fix.
+Before any diagnostic or remediation work on the silent-failure items in DEEP_DIVE_BRIEF §13, establish a working exchange between Claude Code (on the Pi, with real system access) and the desktop session (with design context and Bill's direction). Desktop has hypotheses about what's broken and how to probe it; Claude Code knows what's actually reachable, what the current state of each service looks like, and which probes are safe to run without side effects. Neither side can design the sweep well alone. This card produces a written response from Claude Code that the desktop session can read and respond to in the next desktop turn.
 
 ### Context
-Read-only operation with one exception: the Telegram probe sends a real message to chat_id 8513796837. That side effect is intentional.
+The silent-failure items under discussion are from DEEP_DIVE_BRIEF §13: Anvil uplink silent disconnects, `/webhook/telegram-quick-send` as a single point of failure, n8n API key TTL, dual `lean_runner.sh` drift, `chromadb_id IS NULL` orphans, Supabase RPC existence (`increment_lessons_applied_by_id`, `increment_lessons_applied`), and capabilities table population.
 
-Run probes in this order:
+This is not a diagnostic pass. Do not probe, test, fix, or modify. The only action is producing a written response.
 
-1. **Anvil uplink health.** Capture `systemctl status aadp-anvil.service` output (active state, uptime, restart count). Separately, from an Anvil-side context, invoke `get_system_status()` with a 10-second timeout. A "systemd active + callable timed out" result is the silent-disconnect signature.
+Read §13 and any relevant service source (`aadp-anvil.service`, `stats_server.py`, `mcp-server/server.py`, both `lean_runner.sh` copies) only as needed to answer the questions below honestly. No external calls, no Supabase queries, no n8n API calls, no filesystem mutations.
 
-2. **Telegram webhook.** Via n8n MCP tool, `workflow_get kddIKvA37UDw4x6e` — confirm `telegram_command_agent` is active. Then POST to `/webhook/telegram-quick-send` with body text `[DIAG B-044] self-test, disregard`. Record HTTP response. Note that HTTP 200 does not prove delivery — only Bill's phone does. Record both.
+Write the response to `~/aadp/claudis/sessions/lean/B-044-diagnostic-collab.md`. Address each of the following:
 
-3. **n8n API key validity.** Call `workflow_list`. Record response. 401/403 = expired key in `.env`.
+1. **Reachability.** For each §13 item, can Claude Code observe its state from the Pi without side effects? If not, what's the closest proxy? Specifically: can the Pi invoke Anvil uplink callables the way the browser client does, or only observe the uplink from the server side?
 
-4. **lean_runner.sh drift.** Run `diff ~/aadp/sentinel/lean_runner.sh ~/aadp/claudis/sentinel/lean_runner.sh`. Record identical or full diff.
+2. **Side-effect inventory.** For each item, what's the minimum-impact probe you'd actually use? Flag anything with a visible side effect (Telegram message, log entry, rate-limited API call, cache invalidation).
 
-5. **ChromaDB orphans.** `SELECT COUNT(*) FROM lessons_learned WHERE chromadb_id IS NULL` via Supabase. Record count.
+3. **Known-state shortcuts.** Anything in §13 you already know the state of from recent sessions, without needing to probe? If yes, say what and when you last observed it.
 
-6. **Supabase RPCs.** Query `pg_proc` via DDL endpoint for `increment_lessons_applied_by_id` and `increment_lessons_applied`. Record existence of each.
+4. **Items you'd add.** Silent-failure modes you've encountered that aren't in §13. Brief — one line each, no investigation.
 
-7. **Capabilities table.** `SELECT COUNT(*) FROM capabilities`. Record count. This is a state check, not pass/fail.
+5. **Items you'd drop or reframe.** Anything in §13 that you believe is already resolved, not actually silent, or misframed. Say why.
 
-Do not call `/trigger_lean` — it launches real sessions (§13).
+6. **Ordering.** If this turns into a diagnostic sweep, what order would you run probes in, and why? (Dependencies between probes, blast radius, information value.)
 
-Do not restart services, rotate keys, copy files, or execute schema changes. All remediation is out of scope; write it up, move on.
+7. **Open questions for Bill or desktop.** Anything you'd want answered before designing the sweep.
+
+Keep responses tight. Bullet points or short paragraphs. This is an exchange, not a report.
 
 ### Done when
-- Artifact exists at `~/aadp/claudis/sessions/lean/B-044-diagnostic-sweep.md`.
-- Artifact contains seven probe sections in the order above.
-- Each section contains three fields: `status` (one of `ok`, `broken`, `unknown`, `info`), `evidence` (raw command output, HTTP code and body, query result, or diff), `recommended_action` (one line: either `no action` or `fix card needed: <one-sentence description>`).
-- Probe 2's `status` is `unknown` until Bill confirms Telegram delivery; artifact flags this explicitly.
-- Artifact ends with a summary table: probe name, status, follow-up card needed (yes/no).
-- No file outside the artifact was created or modified. No service was restarted. No key, workflow, or schema was altered.
+- Artifact exists at `~/aadp/claudis/sessions/lean/B-044-diagnostic-collab.md`.
+- All seven sections above are present and non-empty. "Nothing to add" is a valid answer for 4 and 5 if honest; it still appears as a section.
+- No probe was executed. No service touched. No Supabase row read or written (reading source code on the filesystem is fine; calling the API is not). No n8n API call made. No Telegram message sent. No file modified except the artifact.
+- Session artifact closes normally; site regenerates per usual lean-session behavior.
 
 ### Scope
-Touch: `~/aadp/claudis/sessions/lean/B-044-diagnostic-sweep.md` (new file only).
-Do not touch: `.env`, any systemd unit, any `lean_runner.sh`, any Supabase row or schema, any n8n workflow state, any ChromaDB collection, DIRECTIVES.md, BACKLOG.md, agent configuration.
+Touch: `~/aadp/claudis/sessions/lean/B-044-diagnostic-collab.md` (new file only).
+Do not touch: anything else. In particular: `.env`, any systemd unit, any `lean_runner.sh`, any Supabase row or schema, any n8n workflow, any ChromaDB collection, DIRECTIVES.md, BACKLOG.md.
