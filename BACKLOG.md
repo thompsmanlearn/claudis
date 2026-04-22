@@ -39,3 +39,18 @@ Keep responses tight. Bullet points or short paragraphs. This is an exchange, no
 ### Scope
 Touch: `~/aadp/claudis/sessions/lean/B-044-diagnostic-collab.md` (new file only).
 Do not touch: anything else. In particular: `.env`, any systemd unit, any `lean_runner.sh`, any Supabase row or schema, any n8n workflow, any ChromaDB collection, DIRECTIVES.md, BACKLOG.md.
+
+## B-045: Fix /ping to reflect websocket state; complete remaining §13 probes
+Status: ready
+Depends on: B-044 (diagnostic-collab session, complete)
+
+### Goal
+Two deliverables. First: make `localhost:9101/ping` an honest health signal by having it reflect Anvil websocket connection state, not just process liveness and Supabase reachability. Without this, any watchdog polling `/ping` is theatre — the §13 "Anvil uplink silent disconnects" item cannot be closed with the current endpoint. Second: complete the three remaining §13 probes that last session deferred or couldn't reach (Telegram webhook self-test, n8n API key validity, `lean_runner.sh` dual-copy diff). These are read-mostly checks that close open questions from B-044.
+
+### Context
+Prior session B-044 established:
+- `/ping` in `uplink_server.py` returns 200 when `_last_keepalive` is under 1200s old. `_last_keepalive` is updated by a Supabase-probing background worker and by the Anvil `ping()` callable. The websocket state itself is never consulted. A dead websocket with a live process returns healthy.
+- Four orphan lessons (`chromadb_id IS NULL`); both RPCs exist; `capabilities` has 90 rows; SUPABASE_MGMT_PAT has been rotated and `.env` updated.
+- MCP server has no systemd unit and uses stdio transport — standard restart patterns don't apply. See lesson written 2026-04-22.
+
+This session is a working session w
