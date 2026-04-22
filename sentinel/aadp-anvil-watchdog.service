@@ -1,0 +1,10 @@
+[Unit]
+Description=AADP Anvil Uplink Watchdog
+After=aadp-anvil.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/thompsman/aadp/sentinel/anvil_watchdog.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aadp-anvil-watchdog

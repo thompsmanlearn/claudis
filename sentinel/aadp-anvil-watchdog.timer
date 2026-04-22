@@ -1,0 +1,12 @@
+[Unit]
+Description=AADP Anvil Uplink Watchdog Timer — poll every 30s
+After=aadp-anvil.service
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=30s
+Persistent=true
+Unit=aadp-anvil-watchdog.service
+
+[Install]
+WantedBy=timers.target
