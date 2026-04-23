@@ -637,9 +637,9 @@ def get_table_rows(table, limit=25):
             'order': 'discovered_at.desc',
         },
         'error_logs': {
-            'select': 'id,workflow_name,error_message,created_at',
+            'select': 'id,workflow_name,error_message,timestamp',
             'resolved': 'eq.false',
-            'order': 'created_at.desc',
+            'order': 'timestamp.desc',
         },
     }
     if table not in _curated:
