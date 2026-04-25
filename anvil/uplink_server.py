@@ -204,9 +204,9 @@ def get_work_queue():
         f'{_SUPABASE_URL}/rest/v1/work_queue',
         headers=_HEADERS,
         params={
-            'select': 'id,task_type,status,priority,created_at',
+            'select': 'id,task_type,status,priority,created_at,created_by,assigned_agent,input_data',
             'status': 'neq.complete',
-            'order': 'created_at.desc',
+            'order': 'priority.asc,created_at.asc',
             'limit': '30',
         },
         timeout=10,
