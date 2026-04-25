@@ -1,3 +1,42 @@
+## B-050: Stale directive fallback with Anvil boot briefing
+
+**Goal:** When the boot directive points to an already-complete card, the new instance detects this, writes a structured state briefing to Anvil (Sessions tab → Boot Briefings section), sends a short Telegram alert pointing there, and waits. Does not autonomously select new work.
+
+**Rationale:** Currently a stale DIRECTIVES.md causes a wasted session — the instance Telegrams Bill and stops, with no useful information. A structured briefing gives Bill the system state needed to write the next directive without starting a new session just to check.
+
+**Scope:**
+
+1. **New Supabase table: `boot_briefings`**
+   Columns: `id` (uuid, pk), `content` (text), `directive_seen` (text), `created_at` (timestamptz default now()), `acknowledged` (bool default false).
+
+2. **Two new Anvil callables in `uplink_server.py`:**
+   - `post_boot_briefing(content, directive_seen)` — INSERT row into `boot_briefings`, return `{id}`.
+   - `get_boot_briefings(limit=10)` — SELECT recent rows ordered by `created_at desc`.
+
+3. **Sessions tab UI — Boot Briefings section:**
+   Add to `_build_sessions_layout`: a "Boot Briefings" collapsible section (default open if any unacknowledged). Each briefing card shows `created_at`, `directive_seen`, content, and an "Acknowledge" button that calls a new `acknowledge_boot_briefing(id)` callable (PATCH `acknowledged=true`).
+   Add `acknowledge_boot_briefing(id)` as a third callable.
+
+4. **LEAN_BOOT.md — stale card detection + fallback path:**
+   After step 5 (read card), add a check: evaluate whether the card's acceptance criteria are already satisfied (read key artifacts, check Supabase where fast). If complete:
+   - Compose structured briefing: current directive, TRAJECTORY.md project arc, pending `work_queue` items (count + types), unresolved `error_logs` count, active agent count.
+   - Call `post_boot_briefing(content, directive_seen)` via Anvil uplink (or direct Supabase insert if uplink not ready).
+   - Telegram: "🔔 Stale directive detected. Boot briefing ready — check Anvil Sessions tab."
+   - STOP. Do not execute the stale directive.
+
+**Verification checklist:**
+- [ ] `boot_briefings` table exists in Supabase
+- [ ] `post_boot_briefing`, `get_boot_briefings`, `acknowledge_boot_briefing` callables registered and reachable
+- [ ] Sessions tab shows Boot Briefings section with acknowledge button
+- [ ] Starting a new session with DIRECTIVES.md = "Run: B-049" triggers the fallback, populates a briefing row, Telegrams Bill
+- [ ] Executing a fresh (incomplete) card skips the fallback entirely
+
+**Out of scope:**
+- Autonomous work selection in the fallback path
+- Modifying the Telegram command agent or any protected workflow
+
+---
+
 ## B-049: Create PROJECT_STATE.md
 
 **Goal:** Create `~/aadp/claudis/PROJECT_STATE.md` — a stable session-start reference for Anvil UI work. The anvil skill CATALOG entry already points to this file ("read PROJECT_STATE.md for current UI gap list and callable inventory"); it doesn't exist yet.
