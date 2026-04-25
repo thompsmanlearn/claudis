@@ -69,7 +69,7 @@ or any other database.
 
 | Tool | What it does |
 |------|-------------|
-| `developer_context_load` | Full system snapshot (agents, queue, notes, config, health) |
+| `developer_context_load` | **[DEPRECATED]** Full system snapshot — use LEAN_BOOT.md Step 9 live-state ping instead |
 | `system_status` | Pi CPU/RAM/disk/temp |
 | `service_status` | n8n + ChromaDB health |
 | `supabase_exec_sql` | Direct SQL — use for anything not covered by other tools |
