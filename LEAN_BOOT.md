@@ -45,7 +45,15 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
    ```
    Flag any agent where `flag = 'no_workflow_id'`. No writes.
 
-10. Execute the directive. Do not pause for confirmation.
+10. **Lesson retrieval** — Before executing, surface relevant lessons from prior sessions:
+
+   Distill the directive and card goal into 3–5 keywords (task domain, tools involved, key action). Call `mcp__aadp__memory_search` with `collection="lessons_learned"`, `n_results=5`, and those keywords as the query string.
+
+   For each result: read the title and body. If it clearly applies to the current work, state "Applying lesson [id]: [title]" and honour it during execution. Keep a running list of applied lesson IDs — close-session will use them to increment `times_applied`.
+
+   If the collection is empty or no result is clearly relevant, continue without comment. One tool call maximum; do not iterate.
+
+11. Execute the directive. Do not pause for confirmation.
 
 If LEAN_BOOT.md is corrupted, restore from `~/aadp/prompts/LEAN_BOOT_stable.md`.
 
