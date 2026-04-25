@@ -140,7 +140,7 @@ def get_agent_fleet():
         f'{_SUPABASE_URL}/rest/v1/agent_registry',
         headers=_HEADERS,
         params={
-            'select': 'agent_name,display_name,description,status,schedule,protected,updated_at',
+            'select': 'agent_name,display_name,description,status,schedule,protected,updated_at,webhook_url',
             'order': 'agent_name.asc',
         },
         timeout=10,
@@ -178,6 +178,30 @@ def set_agent_status(agent_name, status):
     r.raise_for_status()
     log.info('Agent %s status set to %s', agent_name, status)
     return {'status': status}
+
+
+@anvil.server.callable
+def invoke_agent(agent_name):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_registry',
+        headers=_HEADERS,
+        params={'select': 'webhook_url,status', 'agent_name': f'eq.{agent_name}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Agent "{agent_name}" not found.')
+    row = rows[0]
+    if row.get('status') != 'active':
+        raise Exception(f'Agent "{agent_name}" is not active.')
+    webhook_url = row.get('webhook_url')
+    if not webhook_url:
+        raise Exception(f'Agent "{agent_name}" has no webhook URL configured.')
+    resp = requests.post(webhook_url, json={}, timeout=15)
+    resp.raise_for_status()
+    log.info('Agent %s invoked via %s', agent_name, webhook_url)
+    return {'triggered': True, 'agent': agent_name}
 
 
 @anvil.server.callable
