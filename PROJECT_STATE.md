@@ -2,6 +2,8 @@
 
 *Read when the active project is Anvil UI. Updated by Claude Code at session close when Anvil work was done.*
 
+**Last verified:** 2026-04-25
+
 ---
 
 ## What exists
@@ -11,7 +13,7 @@ Six tabs. All built programmatically in `~/aadp/claude-dashboard/client_code/For
 | Tab | Status | What works |
 |-----|--------|------------|
 | Fleet | Working | Agent list (grouped active/paused/retired), expandable cards with status toggle + feedback, work queue (count + list), inbox (approve/deny), controls panel (lean trigger, directive writer, autonomous mode toggle) |
-| Sessions | Working | Live session status, last 15 session artifacts as expandable cards |
+| Sessions | Working | Live session status, Site Status card + Regenerate button, last 15 session artifacts as expandable cards |
 | Lessons | Working | Filter (recent/all/low-confidence), semantic search, thumbs up/down, delete |
 | Memory | Working | ChromaDB collection browser (browse/search/delete docs), Supabase views (Research Papers, Error Log) |
 | Skills | Working | List all skills, expand to read full content |
@@ -53,19 +55,7 @@ Six tabs. All built programmatically in `~/aadp/claude-dashboard/client_code/For
 
 ---
 
-### 3 — Site status + regenerate
-**What's missing:** `get_site_status()` and `update_site()` callables exist (`uplink_server.py:665,733`) but are not wired to any UI panel.
-
-**What to build:**
-- Add a "Site" section to the Sessions tab or Fleet controls panel.
-- On load: call `get_site_status()` — display `generated_at`, `agent_count`, `mode`, `current_directive`, last 3 session summaries.
-- Add a "Regenerate Site" button — calls `update_site()` (runs `generate_site.py` + git push); show confirmation or error.
-
-**Complexity:** Low (callables are complete; pure UI wiring).
-
----
-
-### 4 — Artifact comments
+### 3 — Artifact comments
 **What's missing:** `rate_artifact(artifact_id, rating, comment=None)` already accepts a comment (`uplink_server.py:799`), but the UI rating buttons (`Form1:1120`) don't pass one. Existing `bill_comment` is displayed if present, but there's no input to write a new one.
 
 **What to build:**
@@ -76,7 +66,7 @@ Six tabs. All built programmatically in `~/aadp/claude-dashboard/client_code/For
 
 ---
 
-### 5 — Per-agent invocation
+### 4 — Per-agent invocation
 **What's missing:** Agent cards have status toggle and feedback, but no way to trigger an agent run. No callable exists for this.
 
 **Context:** Most agents are n8n workflows triggered by webhook. Some are sentinel-driven. "Invocation" means posting to the agent's n8n webhook.
@@ -104,14 +94,13 @@ Six tabs. All built programmatically in `~/aadp/claude-dashboard/client_code/For
 
 33 callables total. Those NOT wired to any UI tab are marked *.
 
-`ping`* · `get_system_status` · `get_agent_fleet` · `set_agent_status` · `submit_agent_feedback` · `get_work_queue` · `get_inbox` · `approve_inbox_item` · `deny_inbox_item` · `trigger_lean_session` · `get_lean_status` · `write_directive` · `get_autonomous_mode` · `set_autonomous_mode` · `get_lessons` · `search_lessons` · `update_lesson` · `delete_lesson` · `get_session_status` · `get_session_artifacts` · `get_collection_stats` · `browse_collection` · `search_collection` · `delete_document` · `get_table_rows` · `get_site_status`* · `update_site`* · `get_artifacts` · `get_artifact` · `rate_artifact` · `get_artifact_agents` · `get_skills` · `get_skill`
+`ping`* · `get_system_status` · `get_agent_fleet` · `set_agent_status` · `submit_agent_feedback` · `get_work_queue` · `get_inbox` · `approve_inbox_item` · `deny_inbox_item` · `trigger_lean_session` · `get_lean_status` · `write_directive` · `get_autonomous_mode` · `set_autonomous_mode` · `get_lessons` · `search_lessons` · `update_lesson` · `delete_lesson` · `get_session_status` · `get_session_artifacts` · `get_collection_stats` · `browse_collection` · `search_collection` · `delete_document` · `get_table_rows` · `get_site_status` · `update_site` · `get_artifacts` · `get_artifact` · `rate_artifact` · `get_artifact_agents` · `get_skills` · `get_skill`
 
 ---
 
 ## Implementation order (suggested)
 
-1. **Site status + regenerate** — lowest effort, highest visibility. Pure wiring.
-2. **Artifact comments** — trivial, completes a half-built feature.
-3. **Error log resolve** — medium effort, requires bug fix + new callable + UI card builder.
-4. **Work queue detail** — medium effort, high operational value.
-5. **Per-agent invocation** — medium effort, requires verifying agent_registry schema.
+1. **Artifact comments** — trivial, completes a half-built feature.
+2. **Error log resolve** — medium effort, requires bug fix + new callable + UI card builder.
+3. **Work queue detail** — medium effort, high operational value.
+4. **Per-agent invocation** — medium effort, requires verifying agent_registry schema.
