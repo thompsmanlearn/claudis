@@ -27,7 +27,8 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
        SELECT COUNT(*) AS count,
               json_agg(json_build_object(
                 'name', agent_name,
-                'flag', CASE WHEN workflow_id IS NULL THEN 'no_workflow_id' ELSE '' END
+                'flag', CASE WHEN workflow_id IS NULL AND agent_name != 'claude_code_master'
+                          THEN 'no_workflow_id' ELSE '' END
               ) ORDER BY agent_name) AS list
        FROM agent_registry WHERE status = 'active'
      ),
