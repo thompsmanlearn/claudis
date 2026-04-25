@@ -555,6 +555,51 @@ def get_session_artifacts(limit=10):
     return results
 
 
+# ── Boot briefing callables ───────────────────────────────────────────────────
+
+@anvil.server.callable
+def post_boot_briefing(content, directive_seen=None):
+    payload = {'content': content}
+    if directive_seen:
+        payload['directive_seen'] = directive_seen
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/boot_briefings',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json=payload,
+        timeout=10,
+    )
+    r.raise_for_status()
+    row = r.json()[0]
+    log.info('Boot briefing posted: %s', row.get('id'))
+    return {'id': row.get('id')}
+
+
+@anvil.server.callable
+def get_boot_briefings(limit=10):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/boot_briefings',
+        headers=_HEADERS,
+        params={'order': 'created_at.desc', 'limit': str(limit)},
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def acknowledge_boot_briefing(briefing_id):
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/boot_briefings',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{briefing_id}'},
+        json={'acknowledged': True},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Boot briefing %s acknowledged', briefing_id)
+    return {'acknowledged': True}
+
+
 # ── Memory callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
