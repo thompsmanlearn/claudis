@@ -656,6 +656,24 @@ def get_table_rows(table, limit=25):
     return r.json()
 
 
+@anvil.server.callable
+def resolve_error_log(error_id, notes=None):
+    now = datetime.now(timezone.utc).isoformat()
+    payload = {'resolved': True, 'resolved_by': 'bill', 'resolved_at': now}
+    if notes:
+        payload['resolution_notes'] = notes.strip()[:500]
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/error_logs',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{error_id}'},
+        json=payload,
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Error log %s resolved', error_id)
+    return {'resolved': True}
+
+
 # ── Site callables ───────────────────────────────────────────────────────────
 
 _SITE_DIR = os.path.expanduser('~/aadp/thompsmanlearn.github.io')
