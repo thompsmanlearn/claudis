@@ -19,24 +19,13 @@ Six tabs. All built programmatically in `~/aadp/claude-dashboard/client_code/For
 | Skills | Working | List all skills, expand to read full content |
 | Artifacts | Working | Filter by agent/type, expand to see content + rate (👍/👎) with comment input |
 | Memory (Error Log) | Working | Error log rows now have notes TextBox + Resolve button → `resolve_error_log` callable |
+| Fleet (Work Queue) | Working | Expandable cards with input_data preview, created_by, assigned_agent; sorted by priority |
 
 ---
 
 ## Gaps (project arc next)
 
-### 1 — Work queue detail
-**What's missing:** Queue rows show `[status] task_type (p:priority)` only. No description, no payload, no actions.
-
-**What to build:**
-- Expand the `get_work_queue` callable (`uplink_server.py:202`) — add `description,payload` to the `select` param.
-- Render expandable queue cards in `_load_queue` (`Form1:451`) — show description and a truncated payload preview on expand.
-- Optional: add Claim/Cancel buttons calling `work_queue_update` via a new uplink callable.
-
-**Complexity:** Low (backend: 1-line select change; UI: replace Label rows with card builder).
-
----
-
-### 2 — Per-agent invocation
+### 1 — Per-agent invocation
 **What's missing:** Agent cards have status toggle and feedback, but no way to trigger an agent run. No callable exists for this.
 
 **Context:** Most agents are n8n workflows triggered by webhook. Some are sentinel-driven. "Invocation" means posting to the agent's n8n webhook.
@@ -69,5 +58,4 @@ Six tabs. All built programmatically in `~/aadp/claude-dashboard/client_code/For
 
 ## Implementation order (suggested)
 
-1. **Work queue detail** — medium effort, high operational value.
-2. **Per-agent invocation** — medium effort, requires verifying agent_registry schema.
+1. **Per-agent invocation** — medium effort, requires verifying agent_registry schema.
