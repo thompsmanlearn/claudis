@@ -1,3 +1,41 @@
+## B-051: Close the ChromaDB lesson feedback loop
+
+**Goal:** Verify and fix the end-to-end path: boot lesson retrieval → "Applying lesson" flag → close-session `times_applied` increment. Currently all 237 lessons show `times_applied = 0`, which means the loop has never completed a full cycle.
+
+**Rationale:** Lesson retrieval at boot is only useful if the system actually acts on retrieved lessons and the feedback loop closes. Without `times_applied` incrementing, there is no signal for which lessons are valuable, the "Never Applied" view in Anvil is meaningless, and the retrieval query cannot be tuned.
+
+**Scope:**
+
+1. **Diagnose which link is broken.**
+   - Check git log on close-session.md and LEAN_BOOT.md to determine when boot step 10 (lesson retrieval) and close-session step 8 (increment) both existed simultaneously. If they only recently overlapped, `times_applied = 0` may just be "no sessions yet" rather than a bug.
+   - Run this query to confirm zero is universal: `SELECT COUNT(*) FROM lessons_learned WHERE times_applied > 0;`
+   - Read the most recent session artifact in `~/aadp/claudis/sessions/lean/` and check whether any "Applying lesson [id]: ..." lines appear in the record of what happened.
+
+2. **Identify the gap and fix it.**
+   There are three candidate failure modes — address whichever the diagnosis confirms:
+   - **Threshold too strict:** Boot step 10 says "if it clearly applies" — instances may be too conservative and never flag any lesson as applied. If so, loosen the language in LEAN_BOOT step 10 to: flag any lesson with distance < 1.4 that touches the current task domain, not just ones that are unambiguous.
+   - **Close-session step 8 skipped:** Step 8 only increments if lessons were flagged during boot. If boot flags nothing, step 8 silently does nothing. Confirm by checking whether any session artifact records a step 8 increment.
+   - **ID chain broken:** Boot step 10 calls `memory_search` which returns ChromaDB IDs. Close-session step 8 requires Supabase IDs, with a fallback `SELECT id FROM lessons_learned WHERE chromadb_id = '...'`. Verify the ChromaDB metadata actually has `supabase_id` populated for a sample of lessons.
+
+3. **Run a verification session.**
+   After the fix, this session itself is the test: boot step 10 should flag at least one lesson as applied (this card's work touches ChromaDB, lesson retrieval, and Supabase — multiple lessons in the store are relevant). Close-session step 8 should then increment those rows. Confirm with: `SELECT id, title, times_applied FROM lessons_learned WHERE times_applied > 0 ORDER BY times_applied DESC LIMIT 10;`
+
+4. **Update LEAN_BOOT step 10 and/or close-session step 8 as needed.**
+   Commit fixes to claudis repo. Note the verified fix in the session artifact.
+
+**Verification checklist:**
+- [ ] Diagnosis complete — specific failure mode identified
+- [ ] `SELECT COUNT(*) FROM lessons_learned WHERE times_applied > 0` returns > 0 after this session
+- [ ] Session artifact records at least one "Applying lesson [id]: ..." line
+- [ ] Close-session step 8 increment confirmed in Supabase
+- [ ] Any LEAN_BOOT or close-session changes committed to claudis
+
+**Out of scope:**
+- Changing which lessons are written or how they are structured
+- Tuning the retrieval query beyond the threshold language fix
+
+---
+
 ## B-050: Stale directive fallback with Anvil boot briefing
 
 **Goal:** When the boot directive points to an already-complete card, the new instance detects this, writes a structured state briefing to Anvil (Sessions tab → Boot Briefings section), sends a short Telegram alert pointing there, and waits. Does not autonomously select new work.
