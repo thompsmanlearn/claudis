@@ -13,6 +13,15 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 3. Read `~/aadp/claudis/skills/PROTECTED.md`.
 4. Read `~/aadp/claudis/CONVENTIONS.md`.
 5. Read `~/aadp/claudis/DIRECTIVES.md`. If it contains `Run: B-NNN`, read that card from `~/aadp/claudis/BACKLOG.md` — the card is the directive.
+
+   **Stale-card check:** Before continuing, verify the card is not already complete. Check the card's verification checklist against actual state (read key artifacts, one fast Supabase query if needed). If all criteria are already met:
+   - Compose a structured briefing (≤600 chars): directive seen, TRAJECTORY.md project arc next, pending `work_queue` count + task types, unresolved `error_logs` count, active agent count.
+   - Call `post_boot_briefing(content, directive_seen)` via the Anvil uplink callable.
+   - Telegram Bill: "🔔 Stale directive (Run: B-NNN already complete). Boot briefing posted to Anvil Sessions tab."
+   - **STOP. Do not proceed to step 6.**
+
+   If the card is not complete (or completion cannot be determined quickly), continue normally.
+
 6. Read `~/aadp/claudis/skills/CATALOG.md`. Match the directive against the "Applies when" columns. Read matching `SKILL.md` files. Do not auto-load `references/*.md` — pull those on demand. Confirm: `Loading: [skills]. Proceeding.` or `No skills matched. Proceeding.`
 7. Read `~/aadp/claudis/CONTEXT.md`.
 8. Read `~/aadp/claudis/TRAJECTORY.md`.
