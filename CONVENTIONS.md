@@ -61,7 +61,7 @@ Apply when executing work.
 ### Capture artifact selection
 
 - **Lesson** (`lessons_learned` + ChromaDB): technical fact or pattern that applies beyond this session.
-- **Session note** (`session_notes`): context the next session needs to continue. Consumed.
+- **Session note**: retired 2026-04-25 — `session_notes` table archived. Use handoff section in TRAJECTORY.md instead.
 - **Session artifact** (`sessions/lean/YYYY-MM-DD-descriptor.md`): permanent record of what this session did. Committed.
 - **ADR** (`architecture/decisions/`): decision with consequences beyond one fix.
 - When between lesson and artifact, write both.
