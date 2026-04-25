@@ -9,8 +9,9 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
-- Fleet pruned 2026-04-22: 10 active agents, 9 protected
-- Boot chain rewritten: CONVENTIONS.md, LEAN_BOOT.md, CONTEXT.md, TRAJECTORY.md
+- Fleet: 9 active agents (10th — autonomous_growth_scheduler — paused, workflow_id null)
+- Boot chain: single path via LEAN_BOOT.md; Step 9 live-state ping added 2026-04-25
+- developer_context_load deprecated; session_notes retired and archived
 - Anvil backend has 33 callables; UI has known gaps
 
 **Project arc next:** Close UI gaps — work queue detail, error log resolve, site status + regenerate, artifact comments, per-agent invocation.
@@ -19,9 +20,9 @@
 
 ## Handoff (pick up here)
 
-**2026-04-22:** Boot chain restructure. CONVENTIONS.md, LEAN_BOOT.md, CONTEXT.md, TRAJECTORY.md rewritten.
-- **Still open:** Close-session skill Step 3 needs update (stop appending trajectory logs; rewrite current state instead). `PROJECT_STATE.md` not yet created — intended to hold project decomposition details outside the boot chain.
-- **Then:** Return to Anvil UI — see project arc next.
+**2026-04-25:** B-048 complete. LEAN_BOOT is now the single boot path; live-state ping runs at step 9 before execute. developer_context_load deprecated; session_notes archived.
+- **Still open:** Close-session skill Step 3 needs update (stop appending trajectory logs; rewrite current state instead). `PROJECT_STATE.md` not yet created.
+- **Then:** Return to Anvil UI — close UI gaps (see project arc next).
 
 ---
 
