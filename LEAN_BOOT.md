@@ -56,11 +56,18 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 
 10. **Lesson retrieval** — Before executing, surface relevant lessons from prior sessions:
 
-   Distill the directive and card goal into 3–5 keywords (task domain, tools involved, key action). Call `mcp__aadp__memory_search` with `collection="lessons_learned"`, `n_results=5`, and those keywords as the query string.
+   POST to the stats server with the directive text and card goal:
 
-   For each result: if distance < 1.4 and it touches the current task domain, state "Applying lesson [id]: [title]" and honour it during execution. Keep a running list of applied lesson IDs — close-session will use them to increment `times_applied`.
+   ```
+   POST http://localhost:9100/inject_context_v3
+   Body: {"task_type": "design_and_build", "description": "<directive text + card goal summary>"}
+   ```
 
-   If the collection is empty or no result meets the threshold, continue without comment. One tool call maximum; do not iterate.
+   For each ID in the returned `lesson_ids`: state "Applying lesson [id]:" and honour it during execution. Keep a running list of applied IDs — close-session step 8 references this list. Note: inject_context_v3 increments `times_applied` server-side; close-session step 8 should skip the UPDATE for these IDs.
+
+   **Fallback** if stats server unreachable: run three `mcp__aadp__memory_search` calls with `collection=lessons_learned, n_results=5`: (1) raw directive keywords, (2) `"how to improve [domain]"`, (3) `"common failures in [domain]"`. For each result with distance < 1.4 that touches the task domain, apply and list. Close-session step 8 must increment these.
+
+   If no results apply, continue without comment.
 
 11. Execute the directive. Do not pause for confirmation.
 
