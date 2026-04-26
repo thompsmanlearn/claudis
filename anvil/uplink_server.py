@@ -7,7 +7,7 @@ import threading
 import time
 import requests
 import anvil.server
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 logging.basicConfig(
@@ -1002,6 +1002,43 @@ def submit_agent_feedback_v2(target_type, target_id, content):
     r.raise_for_status()
     log.info('agent_feedback_v2: target_type=%s target_id=%s', target_type, target_id)
     return {'submitted': True}
+
+
+@anvil.server.callable
+def get_research_counters():
+    """Return total articles, unreviewed count, and articles added in last 24h."""
+    # Total
+    r_total = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers={**_HEADERS, 'Prefer': 'count=exact'},
+        params={'select': 'id'},
+        timeout=10,
+    )
+    r_total.raise_for_status()
+    total = int(r_total.headers.get('Content-Range', '*/0').split('/')[-1])
+
+    # Unreviewed (status = 'new')
+    r_new = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers={**_HEADERS, 'Prefer': 'count=exact'},
+        params={'select': 'id', 'status': 'eq.new'},
+        timeout=10,
+    )
+    r_new.raise_for_status()
+    unreviewed = int(r_new.headers.get('Content-Range', '*/0').split('/')[-1])
+
+    # New in last 24h
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    r_recent = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers={**_HEADERS, 'Prefer': 'count=exact'},
+        params={'select': 'id', 'retrieved_at': f'gte.{cutoff}'},
+        timeout=10,
+    )
+    r_recent.raise_for_status()
+    last_24h = int(r_recent.headers.get('Content-Range', '*/0').split('/')[-1])
+
+    return {'total': total, 'unreviewed': unreviewed, 'last_24h': last_24h}
 
 
 @anvil.server.callable

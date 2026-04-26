@@ -3311,11 +3311,11 @@ def run_context_research(payload: dict = {}):
     PER_RUN_CAP = 10
 
     QUERIES = [
-        "context engineering for LLM agents",
-        "agent memory hot warm cold tier",
-        "Reflexion ExpeL agent self-improvement",
-        "agent bootstrapping context loading pattern",
-        "ChromaDB retrieval agent lessons learned",
+        "autonomous agent platform persistent memory",
+        "agent dashboard human in the loop",
+        "lessons-learned vector memory architecture",
+        "n8n LLM agent orchestration",
+        "Reflexion ExpeL agent system production",
     ]
 
     agent_run_id = str(_uuid.uuid4())
