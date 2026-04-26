@@ -3221,5 +3221,185 @@ def scout_youtube(payload: dict = {}):
     return JSONResponse({"results": results, "total": len(results)})
 
 
+def _fetch_page_text(url, max_chars=2000):
+    """Fetch a URL and return stripped plain text (best effort)."""
+    import re
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; AADP-Research/1.0)"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            ct = r.headers.get("Content-Type", "")
+            if "html" not in ct and "text" not in ct:
+                return ""
+            raw = r.read(20000).decode("utf-8", errors="ignore")
+        raw = re.sub(r'<(script|style)[^>]*>.*?</(script|style)>', '', raw, flags=re.DOTALL | re.IGNORECASE)
+        raw = re.sub(r'<[^>]+>', ' ', raw)
+        raw = re.sub(r'\s+', ' ', raw).strip()
+        return raw[:max_chars]
+    except Exception:
+        return ""
+
+
+def _summarize_article_haiku(title, url, raw_content, api_key):
+    """Generate a 2-3 paragraph summary of an article using Haiku."""
+    if not api_key:
+        return ""
+    prompt = (
+        f"Article title: {title}\n"
+        f"URL: {url}\n"
+        f"Content:\n{raw_content[:1500]}\n\n"
+        "Write a 2-3 paragraph summary (~150 words) covering:\n"
+        "1. What the article is about and its main claim\n"
+        "2. The key pattern or technique it describes\n"
+        "3. Why it might matter for a Reflexion-style agentic system with ChromaDB memory\n"
+        "No bullet points. Be concise."
+    )
+    payload = _json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 400,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = _json.loads(r.read())
+        return resp["content"][0]["text"].strip()
+    except Exception:
+        return ""
+
+
+def _log_research_error(env, node_name, error_message):
+    """Write a row to error_logs for a research agent fetch/insert failure."""
+    try:
+        url = f"{env['SUPABASE_URL']}/rest/v1/error_logs"
+        data = _json.dumps({
+            "workflow_id": "gzCSocUFNxTGIzSD",
+            "workflow_name": "context_engineering_research",
+            "node_name": (node_name or "unknown")[:255],
+            "error_type": "fetch_error",
+            "error_message": error_message,
+        }).encode()
+        req = urllib.request.Request(url, data=data, headers={
+            "apikey": env["SUPABASE_SERVICE_KEY"],
+            "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        }, method="POST")
+        with urllib.request.urlopen(req, timeout=8):
+            pass
+    except Exception:
+        pass
+
+
+@app.post("/run_context_research")
+def run_context_research(payload: dict = {}):
+    """Context engineering research agent. Runs hardcoded searches, summarizes with Haiku,
+    writes results to research_articles. Called by n8n webhook trigger."""
+    import uuid as _uuid
+    env = _read_env_simple()
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+
+    QUERIES = [
+        "context engineering for LLM agents",
+        "agent memory hot warm cold tier",
+        "Reflexion ExpeL agent self-improvement",
+        "agent bootstrapping context loading pattern",
+        "ChromaDB retrieval agent lessons learned",
+    ]
+
+    agent_run_id = str(_uuid.uuid4())
+    inserted = 0
+    skipped_dupe = 0
+    errors_logged = 0
+
+    for query in QUERIES:
+        candidates = []
+        hn_results = _fetch_hn(query, max_results=1)
+        if hn_results:
+            candidates.append(hn_results[0])
+        ax_results = _fetch_arxiv(query, max_results=1)
+        if ax_results:
+            candidates.append(ax_results[0])
+
+        for item in candidates:
+            url = item.get("url", "")
+            title = item.get("title", "")
+            if not url or not title:
+                continue
+
+            # Dedup: skip if URL already exists in research_articles
+            try:
+                existing = _sb_get(env, f"research_articles?url=eq.{urllib.parse.quote(url, safe='')}&select=id&limit=1")
+                if existing:
+                    skipped_dupe += 1
+                    continue
+            except Exception:
+                pass  # If check fails, proceed — insert will succeed as a new row
+
+            # arXiv results already carry the abstract; fetch page for HN/web sources
+            raw_content = item.get("summary", title)
+            if item.get("source") != "arXiv":
+                page_text = _fetch_page_text(url)
+                if page_text:
+                    raw_content = page_text
+                else:
+                    _log_research_error(env, url, "page fetch returned empty — using title fallback")
+                    errors_logged += 1
+
+            summary = _summarize_article_haiku(title, url, raw_content, api_key)
+            if not summary:
+                summary = raw_content[:500]
+
+            source = item.get("source", "")
+            try:
+                source = urllib.parse.urlparse(url).netloc.replace("www.", "") or source
+            except Exception:
+                pass
+
+            try:
+                _sb_upsert(env, "research_articles", {
+                    "agent_run_id": agent_run_id,
+                    "title": title,
+                    "url": url,
+                    "source": source,
+                    "summary": summary,
+                    "query_used": query,
+                    "provenance": "context_engineering_research_agent",
+                })
+                inserted += 1
+            except Exception as e:
+                _log_research_error(env, url, str(e))
+                errors_logged += 1
+
+    return JSONResponse({
+        "agent_run_id": agent_run_id,
+        "inserted": inserted,
+        "skipped_dupe": skipped_dupe,
+        "errors_logged": errors_logged,
+    })
+
+
+@app.post("/test_research_error_path")
+def test_research_error_path(payload: dict = {}):
+    """Verify error logging path works: tries to fetch an unreachable URL, logs the failure."""
+    env = _read_env_simple()
+    bad_url = payload.get("url", "http://definitely-does-not-exist.invalid/test-article")
+    page_text = _fetch_page_text(bad_url)
+    if not page_text:
+        _log_research_error(env, bad_url, "page fetch returned empty — test error injection")
+        return JSONResponse({"logged": True, "url": bad_url})
+    return JSONResponse({"logged": False, "note": "page fetch unexpectedly succeeded"})
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=9100, log_level="warning", access_log=False)
