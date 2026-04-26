@@ -72,3 +72,104 @@ Touch:
 Do not touch:
 - ~/aadp/mcp-server/.claude/skills/ contents (live copies stay where Claude Code expects them)
 - Skill file content (copy as-is; content changes are separate work)
+
+B-061: Generalize Export across all dashboard tabs
+
+Status: ready
+Depends on: B-057 (Research bundle export pattern), B-060 (feedback thread rendering)
+
+Goal
+Every meaningful tab in the Anvil dashboard gets an Export button that copies a structured markdown bundle of the current view's state to the clipboard, ready to paste into a desktop Claude session for analysis. This generalizes the pattern proven by B-057 (Research bundle export) so Bill can ask desktop Claude to analyze any part of the system he doesn't yet understand — Lessons, Memory, Sessions, Fleet, Errors, Skills, Artifacts.
+
+Context
+B-057 built get_research_bundle() and an Export button on the Research tab. Bill confirmed the pattern works end-to-end (export → paste to desktop Claude → desktop Claude analyzes → revised guidance flows back as Claude Code direction). The pattern needs to generalize so Bill is not limited to research as the only thing he can analyze.
+
+Each domain bundle is a markdown blob with YAML frontmatter and structured sections. The format adapts to the domain but follows a consistent shell:
+
+  ---
+  bundle_type: <domain>
+  generated_at: <iso8601 utc>
+  view_filter: <whatever filter the user had applied>
+  row_count: N
+  ---
+
+  ## Summary
+  Short paragraph describing what's in this bundle and what desktop Claude
+  can usefully do with it.
+
+  ## <Domain-specific sections>
+  ...
+
+  ## Recently Resolved Feedback
+  (when applicable — pulled from agent_feedback for this domain)
+
+The "Summary" section is small but important: it tells desktop Claude the shape of the data and the kind of analysis Bill might want. For example, the Lessons bundle's summary should say "Use these to identify lessons that are stale, duplicated, poorly worded, or never relevant."
+
+Concrete changes per tab:
+
+LESSONS TAB
+Callable: get_lessons_bundle(filter='recent', limit=50)
+Honors current filter: recent / top_used / never_applied / broken / search.
+Includes per-lesson: id, title, category, content (truncated to ~500 chars with "[truncated]" marker if longer), confidence, times_applied, created_at, age_days, chromadb_id present yes/no.
+Summary section: explains the filter view and what to look for (Bill flagged Never Applied as confusing — the bundle should make that view legible to desktop Claude).
+
+MEMORY TAB
+Callable: get_memory_bundle(collection=None)
+If collection=None: returns a bundle of collection stats (name, doc count, sample document titles or first 100 chars).
+If collection specified: returns up to 30 documents from that collection with their metadata.
+Summary section: tells desktop Claude this is a snapshot for assessing collection health, retrieval quality, or cruft.
+
+SESSIONS TAB
+Callable: get_sessions_bundle(limit=10)
+Recent session artifacts in chronological order.
+For each: filename, date, directive, what changed (first 3 bullets), what was learned (first 3 bullets), unfinished items.
+Summary section: framed for retrospectives ("which sessions ran well, which got stuck, are there patterns").
+
+FLEET TAB
+Callable: get_fleet_bundle()
+All agents grouped by status (active, paused, retired, building, sandbox, broken).
+For each: name, description, schedule, last update, recent feedback count, recent feedback content (last 3 items with their action_summary).
+Summary section: framed for fleet health review and finding dead-weight agents.
+
+ERRORS VIEW (Memory tab → Error Log)
+Callable: get_errors_bundle()
+Unresolved errors with full context: workflow, node, error_type, error_message, timestamp, age_hours.
+Summary section: framed for triage ("which need immediate attention, which are noise").
+
+SKILLS TAB
+Callable: get_skills_bundle()
+All skills with: name, trigger keywords, times_loaded, last_loaded, content excerpt (first 500 chars).
+Summary section: framed for assessing skill coverage and retrieval triggering quality.
+
+ARTIFACTS TAB
+Callable: get_artifacts_bundle(agent_name=None, artifact_type=None, limit=30)
+Honors current filter.
+Per artifact: agent, type, created_at, content excerpt, rating, comment.
+Summary section: framed for output quality review.
+
+Each tab gets a ⬇ Export button in its header next to existing controls. Click → calls the appropriate get_X_bundle() callable → tries clipboard write → falls back to a TextArea modal if clipboard not available, matching the Research tab pattern.
+
+Done when
+- 7 new uplink callables registered (lessons, memory, sessions, fleet, errors, skills, artifacts)
+- Each tab has a working Export button
+- All bundles include the consistent header (bundle_type, generated_at, filter, row_count) and a Summary section
+- Bundles for tabs that have associated agent_feedback rows include a "Recently Resolved Feedback" section
+- A test export from each tab, pasted into a markdown viewer, renders cleanly with no broken structure
+- Branch attempt/b061-export-generalize on both repos, merged to main/master, pushed
+
+Scope
+Touch:
+  ~/aadp/claudis/anvil/uplink_server.py — add 7 new callables
+  ~/aadp/claude-dashboard/client_code/Form1/__init__.py — add Export buttons to 7 tabs
+
+Do not touch:
+  Database schema (no new tables or columns)
+  Existing callables (additive only)
+  Bundle ingestion path (this is export only — re-import is a future card)
+  Domain-specific Trigger buttons (those are B-062+)
+
+Notes
+- Keep bundle sizes reasonable. Truncate long content with markers. The goal is paste-into-chat usable, not exhaustive — desktop Claude can ask follow-up questions.
+- Match the Research tab's clipboard-then-fallback pattern exactly. Don't reinvent.
+- Skip tabs that genuinely have no useful export shape. If you decide a tab doesn't merit one, document why in the session artifact rather than building a useless button.
+- The "Summary" section for each bundle is the smallest and most overlooked part. Get it right — it's what makes desktop Claude useful immediately rather than spending the first paragraph asking what kind of analysis Bill wants.
