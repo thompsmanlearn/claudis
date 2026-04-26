@@ -40,6 +40,50 @@ All gaps from the original project arc are closed as of 2026-04-25:
 
 ---
 
+## Context engineering research schema (B-054, 2026-04-25)
+
+Two tables created for the research micro-version (Cards 1 of 6). No foreign key between them — intentionally loose for v1.
+
+### `research_articles`
+
+| Column | Type | Default | Notes |
+|--------|------|---------|-------|
+| `id` | uuid PK | gen_random_uuid() | |
+| `agent_run_id` | uuid | null | Groups articles from one agent invocation; not a FK |
+| `title` | text NOT NULL | | |
+| `url` | text NOT NULL | | |
+| `source` | text | null | Domain or publication name |
+| `summary` | text | null | 1–3 paragraphs written by the agent |
+| `query_used` | text | null | Search query that surfaced the article |
+| `retrieved_at` | timestamptz | now() | |
+| `rating` | smallint | 0 | -1 thumbs down, 0 unrated, 1 thumbs up |
+| `comment` | text | null | Bill's free-text comment |
+| `status` | text | 'new' | new / reviewed / archived |
+| `provenance` | text | 'context_engineering_research_agent' | Free text; standardize later |
+
+Indexes: `agent_run_id` (group queries), `status` (filter active/archived). RLS enabled.
+
+### `agent_feedback`
+
+Generic table — reusable by any agent or Anvil view.
+
+| Column | Type | Default | Notes |
+|--------|------|---------|-------|
+| `id` | uuid PK | gen_random_uuid() | |
+| `target_type` | text NOT NULL | | e.g. 'agent', 'anvil_view', 'lesson', 'card' |
+| `target_id` | text NOT NULL | | Name or ID of the target |
+| `content` | text NOT NULL | | The feedback itself |
+| `created_at` | timestamptz | now() | |
+| `processed` | boolean | false | Flipped to true when a session has acted on it |
+| `processed_at` | timestamptz | null | |
+| `processed_in_session` | text | null | Session artifact filename or commit SHA |
+
+Index: `(target_type, target_id, processed)` — primary read pattern is unprocessed feedback for a target. RLS enabled.
+
+**Note:** The pre-existing `agent_feedback` table (different schema: agent_name/rating/comment, 0 rows) was dropped and recreated with this spec.
+
+---
+
 ## Uplink callable inventory (35)
 
 Those NOT wired to any UI tab are marked *.
