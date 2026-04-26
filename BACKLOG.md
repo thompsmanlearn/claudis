@@ -60,3 +60,57 @@ Verification checklist:
 - Branch attempt/b055-research-agent, merged to main, pushed
 
 Notes: This is the largest card in the micro-version. If the search node isn't wired, stop early and report — it's a precondition Bill needs to provide before the agent can work. Haiku for summarization keeps token cost low; if the existing Haiku integration uses a different model, use whatever's already wired. The dedup check is intentional — without it, repeated runs flood the table. The summary prompt should err toward concise (~150 words) rather than comprehensive; this is meant to be skim-able, not a replacement for reading the article.
+
+B-056: Anvil Research tab with on-demand button and feedback loops
+
+Goal: Add a Research tab to the Anvil dashboard that displays articles from research_articles, lets Bill rate and comment on each, exposes two feedback boxes (one for the agent, one for the UI), and includes a "Run research" button that invokes the context_engineering_research agent on demand.
+
+Rationale: Card 3 of 6 in the research micro-version. Cards 1 and 2 created the schema and the agent. This card creates the surface where Bill actually uses them. After this card, Bill can press a button, see articles appear, rate them, leave feedback for the agent and the UI, and have all of that persist in Supabase. Cards 4-6 (embed, export, boot integration) build on this view.
+
+Scope:
+
+1. New Anvil tab "Research" — added to the existing tab structure in ~/aadp/claude-dashboard/client_code/Form1/__init__.py, following the same programmatic-build pattern as the existing tabs. Place between Memory and Skills, or wherever fits the existing nav order best.
+
+2. Tab layout, top to bottom:
+   - Header row: title "Research" on the left, "▶ Run research" button on the right.
+   - Status line below the button showing last run timestamp and article count from the most recent run (e.g., "Last run: 2026-04-25 14:32 — 10 articles"). Refreshes when the tab loads and after a Run completes.
+   - Articles section: cards grouped by agent_run_id, newest run first. Each run is collapsible; the newest run is expanded by default, older runs collapsed.
+   - Feedback section at the bottom with two TextBoxes side by side: "Feedback for the agent" and "Feedback for this UI", each with a Submit button below it.
+
+3. Article cards. Each article shows: title (link to URL, opens in new tab), source domain, query_used as a small tag, summary, then an action row with: 👍 button, 👎 button, comment TextBox, status dropdown (new / reviewed / archived). The 👍/👎 buttons set rating to 1 or -1; clicking the same button again resets to 0. The comment TextBox saves on blur (or via a small Save button — pick whichever matches the existing pattern in the Artifacts tab). The status dropdown writes through immediately on change.
+
+4. "Run research" button. Calls invoke_agent('context_engineering_research') via the existing callable. Shows "Triggering…" state while in flight, then "✅ Triggered — articles arriving" on success or "❌ {error}" on failure. After a successful trigger, poll research_articles every 5 seconds for up to 60 seconds; when new rows appear, reload the article section. If 60 seconds elapses with no new rows, show "No new articles yet — refresh manually" and stop polling.
+
+5. Feedback submission. Each Submit button writes a row to agent_feedback. For "Feedback for the agent": target_type='agent', target_id='context_engineering_research', content=<TextBox value>. For "Feedback for this UI": target_type='anvil_view', target_id='research_tab', content=<TextBox value>. After submit: clear the TextBox, show "✅ Saved" feedback inline for ~3 seconds, fade away.
+
+6. New uplink callables in ~/aadp/claudis/anvil/uplink_server.py:
+   - get_research_articles(limit=50) — returns articles ordered by retrieved_at desc, joined or grouped client-side by agent_run_id. Include all columns the UI needs.
+   - rate_research_article(article_id, rating) — updates rating, returns the updated row.
+   - comment_research_article(article_id, comment) — updates comment.
+   - set_research_article_status(article_id, status) — updates status. Validate status is one of new/reviewed/archived.
+   - submit_agent_feedback_v2(target_type, target_id, content) — writes to agent_feedback. Named v2 to avoid colliding with the existing submit_agent_feedback callable for agent thumbs up/down.
+   - get_research_run_summary() — returns the most recent agent_run_id and its article count and timestamp, for the status line.
+
+7. Restart the uplink (sudo systemctl restart aadp-anvil) after adding callables. Confirm reconnection in the journal log.
+
+8. Verify:
+   - Tab loads, shows existing articles from the B-055 test run.
+   - Rating, commenting, status changes persist (refresh the page; values stick).
+   - "Run research" button triggers the agent; new articles appear within 60 seconds.
+   - Both feedback boxes write rows to agent_feedback with correct target_type / target_id.
+   - Feedback rows are visible via supabase_exec_sql or Memory tab.
+
+Out of scope: GitHub site embedding (Card 4), markdown bundle export (Card 5), boot-time feedback pickup (Card 6), filtering or search within the article list (later if needed), bulk operations on articles (later if needed), parameterizing the search queries (Card 5 territory at earliest).
+
+Verification checklist:
+- Research tab visible and loads cleanly
+- Article cards render with all fields
+- Rating buttons toggle correctly (cycle through -1/0/1)
+- Comment box saves and persists
+- Status dropdown writes through immediately
+- Run button triggers the agent and surfaces new articles
+- Both feedback boxes write to agent_feedback with correct target_type/target_id
+- All 6 new callables registered, uplink restarted cleanly
+- Branch attempt/b056-research-tab on both claudis and claude-dashboard, merged to master/main, pushed
+
+Notes: This card is medium-large because it touches both the uplink server and the dashboard form. Follow the patterns already established by the Artifacts tab (which has very similar mechanics: cards with ratings and comments) and the Fleet Run button (per-agent invocation). Don't reinvent UI primitives — reuse the existing FlowPanel/Button/TextBox patterns. The 60-second polling timeout is a soft cap; if the agent typically takes longer, raise it. The submit_agent_feedback_v2 naming is awkward but avoids breaking the existing thumbs-up callable; we can rename later if the existing one is retired.
