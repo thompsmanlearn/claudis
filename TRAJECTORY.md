@@ -9,20 +9,22 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
-- Fleet: 9 active agents (10th — autonomous_growth_scheduler — paused); `webhook_url` column added, 3 on-demand agents populated
+- Fleet: 10 active agents (11th — autonomous_growth_scheduler — paused); context_engineering_research added (B-055), on-demand research agent writing to research_articles
 - Boot chain: 11 steps — live-state ping (step 9), lesson retrieval from ChromaDB (step 10), execute (step 11)
 - Anvil UI complete: 35 callables, all 5 UI gaps closed; dashboard covers fleet, sessions, lessons, memory, skills, artifacts
-- ChromaDB loop: boot step 10 confirmed working on LEAN_BOOT path; coverage gap found — step 10 absent from Bill-initiated (bootstrap) sessions. lesson_injector is the primary incrementer (counts 8–30, valid). B-053 queued to close the coverage gap.
+- research_articles + agent_feedback schema live (B-054). Research agent live (B-055). Cards 3–6 of the research micro-version remain.
+- ChromaDB loop: boot step 10 coverage gap (B-053) still open — absent from Bill-initiated sessions.
 
-**Project arc next:** Fix boot step 10 coverage gap (B-053), then validate the full loop closes across both entry paths. GT-4/GT-5 lesson rewrites pending. After loop is verified end-to-end, move toward ChromaDB semantic retrieval for research pipeline.
+**Project arc next:** B-053 (add step 10 to bootstrap skill). After that: Card 3 of research micro-version (Anvil view + Run button for context_engineering_research). GT-4/GT-5 lesson rewrites still pending.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-04-25:** B-052 complete. Primary finding: boot step 10 (lesson retrieval) absent from all Bill-initiated sessions — coverage gap. lesson_injector accounts for all existing times_applied counts (8–30, valid, Sentinel path). Boot 2/5 GT vs injector 3/5 GT; Haiku expansion is the delta. GT-4 and GT-5 missed by both: lesson write quality issue (titles don't embed near retrieval-quality queries).
-- **Next action:** Execute B-053 — add step 10 to bootstrap skill + switch boot query to Haiku expansion. DIRECTIVES.md set to `Run: B-053`.
-- **Watch:** After B-053, run a Bill-initiated session and confirm audit_log shows memory_search at boot and close-session step 8 increments at least one lesson.
+**2026-04-26:** B-055 complete. context_engineering_research agent built: stats_server /run_context_research, n8n webhook trigger, Haiku summarization, dedup by URL, error_logs integration. Search via HN Algolia + arXiv (no external search API key required). 2 articles from first run; dedup confirmed on second run; error path verified. Branch merged, pushed.
+- **Next action:** B-053 — add step 10 to bootstrap skill. Then Card 3 of research micro-version (Anvil Run button + view).
+
+**2026-04-25:** B-052 complete. Primary finding: boot step 10 (lesson retrieval) absent from all Bill-initiated sessions — coverage gap. lesson_injector accounts for all existing times_applied counts (8–30, valid, Sentinel path).
 
 **2026-04-25:** B-048 complete. LEAN_BOOT is now the single boot path; live-state ping runs at step 9 before execute. developer_context_load deprecated; session_notes archived.
 
