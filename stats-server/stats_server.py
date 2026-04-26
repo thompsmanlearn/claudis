@@ -3308,6 +3308,7 @@ def run_context_research(payload: dict = {}):
     import uuid as _uuid
     env = _read_env_simple()
     api_key = env.get("ANTHROPIC_API_KEY", "")
+    PER_RUN_CAP = 10
 
     QUERIES = [
         "context engineering for LLM agents",
@@ -3318,73 +3319,76 @@ def run_context_research(payload: dict = {}):
     ]
 
     agent_run_id = str(_uuid.uuid4())
-    inserted = 0
-    skipped_dupe = 0
-    errors_logged = 0
 
+    # Phase 1: collect all candidates across all queries (5 HN + 5 arXiv per query)
+    seen_in_batch = set()
+    candidates = []  # list of (item, query)
     for query in QUERIES:
-        candidates = []
-        hn_results = _fetch_hn(query, max_results=1)
-        if hn_results:
-            candidates.append(hn_results[0])
-        ax_results = _fetch_arxiv(query, max_results=1)
-        if ax_results:
-            candidates.append(ax_results[0])
-
-        for item in candidates:
+        for item in _fetch_hn(query, max_results=5) + _fetch_arxiv(query, max_results=5):
             url = item.get("url", "")
             title = item.get("title", "")
-            if not url or not title:
-                continue
+            if url and title and url not in seen_in_batch:
+                seen_in_batch.add(url)
+                candidates.append((item, query))
 
-            # Dedup: skip if URL already exists in research_articles
-            try:
-                existing = _sb_get(env, f"research_articles?url=eq.{urllib.parse.quote(url, safe='')}&select=id&limit=1")
-                if existing:
-                    skipped_dupe += 1
-                    continue
-            except Exception:
-                pass  # If check fails, proceed — insert will succeed as a new row
+    # Phase 2: batch dedup against existing research_articles
+    try:
+        existing_rows = _sb_get(env, "research_articles?select=url&limit=2000")
+        existing_urls = {row["url"] for row in existing_rows}
+    except Exception:
+        existing_urls = set()
 
-            # arXiv results already carry the abstract; fetch page for HN/web sources
-            raw_content = item.get("summary", title)
-            if item.get("source") != "arXiv":
-                page_text = _fetch_page_text(url)
-                if page_text:
-                    raw_content = page_text
-                else:
-                    _log_research_error(env, url, "page fetch returned empty — using title fallback")
-                    errors_logged += 1
+    fresh = [(item, q) for item, q in candidates if item.get("url") not in existing_urls]
+    skipped_dupe = len(candidates) - len(fresh)
+    capped = max(0, len(fresh) - PER_RUN_CAP)
 
-            summary = _summarize_article_haiku(title, url, raw_content, api_key)
-            if not summary:
-                summary = raw_content[:500]
+    # Phase 3: summarize and insert up to cap
+    inserted = 0
+    errors_logged = 0
 
-            source = item.get("source", "")
-            try:
-                source = urllib.parse.urlparse(url).netloc.replace("www.", "") or source
-            except Exception:
-                pass
+    for item, query in fresh[:PER_RUN_CAP]:
+        url = item.get("url", "")
+        title = item.get("title", "")
 
-            try:
-                _sb_upsert(env, "research_articles", {
-                    "agent_run_id": agent_run_id,
-                    "title": title,
-                    "url": url,
-                    "source": source,
-                    "summary": summary,
-                    "query_used": query,
-                    "provenance": "context_engineering_research_agent",
-                })
-                inserted += 1
-            except Exception as e:
-                _log_research_error(env, url, str(e))
+        raw_content = item.get("summary", title)
+        if item.get("source") != "arXiv":
+            page_text = _fetch_page_text(url)
+            if page_text:
+                raw_content = page_text
+            else:
+                _log_research_error(env, url, "page fetch returned empty — using title fallback")
                 errors_logged += 1
+
+        summary = _summarize_article_haiku(title, url, raw_content, api_key)
+        if not summary:
+            summary = raw_content[:500]
+
+        source = item.get("source", "")
+        try:
+            source = urllib.parse.urlparse(url).netloc.replace("www.", "") or source
+        except Exception:
+            pass
+
+        try:
+            _sb_upsert(env, "research_articles", {
+                "agent_run_id": agent_run_id,
+                "title": title,
+                "url": url,
+                "source": source,
+                "summary": summary,
+                "query_used": query,
+                "provenance": "context_engineering_research_agent",
+            })
+            inserted += 1
+        except Exception as e:
+            _log_research_error(env, url, str(e))
+            errors_logged += 1
 
     return JSONResponse({
         "agent_run_id": agent_run_id,
         "inserted": inserted,
         "skipped_dupe": skipped_dupe,
+        "capped": capped,
         "errors_logged": errors_logged,
     })
 
