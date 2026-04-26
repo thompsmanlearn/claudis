@@ -1005,6 +1005,40 @@ def submit_agent_feedback_v2(target_type, target_id, content):
 
 
 @anvil.server.callable
+def get_feedback_threads():
+    """Return pending and recently resolved feedback for thread display in the Research tab."""
+    r1 = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers=_HEADERS,
+        params={
+            'select': 'id,target_type,target_id,content,created_at,action_summary,action_session,action_result_url',
+            'or': '(processed.is.null,processed.eq.false)',
+            'order': 'created_at.asc',
+        },
+        timeout=10,
+    )
+    r1.raise_for_status()
+    pending = r1.json()
+
+    r2 = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers=_HEADERS,
+        params={
+            'select': 'id,target_type,target_id,content,created_at,action_summary,action_session,action_result_url,processed_at',
+            'processed': 'eq.true',
+            'order': 'processed_at.desc',
+            'limit': '10',
+        },
+        timeout=10,
+    )
+    r2.raise_for_status()
+    resolved = r2.json()
+
+    log.info('get_feedback_threads: pending=%d resolved=%d', len(pending), len(resolved))
+    return {'pending': pending, 'resolved': resolved}
+
+
+@anvil.server.callable
 def get_research_counters():
     """Return total articles, unreviewed count, and articles added in last 24h."""
     # Total
@@ -1147,7 +1181,7 @@ def get_research_bundle(agent_run_id=None):
         f'{_SUPABASE_URL}/rest/v1/agent_feedback',
         headers=_HEADERS,
         params={
-            'select': 'target_type,target_id,content,created_at',
+            'select': 'target_type,target_id,content,created_at,action_summary,action_session,action_result_url',
             'target_type': 'in.(agent,anvil_view)',
             'or': '(processed.is.null,processed.eq.false)',
             'order': 'created_at.asc',
@@ -1163,11 +1197,55 @@ def get_research_bundle(agent_run_id=None):
             fb_type = fb.get('target_type') or ''
             fb_target = fb.get('target_id') or ''
             fb_content = fb.get('content') or ''
+            fb_summary = fb.get('action_summary')
+            fb_session = fb.get('action_session')
+            fb_url = fb.get('action_result_url')
             lines.append(f'- [{fb_type}: {fb_target}] {fb_content}')
+            if fb_summary is not None:
+                icon = '⏸' if fb_summary.startswith('Deferred:') else '✅'
+                lines.append(f'  {icon} {fb_summary}')
+                if fb_session:
+                    lines.append(f'  Session: {fb_session}')
+                if fb_url:
+                    lines.append(f'  Result: {fb_url}')
         lines.append('')
 
-    log.info('get_research_bundle: run_id=%s articles=%d pending_feedback=%d',
-             agent_run_id, article_count, len(pending))
+    # Recently resolved feedback (last 10 processed items)
+    r3 = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers=_HEADERS,
+        params={
+            'select': 'target_type,target_id,content,action_summary,action_session,action_result_url,processed_at',
+            'processed': 'eq.true',
+            'order': 'processed_at.desc',
+            'limit': '10',
+        },
+        timeout=10,
+    )
+    r3.raise_for_status()
+    resolved = r3.json()
+
+    if resolved:
+        lines += ['## Recently Resolved Feedback', '']
+        for fb in resolved:
+            fb_type = fb.get('target_type') or ''
+            fb_target = fb.get('target_id') or ''
+            fb_content = fb.get('content') or ''
+            fb_summary = fb.get('action_summary')
+            fb_session = fb.get('action_session')
+            fb_url = fb.get('action_result_url')
+            lines.append(f'- [{fb_type}: {fb_target}] {fb_content}')
+            if fb_summary is not None:
+                icon = '⏸' if fb_summary.startswith('Deferred:') else '✅'
+                lines.append(f'  {icon} {fb_summary}')
+                if fb_session:
+                    lines.append(f'  Session: {fb_session}')
+                if fb_url:
+                    lines.append(f'  Result: {fb_url}')
+        lines.append('')
+
+    log.info('get_research_bundle: run_id=%s articles=%d pending_feedback=%d resolved_feedback=%d',
+             agent_run_id, article_count, len(pending), len(resolved))
     return '\n'.join(lines)
 
 
