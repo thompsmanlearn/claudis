@@ -198,9 +198,15 @@ def invoke_agent(agent_name):
     webhook_url = row.get('webhook_url')
     if not webhook_url:
         raise Exception(f'Agent "{agent_name}" has no webhook URL configured.')
-    resp = requests.post(webhook_url, json={}, timeout=15)
-    resp.raise_for_status()
-    log.info('Agent %s invoked via %s', agent_name, webhook_url)
+    def _fire():
+        try:
+            resp = requests.post(webhook_url, json={}, timeout=120)
+            log.info('Agent %s webhook completed: %d', agent_name, resp.status_code)
+        except Exception as e:
+            log.warning('Agent %s webhook error: %s', agent_name, e)
+
+    threading.Thread(target=_fire, daemon=True, name=f'invoke-{agent_name}').start()
+    log.info('Agent %s invoke fired (fire-and-forget)', agent_name)
     return {'triggered': True, 'agent': agent_name}
 
 
