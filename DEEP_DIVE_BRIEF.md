@@ -170,7 +170,7 @@ Either alone is a broken lesson. chromadb_id links the two records.
 ---
 
 ## 4. Current Project: Anvil Dashboard
-*Last updated: 2026-04-19*
+*Last updated: 2026-04-26*
 
 ### Status: Live and Operational
 
@@ -195,7 +195,6 @@ The Anvil dashboard is live. B-026 through B-041 are all complete as of 2026-04-
 - Uplink connection watchdog (B-031) — watchdog hits localhost:9101/ping; systemd restarts if unhealthy
 
 **Not yet done:**
-- Feedback loop consumer (agent_feedback table is being written to but nothing reads it yet)
 - Phone capabilities (camera, geolocation, push notifications)
 - Protected agent indicator in UI (⚠️ icon for agents flagged as protected)
 
@@ -248,12 +247,21 @@ A Claude Code skill reference exists at `skills/anvil/REFERENCE.md` — loaded a
 | `get_artifacts(agent_name, artifact_type, limit)` | Supabase `agent_artifacts` | Read |
 | `get_autonomous_mode()` | n8n API + Supabase `system_config` | Read |
 | `set_agent_status(agent_name, status)` | Supabase `agent_registry` PATCH | Write |
-| `submit_agent_feedback(agent_name, rating, comment)` | Supabase `agent_feedback` POST | Write |
+| `submit_agent_feedback(agent_name, rating, comment)` | Supabase `agent_feedback` POST — ⚠️ predates B-054 schema; verify mapping to target_type/target_id/content | Write |
 | `approve_inbox_item(item_id)` | Supabase `inbox` PATCH | Write |
 | `deny_inbox_item(item_id)` | Supabase `inbox` PATCH | Write |
 | `trigger_lean_session()` | stats_server `/trigger_lean` | Write |
 | `write_directive(text)` | claudis git → DIRECTIVES.md | Write |
 | `set_autonomous_mode(enabled)` | n8n API activate/deactivate + Supabase `system_config` | Write |
+| `invoke_agent(agent_name)` | agent webhook (fire-and-forget background thread) | Write |
+| `get_research_articles(limit)` | Supabase `research_articles` ordered by retrieved_at desc | Read |
+| `rate_research_article(article_id, rating)` | Supabase `research_articles` PATCH | Write |
+| `comment_research_article(article_id, comment)` | Supabase `research_articles` PATCH | Write |
+| `set_research_article_status(article_id, status)` | Supabase `research_articles` PATCH (new/reviewed/archived) | Write |
+| `submit_agent_feedback_v2(target_type, target_id, content)` | Supabase `agent_feedback` POST | Write |
+| `get_research_run_summary()` | Supabase `research_articles` — most recent run stats | Read |
+| `get_research_bundle(agent_run_id)` | Supabase `research_articles` + `agent_feedback` — markdown export | Read |
+| `get_research_counters()` | Supabase `research_articles` — total/unreviewed/new-24h counts | Read |
 
 ### Architecture Decision Record
 
@@ -270,7 +278,7 @@ These aren't UI improvements — they make the system's boundary with the physic
 ---
 
 ## 5. Capabilities Inventory
-*Last updated: 2026-04-19*
+*Last updated: 2026-04-26*
 
 This section tracks what the system as a whole can actually accomplish today. This is distinct from the skills list (what Claude Code knows how to do) and the agent fleet (what's deployed). Capabilities are end-to-end outcomes.
 
@@ -309,6 +317,12 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Daily weather forecast
 - Serendipity engine (Wikipedia On This Day synthesis — paused)
 
+**Research:**
+- On-demand research runs via Anvil "Run research" button (`context_engineering_research` agent)
+- Article review: rate (👍/👎), comment, and status-track articles in Anvil Research tab
+- Bundle export: one-click markdown export of a run (articles + ratings + pending feedback) for desktop analysis
+- Boot-time feedback pickup: both LEAN_BOOT and bootstrap surface unprocessed `agent_feedback` rows at session start
+
 **Dashboard & Governance (Anvil + GitHub Pages):**
 - View system status, agent fleet, work queue, inbox from any browser
 - Activate/pause agents from dashboard
@@ -317,6 +331,7 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Submit per-agent thumbs-up/thumbs-down feedback with comments
 - Browse sessions, lessons, memory, skills, artifacts in dashboard tabs
 - Toggle autonomous mode (scheduler + auto-cycle) from dashboard and site
+- Research tab: run agent, review articles, leave directional feedback for agent and UI
 
 **GitHub Pages Site (https://thompsmanlearn.github.io):**
 - 6-page site generated from live Supabase data: Home, Fleet, Capabilities, Architecture, Sessions, Direction
@@ -331,15 +346,14 @@ This section tracks what the system as a whole can actually accomplish today. Th
 
 ### Not Yet Working or Unverified
 
-- Feedback loop consumer (agent_feedback table written but not read)
 - Autonomous task decomposition
-- Capabilities table in Supabase (may be empty)
+- Capabilities table in Supabase (may be partially populated)
 - Protected agent indicator in dashboard UI
 
 ---
 
 ## 6. System Health and Review
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-26*
 
 ### The Governance Gap — Partially Closed
 
@@ -351,10 +365,8 @@ The Anvil dashboard now provides the review surface that was previously missing.
 - Feedback capture (thumbs up/down + comments) per agent
 
 **Remaining governance gaps:**
-- **Feedback not consumed.** The `agent_feedback` table captures ratings and comments but nothing reads them. A periodic review agent should surface thumbs-down patterns.
-- **Capabilities table still unverified.** May be empty.
+- **Capabilities table still unverified.** May be partially populated.
 - **Lesson quality decay.** Lessons accumulate but there's no curation.
-- **Research agent value unclear.** Research agents run daily but nobody checks whether what they surface is actually useful to Bill.
 - **Sandbox blockage partially resolved.** Agent approval now possible via Anvil inbox, but the flow hasn't been tested end-to-end with a real sandbox agent.
 
 ### What Review Looks Like
@@ -370,7 +382,7 @@ Periodically (cadence TBD — every few sessions or weekly), a desktop session s
 ---
 
 ## 7. Technical Architecture
-*Last updated: 2026-04-19*
+*Last updated: 2026-04-26*
 
 ### Services Map
 
@@ -474,7 +486,9 @@ Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → l
 
 **agent_registry** — id (uuid), agent_name (unique), display_name, agent_type, description, status (active/paused/retired/building/broken/sandbox), input_types/output_types/data_sources (text[]), schedule, workflow_id, performance_metrics (jsonb), protected (bool), telegram_command, created_at, updated_at
 
-**agent_feedback** — id (uuid), agent_name (text), rating (int, CHECK IN (1,-1)), comment (text nullable), created_at (timestamptz). Created 2026-04-18. No consumer yet — data is captured but not acted on.
+**research_articles** — id (uuid), agent_run_id (uuid, groups articles from one run), title (text), url (text), source (text, domain), summary (text), query_used (text), retrieved_at (timestamptz), rating (smallint, default 0: -1/0/1), comment (text), status (text, default 'new': new/reviewed/archived), provenance (text, default 'context_engineering_research_agent'). Index on agent_run_id and status.
+
+**agent_feedback** — id (uuid), target_type (text, not null, e.g. 'agent', 'anvil_view', 'lesson', 'card'), target_id (text, not null), content (text, not null), created_at (timestamptz), processed (boolean, nullable), processed_at (timestamptz, nullable), processed_in_session (text, nullable, session artifact filename or card ID). Index on (target_type, target_id, processed). Boot-time pickup: LEAN_BOOT step 10 and bootstrap step 3 query unprocessed rows and surface them in the session summary. Acting on feedback sets processed=true immediately; surfacing ≠ acting.
 
 **lessons_learned** — id (uuid), title, category, content, confidence (float, default 0.5), times_applied (int, default 0), source (default sentinel), created_at, updated_at, chromadb_id (text). NULL chromadb_id = invisible to semantic search.
 
@@ -537,7 +551,7 @@ Store sync validation: `SELECT COUNT(*) FROM lessons_learned WHERE chromadb_id I
 ---
 
 ## 8. Agent Fleet
-*Last updated: 2026-04-22*
+*Last updated: 2026-04-26*
 
 **Lifecycle:** `building` → `sandbox` → (behavioral_health_check + 4-Pillars evaluation) → `active` OR `retired/paused`
 
@@ -573,7 +587,7 @@ All paused agents can be reactivated from the Anvil dashboard.
 | research_synthesis_agent | JUBCbXJe3TwwpB2T | Sunday 14:00 UTC | Weekly synthesis of research corpus. **PROTECTED.** |
 | arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | Mon/Wed/Fri 15:00 UTC | arXiv preprints → research_findings + research_papers. **PROTECTED.** |
 | architecture_review | 7mVc61pDCIObJFos | Biweekly Sunday 16:00 UTC | Research findings → design decisions → work_queue items. |
-| github_weekly_search | — | Sunday 6AM UTC | GitHub API for MCP/agent repos. |
+| context_engineering_research | (see agent_registry) | On-demand webhook | Web search → summarize → write to research_articles. 5 broad queries, 10-article cap, URL dedup. |
 
 ### Platform Infrastructure Agents
 
@@ -581,7 +595,7 @@ All paused agents can be reactivated from the Anvil dashboard.
 |---|---|---|---|
 | lesson_injector | MFmk28ijs1wMig7h | webhook | Context injection before sessions. **PROTECTED.** |
 | session_health_reporter | 5x6G8gFlCxX0YKdM | webhook | Post-sentinel-session artifact to GitHub. **PROTECTED.** |
-| autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h | Queues explore/build/research tasks (autonomous mode only). Toggle via Anvil. **PROTECTED.** |
+| autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h (deactivated) | Queues explore/build/research tasks (autonomous mode only). Toggle via Anvil. **PROTECTED.** Bill reactivates manually — never auto-reactivate. |
 
 ### n8n Credential IDs
 - Telegram credential ID: y4YfKWpm20Z9sw7G
@@ -685,13 +699,11 @@ Before ending a desktop session:
 ---
 
 ## 12. Known Gaps and Fragilities
-*Last updated: 2026-04-19*
+*Last updated: 2026-04-26*
 
 **Anvil uplink silent disconnects.** The websocket can die without the systemd service noticing. Restart=always only catches crashes. B-031 adds a watchdog. Until then, if the dashboard stops responding, `sudo systemctl restart aadp-anvil.service` fixes it.
 
 **anvil-uplink 0.7.0 tracer crash.** Must call `set_internal_tracer_provider(TracerProvider())` before any RPC dispatch or the handler thread crashes. Already fixed in uplink_server.py. Lesson captured.
-
-**agent_feedback table has no consumer.** Ratings and comments are stored but nothing reads them or acts on patterns.
 
 **Do not smoke-test live trigger endpoints.** The `/trigger_lean` endpoint actually launches sessions. During B-029 development, an accidental call launched a rogue lean session. Use status-check endpoints or dry-run flags for testing. Lesson captured.
 
@@ -715,7 +727,7 @@ Before ending a desktop session:
 
 **Agent approval flow partially fixed.** Can now approve via Anvil inbox, but the end-to-end sandbox→active flow hasn't been tested through the dashboard yet.
 
-**Capabilities table may be empty.** Unverified.
+**Capabilities table partially populated.** At least some rows exist (boot_feedback_pickup added 2026-04-26); full reconciliation against actual system capabilities not yet done.
 
 **Project auto-complete has no approval gate.** When lean_runner.sh finds no unblocked pending nodes, it marks the project `complete` in `aadp_projects` automatically — Bill does not review or approve first.
 
@@ -765,7 +777,7 @@ claudis/
   CONVENTIONS.md      — operational procedures
   TRAJECTORY.md       — destinations + active vectors + operational state
   DIRECTIVES.md       — Bill's standing instructions. "Run: B-NNN" pointer form.
-  BACKLOG.md          — lean session card queue. B-001 through B-021 archived. B-043 is the latest completed card.
+  BACKLOG.md          — lean session card queue. Completed cards removed as they close. B-058 is the latest completed card (2026-04-26).
   LEAN_BOOT.md        — lean mode startup protocol
   COLLABORATOR_BRIEF.md — card format guide
   DEEP_DIVE_BRIEF.md  — this document
