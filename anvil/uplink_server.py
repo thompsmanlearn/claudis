@@ -917,6 +917,113 @@ def get_artifact_agents():
     return {'agents': agents, 'types': types}
 
 
+# ── Research callables ───────────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_research_articles(limit=50):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers=_HEADERS,
+        params={
+            'select': 'id,agent_run_id,title,url,source,query_used,summary,retrieved_at,rating,comment,status',
+            'order': 'retrieved_at.desc',
+            'limit': str(limit),
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def rate_research_article(article_id, rating):
+    if rating not in (1, -1, 0):
+        raise Exception('Rating must be 1, -1, or 0.')
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        params={'id': f'eq.{article_id}'},
+        json={'rating': rating},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    log.info('Article %s rated %d', article_id, rating)
+    return rows[0] if rows else {'rating': rating}
+
+
+@anvil.server.callable
+def comment_research_article(article_id, comment):
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{article_id}'},
+        json={'comment': (comment or '').strip()[:500]},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Article %s comment saved', article_id)
+    return {'saved': True}
+
+
+@anvil.server.callable
+def set_research_article_status(article_id, status):
+    if status not in ('new', 'reviewed', 'archived'):
+        raise Exception(f'Invalid status "{status}". Must be new, reviewed, or archived.')
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{article_id}'},
+        json={'status': status},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('Article %s status → %s', article_id, status)
+    return {'status': status}
+
+
+@anvil.server.callable
+def submit_agent_feedback_v2(target_type, target_id, content):
+    content = (content or '').strip()
+    if not content:
+        raise Exception('Feedback content cannot be empty.')
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        json={'target_type': target_type, 'target_id': target_id, 'content': content[:2000]},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('agent_feedback_v2: target_type=%s target_id=%s', target_type, target_id)
+    return {'submitted': True}
+
+
+@anvil.server.callable
+def get_research_run_summary():
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers=_HEADERS,
+        params={'select': 'agent_run_id,retrieved_at', 'order': 'retrieved_at.desc', 'limit': '1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        return {'agent_run_id': None, 'count': 0, 'retrieved_at': None}
+    latest_run_id = rows[0]['agent_run_id']
+    latest_ts = rows[0]['retrieved_at']
+    r2 = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers={**_HEADERS, 'Prefer': 'count=exact'},
+        params={'agent_run_id': f'eq.{latest_run_id}', 'select': 'id'},
+        timeout=10,
+    )
+    r2.raise_for_status()
+    content_range = r2.headers.get('Content-Range', '*/0')
+    count = int(content_range.split('/')[-1]) if '/' in content_range else 0
+    return {'agent_run_id': latest_run_id, 'count': count, 'retrieved_at': latest_ts}
+
+
 # ── Skills callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
