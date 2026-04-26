@@ -779,7 +779,7 @@ claudis/
   CONVENTIONS.md      — operational procedures
   TRAJECTORY.md       — destinations + active vectors + operational state
   DIRECTIVES.md       — Bill's standing instructions. "Run: B-NNN" pointer form.
-  BACKLOG.md          — lean session card queue. Completed cards removed as they close. B-058 is the latest completed card (2026-04-26).
+  BACKLOG.md          — lean session card queue. Completed cards removed as they close. B-059 is the latest completed card (2026-04-26). B-060 and B-061a are ready.
   LEAN_BOOT.md        — lean mode startup protocol
   COLLABORATOR_BRIEF.md — card format guide
   DEEP_DIVE_BRIEF.md  — this document
