@@ -9,29 +9,28 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
-- Fleet: 10 active agents; context_engineering_research now using 5 broader queries (autonomous agent, agent dashboard, vector memory, n8n orchestration, Reflexion/ExpeL)
-- Anvil UI: 43 callables (get_research_counters added); Research tab status line shows total · unreviewed · new(24h)
-- research_articles: 16 total (10 fresh from new queries, 0 dupes, 5 capped); all 4 bundle-review feedback rows marked processed
-- Research micro-version: Cards 1–5 complete. Card 6 (boot feedback pickup) queued as B-058.
+- Fleet: 10 active agents; context_engineering_research using 5 broader queries
+- Anvil UI: 43 callables; Research tab shows total · unreviewed · new(24h) counters
+- research_articles: 16 total; research micro-version fully closed (B-053 through B-058)
+- B-058 complete: agent_feedback pickup added to LEAN_BOOT.md (step 10) and bootstrap skill (step 3)
 - Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
-- B-053 (bootstrap step 10) still open
 
-**Project arc next:** B-058 (boot-time feedback pickup) — add agent_feedback query step to LEAN_BOOT.md and bootstrap skill. Closes the research micro-version.
+**Project arc next:** ChromaDB better utilized — surface semantic memory in more workflows; B-053 (bootstrap step 10) still open as next candidate.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-04-26 (bundle review):**
-- **What I was doing:** Acted on 3 of 4 desktop Claude bundle review items: (1) confirmed PER_RUN_CAP=10 already set, replaced 5 narrow queries with broader ones; (2) added get_research_counters() callable + counters to Research tab status line; (3) marked all 4 feedback rows processed. Ran agent: 10 fresh articles inserted, 5 capped, 0 dupes.
-- **What I learned:** stats-server runs from ~/aadp/stats-server/, not ~/aadp/claudis/stats-server/ — must cp after editing. arXiv exact-phrase matching fails for HN-style queries; for new query set, arXiv returns 0 (acceptable). claudis repo push requires pull --rebase if desktop session pushed first.
-- **Continue:** B-058 — add agent_feedback pickup step to LEAN_BOOT.md (between steps 9 and 10) and bootstrap skill. Deferred item 4 (artifact visibility UI polish) not actioned.
-- **Left better:** Research agent now finds genuinely different articles each run. Research tab shows live counters. Feedback loop closed: 4 items reviewed, acted on, marked processed.
-- **Usage:** session ~45%, weekly ~75%
+**2026-04-26 (B-058):**
+- **What I was doing:** Added agent_feedback pending feedback pickup step to LEAN_BOOT.md (new step 10, renumbered 11–12) and bootstrap skill (new step 3, renumbered 4–7). Research micro-version now closed.
+- **What I learned:** agent_feedback table has processed_in_session column — the full UPDATE pattern is ready; no schema work needed. Current table is empty (all previously processed).
+- **Continue:** B-053 (bootstrap step 10 — lesson retrieval step was added but B-053 may have other scope; confirm before closing). Or pick next ChromaDB utilization card.
+- **Left better:** Both entry paths (LEAN_BOOT + bootstrap) now surface Anvil feedback at boot, closing the feedback loop for all future sessions.
+- **Usage:** session ~10%, weekly ~85%
+
+**2026-04-26 (bundle review):** Research agent broader queries; get_research_counters callable; all 4 bundle-review feedback rows marked processed.
 
 **2026-04-26 (B-057):** get_research_bundle callable + Export button. PostgREST OR+AND pattern confirmed.
-
-**2026-04-26 (B-056 + fixes):** Research tab complete; run_context_research dedup fixed; GitHub Pages iframe updated.
 
 ---
 
