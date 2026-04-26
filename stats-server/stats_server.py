@@ -379,6 +379,100 @@ def _fetch_hn(topic, max_results=3):
         return []
 
 
+def _fetch_devto(tags, max_per_tag=3):
+    results = []
+    seen = set()
+    for tag in tags:
+        url = f"https://dev.to/api/articles?per_page={max_per_tag}&top=30&tag={urllib.parse.quote(tag)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "AADP-Claudis/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = _json.loads(r.read())
+            for art in data:
+                link = art.get("url", "")
+                title = art.get("title", "")
+                desc = art.get("description", "") or ""
+                if link and title and link not in seen:
+                    seen.add(link)
+                    results.append({"title": title, "summary": desc or title, "url": link, "source": "dev.to", "topic": tag})
+        except Exception:
+            pass
+    return results
+
+
+def _fetch_medium(tags, max_per_tag=3):
+    import xml.etree.ElementTree as _ET
+    results = []
+    seen = set()
+    for tag in tags:
+        url = f"https://medium.com/feed/tag/{urllib.parse.quote(tag)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; AADP-Research/1.0)"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                raw = r.read()
+            root = _ET.fromstring(raw)
+            items = root.findall(".//item")
+            count = 0
+            for item in items:
+                if count >= max_per_tag:
+                    break
+                title = (item.findtext("title") or "").strip()
+                link = (item.findtext("link") or "").strip()
+                if link and title and link not in seen:
+                    seen.add(link)
+                    results.append({"title": title, "summary": title, "url": link, "source": "Medium", "topic": tag})
+                    count += 1
+        except Exception:
+            pass
+    return results
+
+
+def _fetch_github(queries, max_per_query=3):
+    results = []
+    seen = set()
+    for query in queries:
+        url = f"https://api.github.com/search/repositories?q={urllib.parse.quote(query)}&sort=stars&order=desc&per_page={max_per_query}"
+        req = urllib.request.Request(url, headers={"User-Agent": "AADP-Claudis/1.0", "Accept": "application/vnd.github.v3+json"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = _json.loads(r.read())
+            for repo in data.get("items", []):
+                link = repo.get("html_url", "")
+                name = repo.get("full_name", "")
+                desc = repo.get("description", "") or ""
+                stars = repo.get("stargazers_count", 0)
+                if link and name and link not in seen:
+                    seen.add(link)
+                    results.append({"title": f"{name} ★{stars}", "summary": desc, "url": link, "source": "GitHub", "topic": query})
+        except Exception:
+            pass
+    return results
+
+
+def _fetch_lobsters(tags, max_per_tag=3):
+    results = []
+    seen = set()
+    for tag in tags:
+        url = f"https://lobste.rs/t/{urllib.parse.quote(tag)}.json"
+        req = urllib.request.Request(url, headers={"User-Agent": "AADP-Claudis/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = _json.loads(r.read())
+            count = 0
+            for story in data:
+                if count >= max_per_tag:
+                    break
+                title = story.get("title", "")
+                link = story.get("url", "") or story.get("short_id_url", "")
+                if link and title and link not in seen:
+                    seen.add(link)
+                    results.append({"title": title, "summary": title, "url": link, "source": "lobste.rs", "topic": tag})
+                    count += 1
+        except Exception:
+            pass
+    return results
+
+
 def _fetch_anthropic_signals(env, max_reddit=10, max_releases=5):
     """Fetch developer signals about Claude/Anthropic from Reddit r/ClaudeAI and Anthropic GitHub releases."""
     results = []
@@ -3308,8 +3402,9 @@ def run_context_research(payload: dict = {}):
     import uuid as _uuid
     env = _read_env_simple()
     api_key = env.get("ANTHROPIC_API_KEY", "")
-    PER_RUN_CAP = 10
+    PER_RUN_CAP = 20
 
+    # HN + arXiv queries
     QUERIES = [
         "autonomous agent platform persistent memory",
         "agent dashboard human in the loop",
@@ -3317,12 +3412,27 @@ def run_context_research(payload: dict = {}):
         "n8n LLM agent orchestration",
         "Reflexion ExpeL agent system production",
     ]
+    # Per-source configs — tags chosen to match agent/memory/orchestration content specifically
+    DEVTO_TAGS    = ["agents", "n8n", "llmops", "rag", "claude"]
+    MEDIUM_TAGS   = ["ai", "machine-learning", "agents", "llm"]
+    LOBSTERS_TAGS = ["ai", "ml", "programming"]
+    GITHUB_QUERIES = [
+        "autonomous agent memory llm",
+        "llm orchestration dashboard",
+        "agent evaluation framework",
+        "human in the loop llm agent",
+    ]
+    # Sources that carry rich content and don't need a page fetch
+    SKIP_FETCH_SOURCES = {"arXiv", "GitHub"}
+    # Max candidates from any single source before global cap — prevents one source dominating
+    PER_SOURCE_CAP = 5
 
     agent_run_id = str(_uuid.uuid4())
 
-    # Phase 1: collect all candidates across all queries (5 HN + 5 arXiv per query)
+    # Phase 1: collect candidates from all sources
     seen_in_batch = set()
     candidates = []  # list of (item, query)
+
     for query in QUERIES:
         for item in _fetch_hn(query, max_results=5) + _fetch_arxiv(query, max_results=5):
             url = item.get("url", "")
@@ -3330,6 +3440,34 @@ def run_context_research(payload: dict = {}):
             if url and title and url not in seen_in_batch:
                 seen_in_batch.add(url)
                 candidates.append((item, query))
+
+    for item in _fetch_devto(DEVTO_TAGS, max_per_tag=3):
+        url = item.get("url", "")
+        title = item.get("title", "")
+        if url and title and url not in seen_in_batch:
+            seen_in_batch.add(url)
+            candidates.append((item, item.get("topic", "devto")))
+
+    for item in _fetch_medium(MEDIUM_TAGS, max_per_tag=3):
+        url = item.get("url", "")
+        title = item.get("title", "")
+        if url and title and url not in seen_in_batch:
+            seen_in_batch.add(url)
+            candidates.append((item, item.get("topic", "medium")))
+
+    for item in _fetch_github(GITHUB_QUERIES, max_per_query=3):
+        url = item.get("url", "")
+        title = item.get("title", "")
+        if url and title and url not in seen_in_batch:
+            seen_in_batch.add(url)
+            candidates.append((item, item.get("topic", "github")))
+
+    for item in _fetch_lobsters(LOBSTERS_TAGS, max_per_tag=3):
+        url = item.get("url", "")
+        title = item.get("title", "")
+        if url and title and url not in seen_in_batch:
+            seen_in_batch.add(url)
+            candidates.append((item, item.get("topic", "lobsters")))
 
     # Phase 2: batch dedup against existing research_articles
     try:
@@ -3340,6 +3478,17 @@ def run_context_research(payload: dict = {}):
 
     fresh = [(item, q) for item, q in candidates if item.get("url") not in existing_urls]
     skipped_dupe = len(candidates) - len(fresh)
+
+    # Rebalance: limit each source to PER_SOURCE_CAP before applying global cap
+    _src_counts: dict = {}
+    rebalanced = []
+    for item, q in fresh:
+        src = item.get("source", "unknown")
+        if _src_counts.get(src, 0) < PER_SOURCE_CAP:
+            rebalanced.append((item, q))
+            _src_counts[src] = _src_counts.get(src, 0) + 1
+    fresh = rebalanced
+
     capped = max(0, len(fresh) - PER_RUN_CAP)
 
     # Phase 3: summarize and insert up to cap
@@ -3351,13 +3500,14 @@ def run_context_research(payload: dict = {}):
         title = item.get("title", "")
 
         raw_content = item.get("summary", title)
-        if item.get("source") != "arXiv":
+        if item.get("source") not in SKIP_FETCH_SOURCES:
             page_text = _fetch_page_text(url)
             if page_text:
                 raw_content = page_text
             else:
-                _log_research_error(env, url, "page fetch returned empty — using title fallback")
+                _log_research_error(env, url, "page fetch returned empty — skipped")
                 errors_logged += 1
+                continue
 
         summary = _summarize_article_haiku(title, url, raw_content, api_key)
         if not summary:
