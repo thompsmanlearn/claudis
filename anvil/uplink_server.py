@@ -1249,6 +1249,571 @@ def get_research_bundle(agent_run_id=None):
     return '\n'.join(lines)
 
 
+# ── Export bundle callables ─────────────────────────────────────────────────
+
+def _bundle_header(bundle_type, view_filter, row_count):
+    now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    return [
+        '---',
+        f'bundle_type: {bundle_type}',
+        f'generated_at: {now}',
+        f'view_filter: {view_filter}',
+        f'row_count: {row_count}',
+        '---',
+        '',
+    ]
+
+
+def _bundle_resolved_feedback(target_type, target_ids=None):
+    params = {
+        'select': 'target_type,target_id,content,action_summary,action_session,action_result_url,processed_at',
+        'processed': 'eq.true',
+        'target_type': f'eq.{target_type}',
+        'order': 'processed_at.desc',
+        'limit': '10',
+    }
+    if target_ids:
+        ids_csv = ','.join(f'"{t}"' for t in target_ids)
+        params['target_id'] = f'in.({ids_csv})'
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+            headers=_HEADERS,
+            params=params,
+            timeout=10,
+        )
+        r.raise_for_status()
+        rows = r.json()
+    except Exception:
+        return []
+    if not rows:
+        return []
+    lines = ['## Recently Resolved Feedback', '']
+    for fb in rows:
+        fb_target = fb.get('target_id') or ''
+        fb_content = fb.get('content') or ''
+        fb_summary = fb.get('action_summary')
+        fb_session = fb.get('action_session')
+        fb_url = fb.get('action_result_url')
+        lines.append(f'- [{fb_target}] {fb_content}')
+        if fb_summary is not None:
+            icon = '⏸' if fb_summary.startswith('Deferred:') else '✅'
+            lines.append(f'  {icon} {fb_summary}')
+            if fb_session:
+                lines.append(f'  Session: {fb_session}')
+            if fb_url:
+                lines.append(f'  Result: {fb_url}')
+    lines.append('')
+    return lines
+
+
+@anvil.server.callable
+def get_lessons_bundle(filter='recent', limit=50):
+    """Return markdown bundle of lessons_learned — ready to paste into a desktop session."""
+    params = {
+        'select': 'id,title,category,content,confidence,times_applied,created_at,chromadb_id',
+        'limit': str(limit),
+    }
+    if filter == 'most_applied':
+        params['order'] = 'times_applied.desc'
+    elif filter == 'never_applied':
+        params['times_applied'] = 'eq.0'
+        params['order'] = 'created_at.desc'
+    elif filter == 'broken':
+        params['chromadb_id'] = 'is.null'
+        params['order'] = 'created_at.desc'
+    else:
+        params['order'] = 'created_at.desc'
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/lessons_learned',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    lessons = r.json()
+
+    now_dt = datetime.now(timezone.utc)
+    lines = _bundle_header('lessons', filter, len(lessons))
+    lines += [
+        '## Summary',
+        '',
+        f'This bundle contains {len(lessons)} lesson(s) from the lessons_learned store, '
+        f'filtered by: {filter}. Use these to identify lessons that are stale, duplicated, '
+        'poorly worded, or never relevant. "Never Applied" lessons may not be reaching '
+        'retrieval — check category/title clarity. "Broken" lessons are missing from '
+        'ChromaDB and will not be retrieved semantically.',
+        '',
+        '## Lessons',
+        '',
+    ]
+    for lesson in lessons:
+        title = lesson.get('title') or '(no title)'
+        lid = lesson.get('id') or ''
+        category = lesson.get('category') or ''
+        content = lesson.get('content') or ''
+        confidence = lesson.get('confidence')
+        times_applied = lesson.get('times_applied') or 0
+        created_at = (lesson.get('created_at') or '')[:10]
+        chromadb_id = lesson.get('chromadb_id')
+        in_chromadb = 'yes' if chromadb_id else 'no'
+        age_days = '?'
+        if created_at:
+            try:
+                age_days = (now_dt.date() - datetime.strptime(created_at, '%Y-%m-%d').date()).days
+            except Exception:
+                pass
+        if len(content) > 500:
+            content = content[:500] + ' [truncated]'
+        lines.append(f'### {title}')
+        lines.append(
+            f'**id:** {lid} | **category:** {category} | **confidence:** {confidence} | '
+            f'**times_applied:** {times_applied} | **age_days:** {age_days} | **chromadb:** {in_chromadb}'
+        )
+        lines.append('')
+        lines.append(content)
+        lines.append('')
+
+    lines += _bundle_resolved_feedback('anvil_view', ['lessons_tab'])
+    log.info('get_lessons_bundle: filter=%s count=%d', filter, len(lessons))
+    return '\n'.join(lines)
+
+
+@anvil.server.callable
+def get_memory_bundle(collection=None):
+    """Return markdown bundle of ChromaDB memory state — ready to paste into a desktop session."""
+    if collection is None:
+        try:
+            r = requests.get(f'{_CHROMADB_URL}/api/v1/collections', timeout=10)
+            r.raise_for_status()
+            colls = r.json()
+        except Exception as e:
+            return f'# Memory Bundle\n\nFailed to fetch collections: {e}\n'
+
+        lines = _bundle_header('memory', 'all_collections', len(colls))
+        lines += [
+            '## Summary',
+            '',
+            f'This bundle contains stats for {len(colls)} ChromaDB collection(s). '
+            'Use this to assess collection health, detect unexpected growth or shrinkage, '
+            'and identify collections that may have stale or misclassified content.',
+            '',
+            '## Collections',
+            '',
+        ]
+        for coll in colls:
+            name = coll.get('name') or ''
+            coll_id = coll.get('id') or ''
+            doc_count = '?'
+            try:
+                r2 = requests.get(f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/count', timeout=5)
+                if r2.ok:
+                    doc_count = r2.json()
+            except Exception:
+                pass
+            samples = []
+            try:
+                r3 = requests.post(
+                    f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/get',
+                    json={'limit': 3, 'include': ['documents']},
+                    timeout=5,
+                )
+                if r3.ok:
+                    docs = r3.json().get('documents') or []
+                    for d in docs[:3]:
+                        excerpt = (d or '')[:100].replace('\n', ' ')
+                        samples.append(excerpt)
+            except Exception:
+                pass
+            lines.append(f'**{name}** — {doc_count} documents')
+            for s in samples:
+                lines.append(f'  - {s}')
+            lines.append('')
+    else:
+        try:
+            coll_id = _get_chromadb_collection_id(collection)
+            r = requests.post(
+                f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/get',
+                json={'limit': 30, 'include': ['documents', 'metadatas']},
+                timeout=10,
+            )
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            return f'# Memory Bundle\n\nFailed to fetch {collection}: {e}\n'
+
+        ids = data.get('ids') or []
+        docs = data.get('documents') or []
+        metas = data.get('metadatas') or []
+
+        lines = _bundle_header('memory', f'collection:{collection}', len(ids))
+        lines += [
+            '## Summary',
+            '',
+            f'This bundle contains up to 30 documents from ChromaDB collection "{collection}". '
+            'Use this to assess retrieval quality, identify stale or poorly-labelled content, '
+            'and spot duplicates.',
+            '',
+            f'## Documents ({len(ids)})',
+            '',
+        ]
+        for i, doc_id in enumerate(ids):
+            doc = (docs[i] if i < len(docs) else '') or ''
+            meta = (metas[i] if i < len(metas) else {}) or {}
+            excerpt = doc[:300].replace('\n', ' ')
+            if len(doc) > 300:
+                excerpt += ' [truncated]'
+            lines.append(f'**[{doc_id}]**')
+            if meta:
+                meta_str = ', '.join(f'{k}={v}' for k, v in list(meta.items())[:4])
+                lines.append(f'meta: {meta_str}')
+            lines.append(excerpt)
+            lines.append('')
+
+    lines += _bundle_resolved_feedback('anvil_view', ['memory_tab'])
+    log.info('get_memory_bundle: collection=%s', collection)
+    return '\n'.join(lines)
+
+
+@anvil.server.callable
+def get_sessions_bundle(limit=10):
+    """Return markdown bundle of recent session artifacts — ready to paste into a desktop session."""
+    sessions_dir = os.path.join(_CLAUDIS_DIR, 'sessions', 'lean')
+    if not os.path.isdir(sessions_dir):
+        return '# Sessions Bundle\n\nNo sessions directory found.\n'
+    files = sorted(
+        [f for f in os.listdir(sessions_dir) if f.endswith('.md') and not f.startswith('B-')],
+        reverse=True,
+    )[:limit]
+    if not files:
+        return '# Sessions Bundle\n\nNo session files found.\n'
+
+    sessions = []
+    for fname in files:
+        path = os.path.join(sessions_dir, fname)
+        try:
+            with open(path) as f:
+                raw_lines = f.read().splitlines()
+        except Exception:
+            continue
+        title = fname
+        date = fname[:10] if len(fname) >= 10 else ''
+        card = ''
+        tasks = []
+        capability = []
+        current_section = None
+        for line in raw_lines:
+            if line.startswith('# '):
+                title = line[2:].strip()
+            elif line.startswith('**Card:**'):
+                card = line.replace('**Card:**', '').strip()
+            elif line.strip() == '## Tasks Completed':
+                current_section = 'tasks'
+            elif line.strip() == '## Capability Delta':
+                current_section = 'capability'
+            elif line.strip().startswith('## '):
+                current_section = None
+            elif current_section == 'tasks' and line.startswith('- ') and len(tasks) < 3:
+                tasks.append(line[2:].strip()[:150])
+            elif current_section == 'capability' and line.startswith('**') and len(capability) < 3:
+                capability.append(line.strip()[:200])
+        sessions.append({'filename': fname, 'date': date, 'title': title,
+                         'card': card, 'tasks': tasks, 'capability': capability})
+
+    lines = _bundle_header('sessions', f'recent_{limit}', len(sessions))
+    lines += [
+        '## Summary',
+        '',
+        f'This bundle contains {len(sessions)} recent session artifact(s). '
+        'Use these to identify sessions that ran well, sessions that got stuck, '
+        'and recurring patterns (repeated failures, scope creep, lessons not applied).',
+        '',
+    ]
+    for s in sessions:
+        lines.append(f'## {s["date"]} — {s["title"]}')
+        if s['card']:
+            lines.append(f'**Card:** {s["card"]}')
+        lines.append('')
+        if s['tasks']:
+            lines.append('**What changed:**')
+            for t in s['tasks']:
+                lines.append(f'- {t}')
+            lines.append('')
+        if s['capability']:
+            lines.append('**Capability delta:**')
+            for c in s['capability']:
+                lines.append(f'- {c}')
+            lines.append('')
+
+    lines += _bundle_resolved_feedback('anvil_view', ['sessions_tab'])
+    log.info('get_sessions_bundle: count=%d', len(sessions))
+    return '\n'.join(lines)
+
+
+@anvil.server.callable
+def get_fleet_bundle():
+    """Return markdown bundle of agent fleet state — ready to paste into a desktop session."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_registry',
+        headers=_HEADERS,
+        params={
+            'select': 'agent_name,display_name,description,status,schedule,updated_at',
+            'order': 'status.asc,agent_name.asc',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    agents = r.json()
+
+    r2 = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers=_HEADERS,
+        params={
+            'select': 'target_id,content,action_summary,created_at',
+            'target_type': 'eq.agent',
+            'order': 'created_at.desc',
+            'limit': '50',
+        },
+        timeout=10,
+    )
+    r2.raise_for_status()
+    fb_by_agent = {}
+    for fb in r2.json():
+        agent_n = fb.get('target_id') or ''
+        fb_by_agent.setdefault(agent_n, [])
+        if len(fb_by_agent[agent_n]) < 3:
+            fb_by_agent[agent_n].append(fb)
+
+    by_status = {}
+    for agent in agents:
+        st = agent.get('status') or 'unknown'
+        by_status.setdefault(st, []).append(agent)
+
+    lines = _bundle_header('fleet', 'all', len(agents))
+    lines += [
+        '## Summary',
+        '',
+        f'This bundle contains {len(agents)} agent(s) grouped by status. '
+        'Use this for fleet health review: identify dead-weight agents (low activity, no purpose), '
+        'agents with repeated unactioned feedback, and candidates for retirement.',
+        '',
+    ]
+    status_order = ['active', 'paused', 'building', 'sandbox', 'broken', 'retired']
+    for st in status_order + [s for s in by_status if s not in status_order]:
+        if st not in by_status:
+            continue
+        group = by_status[st]
+        lines.append(f'## {st.title()} ({len(group)})')
+        lines.append('')
+        for agent in group:
+            name = agent.get('agent_name') or ''
+            desc = (agent.get('description') or '').strip()[:200]
+            schedule = agent.get('schedule') or 'unscheduled'
+            updated = (agent.get('updated_at') or '')[:10]
+            lines.append(f'**{name}**')
+            lines.append(f'Schedule: {schedule} | Last updated: {updated}')
+            if desc:
+                lines.append(desc)
+            fbs = fb_by_agent.get(name, [])
+            if fbs:
+                lines.append('Recent feedback:')
+                for fb in fbs:
+                    content = (fb.get('content') or '')[:120]
+                    summary = fb.get('action_summary')
+                    date = (fb.get('created_at') or '')[:10]
+                    lines.append(f'  - [{date}] {content}')
+                    if summary:
+                        icon = '⏸' if summary.startswith('Deferred:') else '✅'
+                        lines.append(f'    {icon} {summary}')
+            lines.append('')
+
+    log.info('get_fleet_bundle: agents=%d', len(agents))
+    return '\n'.join(lines)
+
+
+@anvil.server.callable
+def get_errors_bundle():
+    """Return markdown bundle of unresolved error logs — ready to paste into a desktop session."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/error_logs',
+        headers=_HEADERS,
+        params={
+            'select': 'id,workflow_name,workflow_id,node_name,error_type,error_message,timestamp',
+            'resolved': 'eq.false',
+            'order': 'timestamp.desc',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    errors = r.json()
+
+    now_dt = datetime.now(timezone.utc)
+    lines = _bundle_header('errors', 'unresolved', len(errors))
+    lines += [
+        '## Summary',
+        '',
+        f'This bundle contains {len(errors)} unresolved error(s). '
+        'Use this for triage: identify which errors need immediate attention, '
+        'which are noise/transient, and which cluster around a single workflow.',
+        '',
+        '## Errors',
+        '',
+    ]
+    for err in errors:
+        wf = err.get('workflow_name') or err.get('workflow_id') or '(unknown workflow)'
+        node = err.get('node_name') or ''
+        etype = err.get('error_type') or ''
+        msg = (err.get('error_message') or '').strip()
+        ts = err.get('timestamp') or ''
+        age_h = '?'
+        if ts:
+            try:
+                ts_dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                age_h = round((now_dt - ts_dt).total_seconds() / 3600, 1)
+            except Exception:
+                pass
+        lines.append(f'**{wf}**' + (f' / {node}' if node else ''))
+        if etype:
+            lines.append(f'Type: {etype} | Age: {age_h}h')
+        lines.append(msg[:300] + ('[truncated]' if len(msg) > 300 else ''))
+        lines.append('')
+
+    log.info('get_errors_bundle: count=%d', len(errors))
+    return '\n'.join(lines)
+
+
+@anvil.server.callable
+def get_skills_bundle():
+    """Return markdown bundle of skills registry — ready to paste into a desktop session."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/skills_registry',
+        headers=_HEADERS,
+        params={
+            'select': 'id,name,description,trigger_keywords,file_path,times_loaded,last_loaded',
+            'order': 'name.asc',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    skills = r.json()
+
+    lines = _bundle_header('skills', 'all', len(skills))
+    lines += [
+        '## Summary',
+        '',
+        f'This bundle contains {len(skills)} skill(s) from the skills registry. '
+        'Use this to assess skill coverage and retrieval triggering quality: '
+        'are the trigger keywords specific enough? Are any skills never loaded? '
+        'Are any skills obsolete given current system state?',
+        '',
+        '## Skills',
+        '',
+    ]
+    for skill in skills:
+        name = skill.get('name') or ''
+        description = skill.get('description') or ''
+        keywords = skill.get('trigger_keywords') or []
+        times_loaded = skill.get('times_loaded') or 0
+        last_loaded = (skill.get('last_loaded') or '')[:10] or 'never'
+        file_path = skill.get('file_path') or ''
+        content_excerpt = ''
+        if file_path:
+            path = file_path.replace('~', os.path.expanduser('~'))
+            try:
+                with open(path) as f:
+                    raw = f.read()
+                content_excerpt = raw[:500].replace('\n', ' ')
+                if len(raw) > 500:
+                    content_excerpt += ' [truncated]'
+            except Exception:
+                pass
+        kw_str = ', '.join(keywords) if isinstance(keywords, list) else str(keywords)
+        lines.append(f'**{name}**')
+        lines.append(f'Times loaded: {times_loaded} | Last loaded: {last_loaded}')
+        if description:
+            lines.append(description[:200])
+        if kw_str:
+            lines.append(f'Triggers: {kw_str}')
+        if content_excerpt:
+            lines.append(f'Excerpt: {content_excerpt}')
+        lines.append('')
+
+    lines += _bundle_resolved_feedback('anvil_view', ['skills_tab'])
+    log.info('get_skills_bundle: count=%d', len(skills))
+    return '\n'.join(lines)
+
+
+@anvil.server.callable
+def get_artifacts_bundle(agent_name=None, artifact_type=None, limit=30):
+    """Return markdown bundle of agent artifacts — ready to paste into a desktop session."""
+    params = {
+        'select': 'id,agent_name,artifact_type,summary,content,confidence,bill_rating,bill_comment,reviewed_by_bill,created_at',
+        'order': 'created_at.desc',
+        'limit': str(limit),
+    }
+    if agent_name:
+        params['agent_name'] = f'eq.{agent_name}'
+    if artifact_type:
+        params['artifact_type'] = f'eq.{artifact_type}'
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_artifacts',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    artifacts = r.json()
+
+    filter_desc = 'all'
+    if agent_name and artifact_type:
+        filter_desc = f'{agent_name}/{artifact_type}'
+    elif agent_name:
+        filter_desc = f'agent:{agent_name}'
+    elif artifact_type:
+        filter_desc = f'type:{artifact_type}'
+
+    lines = _bundle_header('artifacts', filter_desc, len(artifacts))
+    lines += [
+        '## Summary',
+        '',
+        f'This bundle contains {len(artifacts)} artifact(s). Filter: {filter_desc}. '
+        'Use this for output quality review: are artifacts well-structured? '
+        'Do rated artifacts reveal quality patterns? '
+        'Are any artifact types consistently low-confidence?',
+        '',
+        '## Artifacts',
+        '',
+    ]
+    for art in artifacts:
+        agent_n = art.get('agent_name') or ''
+        atype = art.get('artifact_type') or ''
+        summary = (art.get('summary') or '').strip()[:200]
+        content = (art.get('content') or '').strip()
+        confidence = art.get('confidence')
+        rating = art.get('bill_rating')
+        comment = (art.get('bill_comment') or '').strip()
+        reviewed = art.get('reviewed_by_bill', False)
+        created_at = (art.get('created_at') or '')[:10]
+        content_excerpt = content[:300]
+        if len(content) > 300:
+            content_excerpt += ' [truncated]'
+        rating_str = '\U0001f44d' if rating == 1 else '\U0001f44e' if rating == -1 else 'unrated'
+        reviewed_str = '✅ reviewed' if reviewed else 'pending'
+        lines.append(f'**{agent_n}** / {atype} — {created_at}')
+        lines.append(f'Confidence: {confidence} | Rating: {rating_str} | {reviewed_str}')
+        if summary:
+            lines.append(summary)
+        if content_excerpt:
+            lines.append(content_excerpt)
+        if comment:
+            lines.append(f'Comment: {comment}')
+        lines.append('')
+
+    lines += _bundle_resolved_feedback('anvil_view', ['artifacts_tab'])
+    log.info('get_artifacts_bundle: filter=%s count=%d', filter_desc, len(artifacts))
+    return '\n'.join(lines)
+
+
 # ── Skills callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
