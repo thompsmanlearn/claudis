@@ -1,7 +1,7 @@
 # DEEP_DIVE_BRIEF.md — AADP Comprehensive Reference
 
 
-*Revised 2026-04-18. This document is the primary onboarding reference for fresh desktop and Claude Code sessions. It bridges memory between sessions and gets a new instance to productive collaboration as fast as possible.*
+*Revised 2026-04-26. This document is the primary onboarding reference for fresh desktop and Claude Code sessions. It bridges memory between sessions and gets a new instance to productive collaboration as fast as possible.*
 
 *Each section has a Last Updated date. Sections with stale dates should be verified before relying on them. Session close should include: "Does the brief need updating? If so, which sections?"*
 
@@ -318,8 +318,8 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Serendipity engine (Wikipedia On This Day synthesis — paused)
 
 **Research:**
-- On-demand research runs via Anvil "Run research" button (`context_engineering_research` agent)
-- Article review: rate (👍/👎), comment, and status-track articles in Anvil Research tab
+- On-demand research runs via Anvil "Run research" button (`context_engineering_research` agent) — fetches from 6 sources: HN, arXiv, dev.to, GitHub, lobste.rs, Medium; per-source cap=5, global cap=20, skip-on-empty-fetch
+- Article review: rate (👍/👎), comment, and status-track articles in Anvil Research tab (58 articles as of 2026-04-26)
 - Bundle export: one-click markdown export of a run (articles + ratings + pending feedback) for desktop analysis
 - Boot-time feedback pickup: both LEAN_BOOT and bootstrap surface unprocessed `agent_feedback` rows at session start
 
@@ -587,7 +587,7 @@ All paused agents can be reactivated from the Anvil dashboard.
 | research_synthesis_agent | JUBCbXJe3TwwpB2T | Sunday 14:00 UTC | Weekly synthesis of research corpus. **PROTECTED.** |
 | arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | Mon/Wed/Fri 15:00 UTC | arXiv preprints → research_findings + research_papers. **PROTECTED.** |
 | architecture_review | 7mVc61pDCIObJFos | Biweekly Sunday 16:00 UTC | Research findings → design decisions → work_queue items. |
-| context_engineering_research | (see agent_registry) | On-demand webhook | Web search → summarize → write to research_articles. 5 broad queries, 10-article cap, URL dedup. |
+| context_engineering_research | gzCSocUFNxTGIzSD | On-demand webhook | 6 sources (HN, arXiv, dev.to, GitHub, lobste.rs, Medium) → Haiku summarize → research_articles. Per-source cap=5, global cap=20. Empty-fetch skips item (no thin rows). dev.to tags: agents, n8n, llmops, rag, claude. |
 
 ### Platform Infrastructure Agents
 
