@@ -733,7 +733,7 @@ Before ending a desktop session:
 
 **lean_runner.sh dual-location.** Live copy at `~/aadp/sentinel/lean_runner.sh`; version-controlled copy at `claudis/sentinel/lean_runner.sh`. Changes must be made to both manually — no sync mechanism.
 
-**close-session.md not version-controlled.** Live copy at `~/aadp/mcp-server/.claude/skills/close-session.md`; mcp-server is not a git repo. Changes to the close ritual are not tracked in git — a gap.
+**close-session.md and bootstrap.md are version-controlled in claudis.** Authoritative copies live at `~/aadp/claudis/skills/close-session.md` and `~/aadp/claudis/skills/bootstrap.md`. The `.claude/skills/` paths are symlinks into claudis — no manual sync needed. Edit in claudis, commit, done. Resolved B-061a 2026-04-26.
 
 **Telegram chat_id hardcoded** in scheduler.sh, lean_runner.sh, stats_server.py, and many n8n workflows.
 
