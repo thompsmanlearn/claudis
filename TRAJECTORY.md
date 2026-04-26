@@ -9,28 +9,29 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
-- Fleet: 10 active agents; context_engineering_research live, writing to research_articles
-- Anvil UI: 42 callables (get_research_bundle added B-057); Research tab now has ⬇ Export button — calls bundle callable, tries clipboard, falls back to TextArea
+- Fleet: 10 active agents; context_engineering_research now using 5 broader queries (autonomous agent, agent dashboard, vector memory, n8n orchestration, Reflexion/ExpeL)
+- Anvil UI: 43 callables (get_research_counters added); Research tab status line shows total · unreviewed · new(24h)
+- research_articles: 16 total (10 fresh from new queries, 0 dupes, 5 capped); all 4 bundle-review feedback rows marked processed
 - Research micro-version: Cards 1–5 complete. Card 6 (boot feedback pickup) queued as B-058.
-- Live data confirmed: 4 articles in most recent run, 4 pending feedback rows surfaced in bundle
-- B-053 (bootstrap step 10) still open — boot lesson retrieval absent from Bill-initiated sessions
+- Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
+- B-053 (bootstrap step 10) still open
 
-**Project arc next:** B-058 (boot-time feedback pickup) — query agent_feedback at boot, surface pending rows in summary, mark consumed when acted on. Closes the research micro-version.
+**Project arc next:** B-058 (boot-time feedback pickup) — add agent_feedback query step to LEAN_BOOT.md and bootstrap skill. Closes the research micro-version.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-04-26 (B-057):**
-- **What I was doing:** B-057 complete — get_research_bundle callable added to uplink_server.py; ⬇ Export button added to Research tab header; uplink restarted cleanly; both repos pushed.
-- **What I learned:** PostgREST `or=(processed.is.null,processed.eq.false)` combined with a separate `target_type=in.(agent,anvil_view)` filter works as AND + OR — no need for separate requests. Verified on live data: 4 articles, 4 pending feedback rows.
-- **Continue:** B-058 — add agent_feedback pickup step to LEAN_BOOT.md (between current steps 9 and 10) and to bootstrap skill. Query pending feedback at boot, surface in summary, mark rows processed when acted on.
-- **Left better:** Bundle export wired end-to-end. Bill can press Export, paste markdown into desktop Claude, and get full run context with ratings, comments, and pending feedback in one shot.
-- **Usage:** session ~30%, weekly ~70%
+**2026-04-26 (bundle review):**
+- **What I was doing:** Acted on 3 of 4 desktop Claude bundle review items: (1) confirmed PER_RUN_CAP=10 already set, replaced 5 narrow queries with broader ones; (2) added get_research_counters() callable + counters to Research tab status line; (3) marked all 4 feedback rows processed. Ran agent: 10 fresh articles inserted, 5 capped, 0 dupes.
+- **What I learned:** stats-server runs from ~/aadp/stats-server/, not ~/aadp/claudis/stats-server/ — must cp after editing. arXiv exact-phrase matching fails for HN-style queries; for new query set, arXiv returns 0 (acceptable). claudis repo push requires pull --rebase if desktop session pushed first.
+- **Continue:** B-058 — add agent_feedback pickup step to LEAN_BOOT.md (between steps 9 and 10) and bootstrap skill. Deferred item 4 (artifact visibility UI polish) not actioned.
+- **Left better:** Research agent now finds genuinely different articles each run. Research tab shows live counters. Feedback loop closed: 4 items reviewed, acted on, marked processed.
+- **Usage:** session ~45%, weekly ~75%
 
-**2026-04-26 (B-056 + fixes):** Research tab complete; run_context_research dedup fixed (4 fresh articles/run); GitHub Pages iframe updated.
+**2026-04-26 (B-057):** get_research_bundle callable + Export button. PostgREST OR+AND pattern confirmed.
 
-**2026-04-26 (B-055):** context_engineering_research agent live. 2 articles inserted first run.
+**2026-04-26 (B-056 + fixes):** Research tab complete; run_context_research dedup fixed; GitHub Pages iframe updated.
 
 ---
 
