@@ -1030,6 +1030,110 @@ def get_research_run_summary():
     return {'agent_run_id': latest_run_id, 'count': count, 'retrieved_at': latest_ts}
 
 
+@anvil.server.callable
+def get_research_bundle(agent_run_id=None):
+    """Return markdown bundle of a research run — ready to paste into a desktop session."""
+    if agent_run_id is None:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/research_articles',
+            headers=_HEADERS,
+            params={'select': 'agent_run_id', 'order': 'retrieved_at.desc', 'limit': '1'},
+            timeout=10,
+        )
+        r.raise_for_status()
+        rows = r.json()
+        if not rows:
+            return '# Research Bundle\n\nNo articles found.\n'
+        agent_run_id = rows[0]['agent_run_id']
+
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/research_articles',
+        headers=_HEADERS,
+        params={
+            'select': 'title,url,source,query_used,summary,retrieved_at,rating,comment',
+            'agent_run_id': f'eq.{agent_run_id}',
+            'order': 'retrieved_at.asc',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    articles = r.json()
+
+    if not articles:
+        return f'# Research Bundle\n\nNo articles found for run `{agent_run_id}`.\n'
+
+    run_timestamp = (articles[0].get('retrieved_at') or '')[:19].replace('T', ' ') + ' UTC'
+    article_count = len(articles)
+    query_set = sorted({a['query_used'] for a in articles if a.get('query_used')})
+
+    lines = [
+        '---',
+        f'run_id: {agent_run_id}',
+        f'run_timestamp: {run_timestamp}',
+        f'article_count: {article_count}',
+        'query_set:',
+    ]
+    for q in query_set:
+        lines.append(f'  - {q}')
+    lines += ['---', '']
+
+    for article in articles:
+        title = article.get('title') or '(no title)'
+        source = article.get('source') or ''
+        url = article.get('url') or ''
+        query_used = article.get('query_used') or ''
+        summary = article.get('summary') or ''
+        rating = article.get('rating') or 0
+        comment = (article.get('comment') or '').strip()
+
+        lines.append(f'## {title}')
+        if source:
+            lines.append(f'**Source:** {source}')
+        if url:
+            lines.append(f'**URL:** {url}')
+        if query_used:
+            lines.append(f'**Query:** {query_used}')
+        lines.append('')
+        if summary:
+            lines.append(summary)
+            lines.append('')
+        if rating == 1:
+            lines.append('**Rating:** 👍')
+        elif rating == -1:
+            lines.append('**Rating:** 👎')
+        if comment:
+            lines.append(f'**Comment:** {comment}')
+        lines.append('')
+
+    # Pending feedback (target_type in agent/anvil_view, not yet processed)
+    r2 = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers=_HEADERS,
+        params={
+            'select': 'target_type,target_id,content,created_at',
+            'target_type': 'in.(agent,anvil_view)',
+            'or': '(processed.is.null,processed.eq.false)',
+            'order': 'created_at.asc',
+        },
+        timeout=10,
+    )
+    r2.raise_for_status()
+    pending = r2.json()
+
+    if pending:
+        lines += ['## Pending Feedback', '']
+        for fb in pending:
+            fb_type = fb.get('target_type') or ''
+            fb_target = fb.get('target_id') or ''
+            fb_content = fb.get('content') or ''
+            lines.append(f'- [{fb_type}: {fb_target}] {fb_content}')
+        lines.append('')
+
+    log.info('get_research_bundle: run_id=%s articles=%d pending_feedback=%d',
+             agent_run_id, article_count, len(pending))
+    return '\n'.join(lines)
+
+
 # ── Skills callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
