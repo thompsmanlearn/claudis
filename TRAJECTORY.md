@@ -12,17 +12,17 @@
 - Fleet: 9 active agents (10th — autonomous_growth_scheduler — paused); `webhook_url` column added, 3 on-demand agents populated
 - Boot chain: 11 steps — live-state ping (step 9), lesson retrieval from ChromaDB (step 10), execute (step 11)
 - Anvil UI complete: 35 callables, all 5 UI gaps closed; dashboard covers fleet, sessions, lessons, memory, skills, artifacts
-- ChromaDB loop tightened: boot retrieval + improved lesson write quality checklist + times_applied tracking
+- ChromaDB loop: boot step 10 confirmed working on LEAN_BOOT path; coverage gap found — step 10 absent from Bill-initiated (bootstrap) sessions. lesson_injector is the primary incrementer (counts 8–30, valid). B-053 queued to close the coverage gap.
 
-**Project arc next:** ChromaDB destination now active — validate that boot retrieval surfaces relevant lessons after a few sessions; then move toward system better leveraging ChromaDB (semantic retrieval for research, retrieval_log hygiene).
+**Project arc next:** Fix boot step 10 coverage gap (B-053), then validate the full loop closes across both entry paths. GT-4/GT-5 lesson rewrites pending. After loop is verified end-to-end, move toward ChromaDB semantic retrieval for research pipeline.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-04-25:** Anvil UI gaps all closed (artifact comments, error log resolve, work queue detail, per-agent invocation). ChromaDB loop improved: boot now retrieves lessons at step 10; close-session lesson quality checklist added; times_applied tracking tightened. PROJECT_STATE.md created and current.
-- **Next action:** Write DIRECTIVES.md for next session before closing — either a new card or free-text direction. If stale card found at boot, Telegram Bill and wait.
-- **Watch:** After a few sessions, check `never_applied` count in Anvil Lessons tab — if still high, boot retrieval query quality needs tuning.
+**2026-04-25:** B-052 complete. Primary finding: boot step 10 (lesson retrieval) absent from all Bill-initiated sessions — coverage gap. lesson_injector accounts for all existing times_applied counts (8–30, valid, Sentinel path). Boot 2/5 GT vs injector 3/5 GT; Haiku expansion is the delta. GT-4 and GT-5 missed by both: lesson write quality issue (titles don't embed near retrieval-quality queries).
+- **Next action:** Execute B-053 — add step 10 to bootstrap skill + switch boot query to Haiku expansion. DIRECTIVES.md set to `Run: B-053`.
+- **Watch:** After B-053, run a Bill-initiated session and confirm audit_log shows memory_search at boot and close-session step 8 increments at least one lesson.
 
 **2026-04-25:** B-048 complete. LEAN_BOOT is now the single boot path; live-state ping runs at step 9 before execute. developer_context_load deprecated; session_notes archived.
 

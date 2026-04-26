@@ -1,3 +1,32 @@
+## B-053: Fix boot step 10 coverage gap and query quality
+
+**Goal:** Boot lesson retrieval (step 10) currently only fires on the Sentinel/LEAN_BOOT path. All Bill-initiated sessions (developer_context_load + bootstrap) bypass it. Fix both the coverage gap and the query quality issue found in B-052.
+
+**Scope:**
+
+1. **Coverage fix — add step 10 to bootstrap skill.**
+   After the foundation documents are read (current step 2), add: distill the directive from DIRECTIVES.md into 3–5 keywords; call `mcp__aadp__memory_search` with `collection=lessons_learned`, `n_results=5`; for each result with distance < 1.4 that touches the current task domain, state "Applying lesson [id]: [title]" and honour it. Keep the running list for close-session step 8. Add to `~/aadp/mcp-server/.claude/skills/bootstrap.md` after step 1 (read foundation documents).
+
+2. **Query quality fix — use Haiku expansion instead of raw directive text.**
+   Replace the single-query call with a POST to `http://localhost:9100/inject_context_v3` using `task_type=design_and_build` (or the session's task type) and the directive as description. Use the returned `lesson_ids` as the retrieved set rather than running `memory_search` directly. This reuses lesson_injector's Haiku expansion and matches the injector's 3/5 GT score or better.
+   - If the stats server is unreachable, fall back to 3 manual memory_search calls with the directive plus two orthogonal query angles (e.g., "how to improve [domain]", "common failures in [domain]").
+
+3. **Verification.**
+   Run a Bill-initiated session after the fix. Confirm: (a) `audit_log` shows a `memory_search` entry at boot, (b) at least one lesson is flagged applied, (c) close-session step 8 increments that lesson's `times_applied` in Supabase.
+
+**Verification checklist:**
+- [ ] bootstrap skill updated with step 10 logic
+- [ ] Bill-initiated session shows `memory_search` in audit_log at boot
+- [ ] At least one lesson flagged "Applying lesson [id]: [title]" during session
+- [ ] close-session step 8 increments at least one `times_applied` row
+- [ ] Commit bootstrap skill change to claudis repo
+
+**Out of scope:**
+- GT-4/GT-5 lesson rewrites (write quality — separate card)
+- lesson_injector and boot path unification decision
+
+---
+
 ## B-052: Validate boot retrieval quality against ground truth
 
 **Goal:** Score both retrieval paths — LEAN_BOOT step 10 (`memory_search`) and `lesson_injector` (stats server) — against a manually-constructed ground truth for the B-052 directive. Produces a concrete signal: are the right lessons surfacing, or are both paths missing what matters?
