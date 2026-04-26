@@ -114,3 +114,82 @@ Verification checklist:
 - Branch attempt/b056-research-tab on both claudis and claude-dashboard, merged to master/main, pushed
 
 Notes: This card is medium-large because it touches both the uplink server and the dashboard form. Follow the patterns already established by the Artifacts tab (which has very similar mechanics: cards with ratings and comments) and the Fleet Run button (per-agent invocation). Don't reinvent UI primitives — reuse the existing FlowPanel/Button/TextBox patterns. The 60-second polling timeout is a soft cap; if the agent typically takes longer, raise it. The submit_agent_feedback_v2 naming is awkward but avoids breaking the existing thumbs-up callable; we can rename later if the existing one is retired.
+
+B-057: Research bundle export
+
+Goal: Add a get_research_bundle callable to the uplink server that returns a markdown-formatted string ready to paste into a desktop Claude session, and wire an Export button in the Anvil Research tab that surfaces the result so Bill can copy it.
+
+Rationale: Card 4 of the research micro-version (Card 5 — GitHub embed — was completed as part of EmbedControl retirement on 2026-04-26). The bundle closes the loop between the Research tab and a desktop analysis session: Bill rates articles in Anvil, presses Export, pastes the markdown into Claude, and the session has full context — what was fetched, what Bill thought of it, and what directional feedback is waiting to be acted on.
+
+Scope:
+
+1. New callable get_research_bundle(agent_run_id=None) in ~/aadp/claudis/anvil/uplink_server.py. If agent_run_id is None, use the most recent run. Returns a single markdown string with:
+
+   - Frontmatter block: run_id, run_timestamp (retrieved_at of the first article in the run), article_count, query_set (the five QUERIES from run_context_research, read from the DB via query_used values or hardcoded — hardcoded is fine for now).
+   - One ## section per article: title, source, URL, query_used, summary. Append "Rating: 👍" or "Rating: 👎" only if rating != 0. Append "Comment: <text>" only if comment is non-empty.
+   - A final ## Pending Feedback section listing unprocessed agent_feedback rows where target_type IN ('agent', 'anvil_view') AND processed = false OR processed IS NULL. Each row: "- [target_type: target_id] content". If no pending feedback, omit the section.
+
+2. Export button in the Research tab header row (right side, next to Run research button). Label: "⬇ Export". On click:
+   - Call get_research_bundle() with no_loading_indicator.
+   - Try anvil.js clipboard write (document.execCommand or navigator.clipboard.writeText). If it fails or raises, fall back to showing the markdown in a TextArea in a new ColumnPanel below the header. Bill can copy from there manually.
+   - Show "✅ Copied" or "📋 Ready to copy below" depending on which path ran.
+
+3. Restart the uplink after adding the callable. Confirm reconnection.
+
+4. Verify:
+   - Bundle string is valid markdown and includes all expected sections.
+   - Export button copies to clipboard or surfaces the TextArea fallback.
+   - Pending feedback rows appear in the bundle if any exist with processed=false.
+
+Verification checklist:
+- get_research_bundle returns well-formed markdown for the most recent run
+- Frontmatter includes run_id, timestamp, article count, query set
+- Articles with rating 0 omit the rating line; rated articles include it
+- Pending feedback section present when unprocessed rows exist, absent otherwise
+- Export button works (clipboard or TextArea fallback)
+- Uplink restarted cleanly after callable added
+
+Notes: Keep the callable pure — it only reads, never writes. The clipboard API in Anvil's browser context is inconsistent; the TextArea fallback is the primary path to test. Don't truncate summaries in the bundle — desktop sessions can handle full text and truncation loses context.
+
+B-058: Boot-time feedback pickup
+
+Goal: Update LEAN_BOOT.md and the bootstrap skill to surface unprocessed agent_feedback rows at session start, so feedback Bill left in Anvil is visible before the session executes its directive. Acting on a feedback item marks it processed.
+
+Rationale: Card 6 (final card) of the research micro-version, and the mechanism that closes the feedback loop for all future agent work — not just research. Bill leaves feedback in Anvil (for an agent, for a UI view, for anything with a target_type), and the next session reads it at boot, acts on what's relevant, and marks it consumed. Without this step, feedback rows accumulate silently and never influence behavior.
+
+Scope:
+
+1. Add a new step between the current step 9 (live-state ping) and step 10 (lesson retrieval) in LEAN_BOOT.md. Call it step 9.5 or renumber — renumber is cleaner. New step:
+
+   Query agent_feedback for unprocessed rows:
+   ```sql
+   SELECT id, target_type, target_id, content, created_at
+   FROM agent_feedback
+   WHERE processed = false OR processed IS NULL
+   ORDER BY created_at ASC;
+   ```
+
+   - If rows exist: include them in the boot summary as a labeled "## Pending Feedback" section. List each row as "- [target_type: target_id, created_at] content".
+   - After reading the directive (step 5), if any pending feedback has target_type = 'agent' or target_type = 'anvil_view', surface it again as "Feedback to consider during execution:" before proceeding. Do not auto-act — present it as input Bill or the directive may address.
+   - When a piece of feedback is acted on during the session, mark it: UPDATE agent_feedback SET processed = true, processed_at = now(), processed_in_session = '<session artifact filename>' WHERE id = '<id>'. Use supabase_exec_sql. Do this immediately after acting, not as a batch at close.
+   - If no pending feedback exists, skip the section silently (no "no feedback" placeholder).
+
+2. Apply the same step to the bootstrap skill (~/aadp/mcp-server/.claude/skills/bootstrap.md). Bootstrap is Bill's entry path; LEAN_BOOT is the directive-driven path. Both must check feedback so neither misses it.
+
+3. The processed_in_session field should match the session artifact filename (e.g., "2026-04-26-b058-boot-feedback.md") or, if the artifact isn't named yet at boot, use the card ID (e.g., "B-058").
+
+4. Verify:
+   - Boot summary includes Pending Feedback section when unprocessed rows exist.
+   - Rows created by the Research tab feedback boxes appear and are marked processed after acting on them.
+   - processed_at and processed_in_session are set correctly on the updated rows.
+   - No feedback section appears in boot summary when all rows are processed.
+
+Verification checklist:
+- LEAN_BOOT.md updated with new feedback step, correctly numbered
+- Bootstrap skill updated with the same step
+- Boot summary shows pending feedback rows on next lean session
+- Acting on feedback sets processed=true, processed_at, processed_in_session
+- Rows with processed=true do not reappear in subsequent boots
+- Both entry paths (LEAN_BOOT + bootstrap) catch feedback
+
+Notes: This step must be read-only at the point it runs (boot). It should never write processed=true during boot itself — only during execution when feedback is actually acted on. The distinction matters: surfacing ≠ acting. A session that sees feedback but whose directive is unrelated should leave feedback rows unprocessed for the next session.
