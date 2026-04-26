@@ -1,3 +1,51 @@
+## B-052: Validate boot retrieval quality against ground truth
+
+**Goal:** Score both retrieval paths — LEAN_BOOT step 10 (`memory_search`) and `lesson_injector` (stats server) — against a manually-constructed ground truth for the B-052 directive. Produces a concrete signal: are the right lessons surfacing, or are both paths missing what matters?
+
+**Rationale:** Comparing boot retrieval to lesson_injector only tells you whether they agree, not whether either is right. A ground truth set — lessons manually identified as genuinely relevant to the directive — lets us say "boot retrieved 4 of 5 relevant" rather than "boot and injector retrieved the same 3 lessons." The TRAJECTORY arc calls for validating boot retrieval quality; this is that validation.
+
+**Scope:**
+
+1. **Establish ground truth.**
+   Read the B-052 directive and scan `lessons_learned` titles (query: `SELECT id, title, category FROM lessons_learned ORDER BY created_at DESC`). Identify the 3–5 lessons that are genuinely most relevant to the task domain (ChromaDB retrieval quality, semantic search, lesson application, boot sequence). Record IDs and one-line justification for each.
+
+2. **Capture boot step 10 output for this session.**
+   Query `audit_log` for the `memory_search` action from this session's boot: `SELECT details FROM audit_log WHERE actor='claude_code' AND action='memory_search' AND target='chromadb:lessons_learned' AND timestamp > '<session_start>' ORDER BY timestamp ASC LIMIT 1`. Extract the returned IDs and distances.
+
+3. **Capture lesson_injector output for the same directive domain.**
+   POST to `http://localhost:9100/inject_context` (or the current inject_context endpoint) with the B-052 directive keywords. Capture the returned lesson IDs and their relevance scores.
+
+4. **Score both paths against ground truth.**
+   For each path, count how many ground-truth lessons appear in the retrieved set. Report as:
+   - Boot: N of M relevant lessons retrieved (list which were missed)
+   - lesson_injector: N of M relevant lessons retrieved (list which were missed)
+
+5. **Interpret and decide.**
+   Four signal states:
+   - Both match GT → both paths healthy, no tuning needed
+   - Both miss GT → embedding quality or query strategy issue; tune or rewrite missed lessons
+   - Boot misses what injector catches → boot query too narrow or threshold too strict; tune LEAN_BOOT step 10
+   - Injector misses what boot catches → injector query scope mismatch; note for lesson_injector unification discussion
+
+6. **Commit findings.**
+   Write structured result to `experimental_outputs` (agent_name=`claude_code_master`, output_type=`retrieval_audit`). Commit session artifact. If tuning is warranted, update LEAN_BOOT step 10 and commit to claudis repo.
+
+**Verification checklist:**
+- [ ] Ground truth set of 3–5 lessons identified with justification
+- [ ] Boot step 10 output captured (IDs + distances) from audit_log
+- [ ] lesson_injector output captured for same directive domain
+- [ ] Both paths scored against ground truth (N of M format)
+- [ ] Interpretation written — one of four signal states named
+- [ ] Findings written to experimental_outputs
+- [ ] If tuning warranted: LEAN_BOOT step 10 updated and committed
+
+**Out of scope:**
+- Changing lesson content or embeddings
+- Building boot_retrieval_log infrastructure (validate first, build if it's worth instrumenting)
+- Unifying lesson_injector and boot paths (noted for a future session)
+
+---
+
 ## B-051: Close the ChromaDB lesson feedback loop
 
 **Goal:** Verify and fix the end-to-end path: boot lesson retrieval → "Applying lesson" flag → close-session `times_applied` increment. Currently all 237 lessons show `times_applied = 0`, which means the loop has never completed a full cycle.
