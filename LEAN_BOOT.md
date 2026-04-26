@@ -54,7 +54,24 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
    ```
    Flag any agent where `flag = 'no_workflow_id'`. No writes.
 
-10. **Lesson retrieval** — Before executing, surface relevant lessons from prior sessions:
+10. **Pending feedback** — Query `agent_feedback` for unprocessed rows (read-only):
+
+   ```sql
+   SELECT id, target_type, target_id, content, created_at
+   FROM agent_feedback
+   WHERE processed = false OR processed IS NULL
+   ORDER BY created_at ASC;
+   ```
+
+   - If rows exist: include them in the boot summary as a `## Pending Feedback` section. List each as `- [target_type: target_id, created_at] content`.
+   - If any row has `target_type = 'agent'` or `target_type = 'anvil_view'`, surface it again after step 5 as "Feedback to consider during execution:" — do not auto-act, present as input.
+   - When a piece of feedback is acted on during the session, mark it immediately (not at close):
+     ```sql
+     UPDATE agent_feedback SET processed = true, processed_at = now(), processed_in_session = '<session artifact filename or card ID>' WHERE id = '<id>';
+     ```
+   - If no pending feedback, skip silently — no placeholder.
+
+11. **Lesson retrieval** — Before executing, surface relevant lessons from prior sessions:
 
    POST to the stats server with the directive text and card goal:
 
@@ -69,7 +86,7 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 
    If no results apply, continue without comment.
 
-11. Execute the directive. Do not pause for confirmation.
+12. Execute the directive. Do not pause for confirmation.
 
 If LEAN_BOOT.md is corrupted, restore from `~/aadp/prompts/LEAN_BOOT_stable.md`.
 
