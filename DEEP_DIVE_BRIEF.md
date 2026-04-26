@@ -488,7 +488,7 @@ Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → l
 
 **research_articles** — id (uuid), agent_run_id (uuid, groups articles from one run), title (text), url (text), source (text, domain), summary (text), query_used (text), retrieved_at (timestamptz), rating (smallint, default 0: -1/0/1), comment (text), status (text, default 'new': new/reviewed/archived), provenance (text, default 'context_engineering_research_agent'). Index on agent_run_id and status.
 
-**agent_feedback** — id (uuid), target_type (text, not null, e.g. 'agent', 'anvil_view', 'lesson', 'card'), target_id (text, not null), content (text, not null), created_at (timestamptz), processed (boolean, nullable), processed_at (timestamptz, nullable), processed_in_session (text, nullable, session artifact filename or card ID). Index on (target_type, target_id, processed). Boot-time pickup: LEAN_BOOT step 10 and bootstrap step 3 query unprocessed rows and surface them in the session summary. Acting on feedback sets processed=true immediately; surfacing ≠ acting.
+**agent_feedback** — id (uuid), target_type (text, not null, e.g. 'agent', 'anvil_view', 'lesson', 'card'), target_id (text, not null), content (text, not null), created_at (timestamptz), processed (boolean, nullable), processed_at (timestamptz, nullable), processed_in_session (text, nullable), action_summary (text, nullable — required on every processed=true write; use "Deferred: [reason]" prefix when not acted on), action_session (text, nullable — artifact filename or commit SHA; required on every processed=true write), action_result_url (text, nullable — optional, only when a specific URL exists). Index on (target_type, target_id, processed). Boot-time pickup: LEAN_BOOT step 10 queries unprocessed rows and surfaces them. Acting on feedback writes action_summary + action_session immediately; deferred items are swept and written at session close. This converts the table from a queue to a conversation thread.
 
 **lessons_learned** — id (uuid), title, category, content, confidence (float, default 0.5), times_applied (int, default 0), source (default sentinel), created_at, updated_at, chromadb_id (text). NULL chromadb_id = invisible to semantic search.
 
@@ -732,6 +732,8 @@ Before ending a desktop session:
 **Project auto-complete has no approval gate.** When lean_runner.sh finds no unblocked pending nodes, it marks the project `complete` in `aadp_projects` automatically — Bill does not review or approve first.
 
 **lean_runner.sh dual-location.** Live copy at `~/aadp/sentinel/lean_runner.sh`; version-controlled copy at `claudis/sentinel/lean_runner.sh`. Changes must be made to both manually — no sync mechanism.
+
+**close-session.md not version-controlled.** Live copy at `~/aadp/mcp-server/.claude/skills/close-session.md`; mcp-server is not a git repo. Changes to the close ritual are not tracked in git — a gap.
 
 **Telegram chat_id hardcoded** in scheduler.sh, lean_runner.sh, stats_server.py, and many n8n workflows.
 
