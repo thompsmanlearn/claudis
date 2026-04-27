@@ -1390,18 +1390,21 @@ print(json.dumps(output))
 
 # Which collections to query per task type (ordered by priority)
 _V3_TASK_ROUTING = {
-    "agent_build":      ["lessons_learned", "error_patterns", "reference_material", "session_memory", "research_findings"],
-    "research_cycle":   ["research_findings", "lessons_learned", "reference_material", "session_memory"],
+    # session_memory placed at position 2 (after lessons_learned) in all lists
+    # that include it — ensures episode grounding survives token-trim, which pops
+    # from the bottom. reference_material and research_findings are trimmed first.
+    "agent_build":      ["lessons_learned", "session_memory", "error_patterns", "reference_material", "research_findings"],
+    "research_cycle":   ["research_findings", "lessons_learned", "session_memory", "reference_material"],
     "explore":          ["lessons_learned", "session_memory", "research_findings"],
     "self_diagnostic":  ["self_diagnostics", "error_patterns", "lessons_learned"],
-    "directive":        ["lessons_learned", "error_patterns", "reference_material", "session_memory"],
+    "directive":        ["lessons_learned", "session_memory", "error_patterns", "reference_material"],
     "gh_weekly_search": ["research_findings"],
     "gh_report":        ["session_memory", "lessons_learned"],
     "gh_task":          ["lessons_learned", "reference_material"],
     "agent_control":    ["lessons_learned", "error_patterns"],
     "agent_test":       ["lessons_learned", "error_patterns", "reference_material"],
 }
-_V3_DEFAULT_COLLECTIONS = ["lessons_learned", "error_patterns", "reference_material", "session_memory", "research_findings"]
+_V3_DEFAULT_COLLECTIONS = ["lessons_learned", "session_memory", "error_patterns", "reference_material", "research_findings"]
 
 # Fallback descriptions when task has no description — widens Haiku query expansion
 # beyond generic phrases so more of the 155-lesson corpus gets retrieved over time.
