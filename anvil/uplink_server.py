@@ -406,7 +406,7 @@ def set_autonomous_mode(enabled):
 # ── Lesson callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
-def get_lessons(filter='recent', limit=25):
+def get_lessons(filter='recent', limit=25, age_threshold_days=7):
     params = {
         'select': 'id,title,category,times_applied,confidence,chromadb_id,created_at',
         'limit': str(limit),
@@ -415,6 +415,8 @@ def get_lessons(filter='recent', limit=25):
         params['order'] = 'times_applied.desc'
     elif filter == 'never_applied':
         params['times_applied'] = 'eq.0'
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=age_threshold_days)).isoformat()
+        params['created_at'] = f'lt.{cutoff}'
         params['order'] = 'created_at.desc'
     elif filter == 'broken':
         params['chromadb_id'] = 'is.null'
@@ -1308,7 +1310,7 @@ def _bundle_resolved_feedback(target_type, target_ids=None):
 
 
 @anvil.server.callable
-def get_lessons_bundle(filter='recent', limit=50):
+def get_lessons_bundle(filter='recent', limit=50, age_threshold_days=7):
     """Return markdown bundle of lessons_learned — ready to paste into a desktop session."""
     params = {
         'select': 'id,title,category,content,confidence,times_applied,created_at,chromadb_id',
@@ -1318,6 +1320,8 @@ def get_lessons_bundle(filter='recent', limit=50):
         params['order'] = 'times_applied.desc'
     elif filter == 'never_applied':
         params['times_applied'] = 'eq.0'
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=age_threshold_days)).isoformat()
+        params['created_at'] = f'lt.{cutoff}'
         params['order'] = 'created_at.desc'
     elif filter == 'broken':
         params['chromadb_id'] = 'is.null'

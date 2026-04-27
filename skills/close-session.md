@@ -93,6 +93,20 @@ If not due: skip to Step 7.
 
 ---
 
+## Step 7a — Sync check before writing lessons
+
+Before writing new lessons, verify store integrity:
+
+```sql
+SELECT COUNT(*) AS broken FROM lessons_learned WHERE chromadb_id IS NULL;
+```
+
+If count > 0: flag in the session summary — "⚠ Store sync gap: N lessons missing chromadb_id. Backfill needed next session (see B-062 procedure)." Do not auto-fix; surface and continue.
+
+If count = 0: continue silently.
+
+---
+
 ## Step 7 — Write lessons to BOTH stores
 
 Every lesson learned this session must go to BOTH Supabase AND ChromaDB.
