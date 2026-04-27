@@ -1654,8 +1654,9 @@ print(json.dumps(output))
                     {"id": c["chromadb_id"], "content": c["content"]}
                     for c in sample if c.get("chromadb_id")
                 ]
-                # Add to lesson_ids so increment_lessons_applied_by_id tracks them
-                lesson_ids += [w["id"] for w in zero_applied_wildcards]
+                # Wildcards are surfaced for awareness only — not counted as applied.
+                # Incrementing on random exposure conflates "surfaced" with "used"
+                # and would drain the zero_applied pool without evidence of actual use.
         except Exception:
             pass
 
@@ -1699,6 +1700,9 @@ print(json.dumps(output))
     token_estimate = len(block) // 4
 
     # --- Track lessons_applied ---
+    # Only increment for semantic search results (lesson_ids), not wildcards.
+    # Content-match RPC (increment_lessons_applied) removed: redundant after B-062
+    # chromadb_id backfill; firing both RPCs caused +2 per retrieval instead of +1.
     sb_url = env.get("SUPABASE_URL", "")
     sb_key = env.get("SUPABASE_SERVICE_KEY", "")
     if lesson_ids and sb_url and sb_key:
@@ -1711,15 +1715,6 @@ print(json.dumps(output))
             urllib.request.urlopen(req, timeout=8).read()
         except Exception:
             pass
-        if lesson_contents:
-            try:
-                req = urllib.request.Request(
-                    f"{sb_url}/rest/v1/rpc/increment_lessons_applied",
-                    data=_json.dumps({"lesson_contents": lesson_contents}).encode(), headers=headers
-                )
-                urllib.request.urlopen(req, timeout=8).read()
-            except Exception:
-                pass
 
     return JSONResponse({
         "task_id":                task_id,
