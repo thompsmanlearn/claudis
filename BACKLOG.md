@@ -1,3 +1,58 @@
+B-063: Memory tab — deeper collection export (raise limit, fix truncation, clarify UX)
+
+Status: ready
+Depends on: B-061 (Export pattern already built)
+
+Goal
+The Memory tab ⬇ Export button already passes the selected collection to get_memory_bundle(collection), but two implementation gaps make the output too shallow to act on: (1) documents are capped at 30 per collection and truncated at 300 chars each, which is insufficient for reference_material (173 docs) or research_findings (141 docs); (2) the Export button label doesn't change when a collection is selected, so it's not obvious the button is context-sensitive.
+
+Context
+Bill's "System better leverages ChromaDB" destination requires being able to read what's actually in the non-lesson collections. Without this, curation decisions about reference_material and research_findings are blind. The infrastructure exists (get_memory_bundle, browse_collection, _run_export pattern) — this card just raises the limits and clarifies the interface.
+
+Done when
+
+1. Per-collection export limit:
+   - get_memory_bundle(collection, limit=100) — add limit parameter, default 100
+   - Content truncation raised from 300 chars to 600 chars per document
+   - When collection=None (stats mode), behaviour unchanged
+
+2. Export button UX:
+   - When no collection is selected: button reads "⬇ Export All" (stats overview)
+   - When a collection is selected: button reads "⬇ Export {collection}" (contents)
+   - Button label updates live as collection selection changes
+
+3. Verification:
+   - Export with reference_material selected returns ≥ 100 documents (or total count if fewer)
+   - Export with no collection selected returns the stats overview (unchanged behaviour)
+   - Button label reflects selected collection in Anvil UI
+
+Out of scope:
+- Adding new collections or changing ChromaDB schema
+- Per-document delete or edit from the Memory tab
+- research_findings or reference_material curation (that's a future card once we can see the contents)
+
+Scope
+Touch:
+  ~/aadp/claudis/anvil/uplink_server.py — get_memory_bundle() limit and truncation params
+  ~/aadp/claude-dashboard/client_code/Form1/__init__.py — button label update logic
+
+Do not touch:
+  ChromaDB data or collection structure
+  Any other callables or tabs
+
+Verification checklist
+- get_memory_bundle('reference_material') returns ≥ 100 docs (or full collection if < 100)
+- Document content shown up to 600 chars
+- Button shows "⬇ Export reference_material" when that collection is selected
+- Button shows "⬇ Export All" when no collection is selected
+- Branch attempt/b063-memory-export on both repos, merged, pushed
+
+Notes
+- This is a one-session card. The limit of 100 covers reference_material (173) partially — if Bill wants the full dump, a second Export click with a higher limit could be a follow-on, but 100 is a good starting point for analysis.
+- The 600-char truncation is a guess; tune after seeing the first export.
+
+---
+
 B-062: Lesson curation — Never Applied filter, broken-lesson backfill, recurring sync check
 
 Status: ready
