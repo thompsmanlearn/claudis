@@ -10,15 +10,22 @@
 
 **Where we are:**
 - Fleet: 10 active agents; context_engineering_research pulls from 6 sources (HN, arXiv, dev.to, GitHub, lobste.rs, Medium)
-- Anvil UI: 52 callables (7 new bundle callables); all 7 tabs have ⬇ Export buttons — Fleet, Sessions, Lessons, Memory, Errors, Skills, Artifacts
-- Export pattern complete: every tab produces a structured markdown bundle (YAML frontmatter + Summary + domain sections) paste-ready for desktop Claude analysis
+- Anvil UI: 52 callables; all 7 tabs have ⬇ Export buttons; Never Applied filter now excludes lessons < 7 days old
+- Lesson curation: 4 broken lessons backfilled (chromadb_id IS NULL → 0); close-session now checks sync integrity on every close
 - Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
 
-**Project arc next:** B-061a complete. Bill sets next direction.
+**Project arc next:** B-062 complete. Bill sets next direction.
 
 ---
 
 ## Handoff (pick up here)
+
+**2026-04-26 (B-062):**
+- **What I was doing:** B-062 — Lesson curation: Never Applied age filter, broken-lesson backfill, recurring sync check.
+- **What I learned:** When lessons are written to ChromaDB using the Supabase UUID as doc_id (older convention), the Supabase chromadb_id column may remain NULL even though the lesson IS in ChromaDB. Backfill in that case means pointing chromadb_id to the UUID, not creating a new entry.
+- **Continue:** Bill sets next direction.
+- **Left better:** Never Applied view trustworthy (7-day threshold); 4 backfilled lessons now visible to semantic search; close-session step 7a catches future sync gaps.
+- **Usage:** session ~%, weekly ~%
 
 **2026-04-26 (B-061a):**
 - **What I was doing:** B-061a — Bring close-session.md and bootstrap.md into claudis version control. Replaced flat files with symlinks into claudis/skills/.
@@ -33,13 +40,6 @@
 - **Continue:** B-061a. Done above.
 - **Left better:** All 7 tabs export paste-ready markdown bundles for desktop Claude analysis.
 - **Usage:** session ~25%, weekly ~100%
-
-**2026-04-26 (B-060):**
-- **What I was doing:** B-060 — Anvil feedback thread visibility. Research tab now shows agent_feedback as full conversation threads with ✅/⏸ icons.
-- **What I learned:** Anvil has no "muted" role — use font_size=13 vs 14 for visual weight distinction.
-- **Continue:** B-061 generalize export. Done.
-- **Left better:** Research tab shows full feedback conversation surface.
-- **Usage:** session ~15%, weekly ~100%
 
 ---
 
