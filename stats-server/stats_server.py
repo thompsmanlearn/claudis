@@ -1390,18 +1390,21 @@ print(json.dumps(output))
 
 # Which collections to query per task type (ordered by priority)
 _V3_TASK_ROUTING = {
-    "agent_build":      ["lessons_learned", "error_patterns", "reference_material", "session_memory", "research_findings"],
-    "research_cycle":   ["research_findings", "lessons_learned", "reference_material", "session_memory"],
+    # session_memory placed at position 2 (after lessons_learned) in all lists
+    # that include it — ensures episode grounding survives token-trim, which pops
+    # from the bottom. reference_material and research_findings are trimmed first.
+    "agent_build":      ["lessons_learned", "session_memory", "error_patterns", "reference_material", "research_findings"],
+    "research_cycle":   ["research_findings", "lessons_learned", "session_memory", "reference_material"],
     "explore":          ["lessons_learned", "session_memory", "research_findings"],
     "self_diagnostic":  ["self_diagnostics", "error_patterns", "lessons_learned"],
-    "directive":        ["lessons_learned", "error_patterns", "reference_material", "session_memory"],
+    "directive":        ["lessons_learned", "session_memory", "error_patterns", "reference_material"],
     "gh_weekly_search": ["research_findings"],
     "gh_report":        ["session_memory", "lessons_learned"],
     "gh_task":          ["lessons_learned", "reference_material"],
     "agent_control":    ["lessons_learned", "error_patterns"],
     "agent_test":       ["lessons_learned", "error_patterns", "reference_material"],
 }
-_V3_DEFAULT_COLLECTIONS = ["lessons_learned", "error_patterns", "reference_material", "session_memory", "research_findings"]
+_V3_DEFAULT_COLLECTIONS = ["lessons_learned", "session_memory", "error_patterns", "reference_material", "research_findings"]
 
 # Fallback descriptions when task has no description — widens Haiku query expansion
 # beyond generic phrases so more of the 155-lesson corpus gets retrieved over time.
@@ -1654,8 +1657,9 @@ print(json.dumps(output))
                     {"id": c["chromadb_id"], "content": c["content"]}
                     for c in sample if c.get("chromadb_id")
                 ]
-                # Add to lesson_ids so increment_lessons_applied_by_id tracks them
-                lesson_ids += [w["id"] for w in zero_applied_wildcards]
+                # Wildcards are surfaced for awareness only — not counted as applied.
+                # Incrementing on random exposure conflates "surfaced" with "used"
+                # and would drain the zero_applied pool without evidence of actual use.
         except Exception:
             pass
 
@@ -1699,6 +1703,9 @@ print(json.dumps(output))
     token_estimate = len(block) // 4
 
     # --- Track lessons_applied ---
+    # Only increment for semantic search results (lesson_ids), not wildcards.
+    # Content-match RPC (increment_lessons_applied) removed: redundant after B-062
+    # chromadb_id backfill; firing both RPCs caused +2 per retrieval instead of +1.
     sb_url = env.get("SUPABASE_URL", "")
     sb_key = env.get("SUPABASE_SERVICE_KEY", "")
     if lesson_ids and sb_url and sb_key:
@@ -1711,15 +1718,6 @@ print(json.dumps(output))
             urllib.request.urlopen(req, timeout=8).read()
         except Exception:
             pass
-        if lesson_contents:
-            try:
-                req = urllib.request.Request(
-                    f"{sb_url}/rest/v1/rpc/increment_lessons_applied",
-                    data=_json.dumps({"lesson_contents": lesson_contents}).encode(), headers=headers
-                )
-                urllib.request.urlopen(req, timeout=8).read()
-            except Exception:
-                pass
 
     return JSONResponse({
         "task_id":                task_id,
