@@ -1384,7 +1384,7 @@ def get_lessons_bundle(filter='recent', limit=50, age_threshold_days=7):
 
 
 @anvil.server.callable
-def get_memory_bundle(collection=None):
+def get_memory_bundle(collection=None, limit=100):
     """Return markdown bundle of ChromaDB memory state — ready to paste into a desktop session."""
     if collection is None:
         try:
@@ -1438,7 +1438,7 @@ def get_memory_bundle(collection=None):
             coll_id = _get_chromadb_collection_id(collection)
             r = requests.post(
                 f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/get',
-                json={'limit': 30, 'include': ['documents', 'metadatas']},
+                json={'limit': limit, 'include': ['documents', 'metadatas']},
                 timeout=10,
             )
             r.raise_for_status()
@@ -1454,7 +1454,7 @@ def get_memory_bundle(collection=None):
         lines += [
             '## Summary',
             '',
-            f'This bundle contains up to 30 documents from ChromaDB collection "{collection}". '
+            f'This bundle contains up to {limit} documents from ChromaDB collection "{collection}". '
             'Use this to assess retrieval quality, identify stale or poorly-labelled content, '
             'and spot duplicates.',
             '',
@@ -1464,8 +1464,8 @@ def get_memory_bundle(collection=None):
         for i, doc_id in enumerate(ids):
             doc = (docs[i] if i < len(docs) else '') or ''
             meta = (metas[i] if i < len(metas) else {}) or {}
-            excerpt = doc[:300].replace('\n', ' ')
-            if len(doc) > 300:
+            excerpt = doc[:600].replace('\n', ' ')
+            if len(doc) > 600:
                 excerpt += ' [truncated]'
             lines.append(f'**[{doc_id}]**')
             if meta:
