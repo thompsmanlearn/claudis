@@ -2,7 +2,7 @@
 # Invoked via: /close-session
 # Purpose: Execute the 10-step AADP session close ritual.
 # Load cost: zero until invoked. Replaces ~200 lines of prompt carried every session.
-# Last updated: 2026-04-26 (v27 — feedback write-back: action_summary/action_session required on every processed=true)
+# Last updated: 2026-04-26 (v28 — B-066: situation field added to lesson write; ChromaDB preamble prepend)
 
 Execute the following 10 steps in order. Do not skip steps. Do not mark the session complete until all 10 are done.
 
@@ -120,17 +120,22 @@ Writing to only one store is a failure — the lesson becomes invisible to eithe
 - **No duplicates.** Before writing, search `lessons_learned` for the topic. Update an existing lesson rather than writing a near-duplicate.
 - **Content is written for semantic retrieval.** Include the keywords a future instance would naturally use when querying. If the lesson is about Anvil, say "Anvil" in the body, not just the title.
 
+**Before writing, prompt for situation (required):**
+In 1–2 sentences: what specific condition or observation triggered this lesson?
+Example: "During B-062 sync check, found 4 lessons with chromadb_id IS NULL — discovered the old convention used the Supabase UUID as doc_id, causing silent backfill duplicates."
+This becomes the `situation` column. Keep it concrete: what you saw or hit, not what the lesson says.
+
 **Supabase first:**
 ```sql
-INSERT INTO lessons_learned (title, content, category, confidence, source)
-VALUES ('...', '...', '...', 0.X, 'session_YYYY-MM-DD');
+INSERT INTO lessons_learned (title, content, category, confidence, source, situation)
+VALUES ('...', '...', '...', 0.X, 'session_YYYY-MM-DD', '...');
 ```
 Capture the returned `id` — you need it to link the ChromaDB entry.
 
 **ChromaDB second** (use `mcp__aadp__memory_add`):
 - collection: `lessons_learned`
 - doc_id format: `lesson_{topic}_{YYYY-MM-DD}`
-- content: same as Supabase `content`
+- content: if `situation` is present, prepend `Situation: {situation}\n\n` before the lesson body. Otherwise use lesson body as-is.
 - metadata: `{"title": "...", "category": "...", "supabase_id": "<id from above>"}`
 
 **Link back** — update the Supabase row with the ChromaDB doc_id:
