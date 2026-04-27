@@ -2,7 +2,7 @@
 # Invoked via: /close-session
 # Purpose: Execute the 10-step AADP session close ritual.
 # Load cost: zero until invoked. Replaces ~200 lines of prompt carried every session.
-# Last updated: 2026-04-26 (v28 — B-066: situation field added to lesson write; ChromaDB preamble prepend)
+# Last updated: 2026-04-27 (v29 — B-068: hard dedup gate with distance < 0.4 threshold)
 
 Execute the following 10 steps in order. Do not skip steps. Do not mark the session complete until all 10 are done.
 
@@ -117,7 +117,7 @@ Writing to only one store is a failure — the lesson becomes invisible to eithe
 - **Title states the pattern, not the instance.** "PostgREST column names must match Supabase schema exactly" not "Fixed error_logs column name." The title is the primary retrieval signal — make it the rule a future instance would search for.
 - **Content includes the trigger condition.** Structure: rule (1–2 sentences) → when it applies → what breaks if ignored. Example: "Anvil callables must return portable types only (str, int, float, bool, None, list, dict, datetime). Returning a custom object or set raises a SerializationError that surfaces as a cryptic client-side exception."
 - **No session-specific references.** No card numbers, no file line numbers, no "this session." Lessons must survive codebase churn.
-- **No duplicates.** Before writing, search `lessons_learned` for the topic. Update an existing lesson rather than writing a near-duplicate.
+- **No duplicates — hard gate.** Before writing, run `mcp__aadp__memory_search` on the lesson title keywords (collection: `lessons_learned`, n_results: 5). If any result returns distance < 0.4 to a *different* lesson, update that lesson instead of creating a new one. Distance ≥ 0.4 = safe to create new.
 - **Content is written for semantic retrieval.** Include the keywords a future instance would naturally use when querying. If the lesson is about Anvil, say "Anvil" in the body, not just the title.
 
 **Before writing, prompt for situation (required):**
