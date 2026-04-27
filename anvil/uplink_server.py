@@ -643,7 +643,7 @@ def browse_collection(name, limit=15, offset=0):
     docs = [
         {
             'id': ids[i],
-            'document': (documents[i] if i < len(documents) else '')[:300],
+            'document': (documents[i] if i < len(documents) else '')[:600],
             'metadata': metadatas[i] if i < len(metadatas) else {},
         }
         for i in range(len(ids))
@@ -674,7 +674,7 @@ def search_collection(name, query, n_results=15):
     return [
         {
             'id': ids[i],
-            'document': (documents[i] if i < len(documents) else '')[:300],
+            'document': (documents[i] if i < len(documents) else '')[:600],
             'metadata': metadatas[i] if i < len(metadatas) else {},
             'distance': distances[i] if i < len(distances) else None,
         }
