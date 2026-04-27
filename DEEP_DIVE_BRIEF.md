@@ -536,7 +536,9 @@ Distance thresholds: < 0.8 high confidence; 0.8–1.2 review carefully; > 1.2 we
 
 Critical gotcha: Never include `"embeddings"` in the include list for bulk-get operations — causes IndexError at scale. Use `["documents", "metadatas"]` only.
 
-Store sync validation: `SELECT COUNT(*) FROM lessons_learned WHERE chromadb_id IS NULL` — any value > 0 means lessons invisible to semantic search.
+**Integrity invariant:** `chromadb_id IS NOT NULL` for every live lesson. A NULL chromadb_id means the lesson is invisible to semantic search — it will never be retrieved by inject_context_v3 or memory_search. This invariant is enforced by procedure, not by a database constraint.
+
+Store sync check (run at close-session step 7a): `SELECT COUNT(*) FROM lessons_learned WHERE chromadb_id IS NULL` — any value > 0 means the invariant is broken. Surface the count in the session summary; do not auto-fix. Backfill procedure: for each broken row, call memory_add to ChromaDB, capture the returned doc_id, UPDATE lessons_learned SET chromadb_id = doc_id WHERE id = supabase_id.
 
 ### Data Flow — Lesson System End-to-End
 
