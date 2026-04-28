@@ -1,3 +1,49 @@
+B-069: Retroactive situation backfill for highest-applied lessons
+
+Status: ready
+Depends on: B-066 (situation column + ChromaDB preamble, complete)
+
+Goal
+The situation field (B-066) improves episode binding at write time, but the existing corpus has no situation text. The highest-applied lessons are the ones the model encounters most — backfilling their situation text improves the retrieval embedding immediately rather than waiting for future sessions to accumulate. B-064 showed marginal distance improvement on 3 lessons; this card runs the same treatment at scale on the 25 most-applied lessons where situation text would add genuine signal.
+
+Context
+After B-068 dedup, the top lessons by times_applied are: lesson_n8n_merge_deadlock (48), lesson_n8n_array_unwrap (47), lesson_retrieval_logging_adapter (21), 7febbc27 n8n activation (21), lesson_n8n_code_node_fetch_silent_failure (10), lesson_n8n_no_run_endpoint (8+), lesson_n8n_webhookid_node_property (12), etc. These lessons surface at every session that involves n8n or retrieval work. Adding situation text to them gives the model "when this arose" context so it can judge applicability — the primary benefit B-066 identified (not retrieval distance improvement, which was marginal).
+
+Done when
+
+1. Query Supabase for top 25 lessons by times_applied WHERE situation IS NULL. For each, write 1–2 sentence situation text describing the concrete episode that produced the lesson. Use git history, session artifacts, and lesson source field to reconstruct episodes; state "Episode unknown — inferred from content" when the origin cannot be determined.
+
+2. UPDATE lessons_learned SET situation = '...' for each row.
+
+3. ChromaDB re-embed: for each updated lesson, delete the existing ChromaDB entry and re-add with Situation: preamble prepended. (Same procedure as B-066 re-embedding pass.)
+
+4. Run episode-style distance check on 5 of the updated lessons using queries that describe the triggering situation (not the lesson content). Document before/after distances. Accept marginal improvement — the primary goal is applicability signal, not distance.
+
+5. Report: how many of the 25 had identifiable episodes vs inferred? What patterns emerged about which lessons have traceable origins?
+
+Scope
+Touch:
+  Supabase lessons_learned: UPDATE situation column for ≤25 rows
+  ChromaDB lessons_learned: delete + re-add for same rows
+  No schema changes, no skill changes, no stats server changes
+
+Do not touch:
+  Lessons with times_applied = 0 (covered by zero_applied wildcard mechanism)
+  Any lesson written this session (already has situation from v28 ritual)
+
+Verification checklist
+- 25 lessons have non-null situation text
+- ChromaDB entries for those 25 include Situation: preamble
+- Episode-style distance check run on 5 lessons with before/after reported
+- Inferred vs known episode count documented
+
+Notes
+- Situation text should be 1–2 sentences: what was happening, what was observed. Not a restatement of the lesson content.
+- The source column (e.g. "session_2026-03-25", "lesson_injector_build_2026-03-25") is the primary clue for episode reconstruction.
+- After this card: the next outward-facing session (research digest via thompsmanlearn.github.io) is the planned follow-on.
+
+---
+
 B-064: Audit lean-boot lesson retrieval against the binding problem
 
 Status: ready
