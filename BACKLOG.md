@@ -1,248 +1,87 @@
-B-069: Retroactive situation backfill for highest-applied lessons
+B-070: Thread architecture — schema and ChromaDB collection
 
 Status: ready
-Depends on: B-066 (situation column + ChromaDB preamble, complete)
+Depends on: nothing — this is the foundation card for the thread architecture v0.1
 
 Goal
-The situation field (B-066) improves episode binding at write time, but the existing corpus has no situation text. The highest-applied lessons are the ones the model encounters most — backfilling their situation text improves the retrieval embedding immediately rather than waiting for future sessions to accumulate. B-064 showed marginal distance improvement on 3 lessons; this card runs the same treatment at scale on the 25 most-applied lessons where situation text would add genuine signal.
+Create the substrate for a thread architecture: a Supabase pair of tables (threads, thread_entries) and a separate ChromaDB collection (thread_entries) that holds entry embeddings but is excluded from default boot retrieval routing. No callables, no UI, no agent wiring yet — just the substrate that subsequent cards build on. This is Card 1 of a 4-card v0.1 (B-070 schema, B-071 write callables, B-072 Anvil read view, B-073 Anvil actions).
 
 Context
-After B-068 dedup, the top lessons by times_applied are: lesson_n8n_merge_deadlock (48), lesson_n8n_array_unwrap (47), lesson_retrieval_logging_adapter (21), 7febbc27 n8n activation (21), lesson_n8n_code_node_fetch_silent_failure (10), lesson_n8n_no_run_endpoint (8+), lesson_n8n_webhookid_node_property (12), etc. These lessons surface at every session that involves n8n or retrieval work. Adding situation text to them gives the model "when this arose" context so it can judge applicability — the primary benefit B-066 identified (not retrieval distance improvement, which was marginal).
+Threads are a working surface for sustained, multi-sitting investigations — research, builds, learning, system arcs. Each thread has a question, a state, and an append-only log of entries (gather results, annotations, analysis exports, conclusions, state changes). Threads are exploratory and abandonable; they must not contaminate the system's load-bearing memory (lessons_learned, reference_material). Therefore thread embeddings live in a dedicated ChromaDB collection that is NOT in default boot retrieval routing.
+
+Design decisions already made (do not relitigate):
+- Threads live in Supabase (canonical) + ChromaDB (semantic search for in-thread retrieval). Not in DEEP_DIVE_BRIEF, not in any other system-self-knowledge document.
+- States: active / dormant / closed (closed covers both completed and abandoned; an optional close_reason field captures why).
+- Entry types: gather / annotation / analysis / conclusion / state_change.
+- Bound-agent model: one agent_name per thread (nullable; thread can exist without an agent wired). v0.1 only supports agents that already have webhook_url in agent_registry.
+- ChromaDB collection name: thread_entries.
+- Boot retrieval (LEAN_BOOT step 10, bootstrap step 3) must NOT query thread_entries by default.
 
 Done when
 
-1. Query Supabase for top 25 lessons by times_applied WHERE situation IS NULL. For each, write 1–2 sentence situation text describing the concrete episode that produced the lesson. Use git history, session artifacts, and lesson source field to reconstruct episodes; state "Episode unknown — inferred from content" when the origin cannot be determined.
+1. threads table exists with columns:
+   - id (uuid, primary key, default gen_random_uuid())
+   - title (text, not null)
+   - question (text, not null)
+   - state (text, not null, default 'active', check in ('active','dormant','closed'))
+   - close_reason (text, nullable — populated when state transitions to closed)
+   - bound_agent (text, nullable — references agent_registry.agent_name; not enforced as FK to keep deletion flexible)
+   - created_at (timestamptz, default now())
+   - updated_at (timestamptz, default now())
+   - last_activity_at (timestamptz, default now() — distinct from updated_at; tracks when the thread was last meaningfully engaged with vs. when its row was edited)
 
-2. UPDATE lessons_learned SET situation = '...' for each row.
+   Index on state (most common filter is active threads) and on last_activity_at desc.
 
-3. ChromaDB re-embed: for each updated lesson, delete the existing ChromaDB entry and re-add with Situation: preamble prepended. (Same procedure as B-066 re-embedding pass.)
+2. thread_entries table exists with columns:
+   - id (uuid, primary key, default gen_random_uuid())
+   - thread_id (uuid, not null, foreign key to threads(id) on delete cascade)
+   - entry_type (text, not null, check in ('gather','annotation','analysis','conclusion','state_change'))
+   - content (text, not null)
+   - source (text, nullable — e.g. 'agent:context_engineering_research', 'session:2026-04-29-foo', 'desktop_claude:bundle_2026-04-29', 'bill')
+   - chromadb_id (text, nullable — populated when the entry is embedded; allows entries to skip embedding if they don't warrant it)
+   - metadata (jsonb, default '{}')
+   - created_at (timestamptz, default now())
 
-4. Run episode-style distance check on 5 of the updated lessons using queries that describe the triggering situation (not the lesson content). Document before/after distances. Accept marginal improvement — the primary goal is applicability signal, not distance.
+   Index on (thread_id, created_at) for chronological reads of a thread.
 
-5. Report: how many of the 25 had identifiable episodes vs inferred? What patterns emerged about which lessons have traceable origins?
+3. ChromaDB collection thread_entries created with all-MiniLM-L6-v2 embeddings. Verify it appears in get_collection_stats() output.
+
+4. LEAN_BOOT.md and bootstrap.md verified to NOT query thread_entries by default. Document this exclusion explicitly in DEEP_DIVE_BRIEF Section 7 (Database Schema → ChromaDB Collections), so future cards know thread_entries is segregated by design.
+
+5. Test inserts: one thread row, two thread_entry rows referencing it, one ChromaDB document in thread_entries. Read back. Delete the thread row, confirm cascade removes the entries. Test rows cleaned up after verification.
+
+Out of scope (separate cards)
+- create_thread, add_thread_entry, update_thread_state, wire_thread_agent callables (B-071)
+- Anvil Threads tab read view (B-072)
+- Anvil Threads tab action buttons + bundle export (B-073)
+- Boot-time surfacing of dormant or stale threads (deferred — possibly never)
+- Graduation of conclusions into lessons_learned (deferred — wait for use to inform pattern)
+- Agent-request entry type (deferred — explicitly v0.1 does not support thread-driven agent creation)
 
 Scope
 Touch:
-  Supabase lessons_learned: UPDATE situation column for ≤25 rows
-  ChromaDB lessons_learned: delete + re-add for same rows
-  No schema changes, no skill changes, no stats server changes
+  Supabase: DDL via supabase_exec_sql to create threads and thread_entries tables
+  ChromaDB: create thread_entries collection
+  ~/aadp/claudis/DEEP_DIVE_BRIEF.md (Section 7 only): document thread_entries collection exclusion from default boot retrieval
 
 Do not touch:
-  Lessons with times_applied = 0 (covered by zero_applied wildcard mechanism)
-  Any lesson written this session (already has situation from v28 ritual)
+  uplink_server.py (no callables yet)
+  Form1/__init__.py (no UI yet)
+  LEAN_BOOT.md or skills/bootstrap.md (no boot changes — exclusion is by absence, not by added code)
+  Any other tables or collections
 
 Verification checklist
-- 25 lessons have non-null situation text
-- ChromaDB entries for those 25 include Situation: preamble
-- Episode-style distance check run on 5 lessons with before/after reported
-- Inferred vs known episode count documented
+- threads table exists with all columns and check constraints
+- thread_entries table exists with all columns, check constraint, and FK with cascade
+- Indexes created on both tables
+- thread_entries ChromaDB collection appears in collection list
+- Test insert + cascade delete verified
+- DEEP_DIVE_BRIEF Section 7 updated with thread_entries collection note: "Excluded from default boot retrieval. Queried only when working in-thread."
+- Branch attempt/b070-thread-schema, merged to main, pushed
 
 Notes
-- Situation text should be 1–2 sentences: what was happening, what was observed. Not a restatement of the lesson content.
-- The source column (e.g. "session_2026-03-25", "lesson_injector_build_2026-03-25") is the primary clue for episode reconstruction.
-- After this card: the next outward-facing session (research digest via thompsmanlearn.github.io) is the planned follow-on.
-
----
-
-B-064: Audit lean-boot lesson retrieval against the binding problem
-
-Status: ready
-Depends on: none
-
-Goal
-Audit the current lean-boot lesson retrieval pipeline and produce a written proposal that addresses the binding problem: abstract lessons stored without their originating episode are likely being retrieved, evaluated as too abstract to act on, and silently discarded. This card produces a proposal Bill reviews before any code changes. No implementation.
-
-Context
-Research (Marco Somma, "I Ran 500 More Agent Memory Experiments") demonstrates that abstract skills stored without grounding episodes are ignored at retrieval time — recalled but not used because there is no evidence for the model to act on. AADP's current lessons_learned rows store lesson text + tags + times_applied, which is the impoverished-skill shape. The lean-boot inject_context_v3 call already pulls "Prior Session Context" (session-level grounding), so partial episode binding exists at the session level — but not at the lesson level. The audit should characterise what already works before proposing changes.
-
-Done when
-
-1. Schema and retrieval path documented: what gets stored when a lesson is written (ChromaDB fields + Supabase columns), what inject_context_v3 returns at boot, and what of that makes it into the active session context. Plain prose, concrete field names.
-
-2. Last 10 lessons evaluated: for each, answer whether the lesson alone is enough for Claude Code to know when and how to apply it, or whether the originating episode (card, session log, failure) is needed to make sense of it. Each lesson marked "self-sufficient" or "needs episode" with one-line reasoning.
-
-3. If most lessons are "needs episode," a binding scheme proposed: what additional fields the lesson row should carry (candidates: originating_card_id, originating_session_id, situation — concrete trigger, outcome — what happened, kind — typed category: mistake / convention / anti-pattern / successful-pattern); whether episode data lives inline or in a linked table; how retrieval changes so the boot context receives lesson + situation/outcome without meaningfully bloating context; what a kind field buys at retrieval time.
-
-4. Write-side change proposed: what the close ritual should capture beyond current lesson text when a lesson is written, using the assumed pattern of Claude Code drafting and Bill confirming/editing.
-
-5. Anything else the audit surfaces — including where the current pipeline is already doing something right.
-
-Output
-A markdown document with five sections matching the steps above. Concrete examples from actual lesson rows wherever possible. Ends with a "what I'd do first" recommendation: the single smallest change that would test whether richer lessons get used more often.
-
-Out of scope:
-- Implementing any changes
-- Touching the write pipeline
-- Changing retrieval k or distance thresholds
-- Schema migrations
-- Decay or pruning policy
-
-Scope
-Touch:
-  Read: ~/aadp/claudis/anvil/uplink_server.py — inject_context_v3 path, lesson storage callables
-  Read: Supabase lessons_learned table schema and recent rows
-  Read: ChromaDB lessons_learned collection schema
-  Read: close-session skill for current write-side lesson capture pattern
-  Write: sessions/lean/YYYY-MM-DD-b064-lesson-binding-audit.md — the proposal document
-
-Do not touch:
-  Any lesson rows, ChromaDB documents, or uplink callables
-
-Verification checklist
-- Proposal document written and committed
-- Five sections present, all with concrete examples from actual rows
-- "What I'd do first" recommendation included
-- Bill has read the document and either approved a follow-on card or rejected with reasons
-
-Notes
-- inject_context_v3 already returns "Prior Session Context" — this is session-level grounding that predates this card. Note it explicitly so the proposal doesn't re-propose what already exists.
-- times_applied is server-incremented by inject_context_v3 — the audit should check whether high times_applied actually correlates with lessons that look self-sufficient vs. needs-episode.
-
----
-
-B-065: Fix times_applied double-count in inject_context_v3
-
-Status: ready
-Depends on: none
-
-Goal
-inject_context_v3 fires two Supabase RPCs after every retrieval: `increment_lessons_applied_by_id` (by chromadb_id) and `increment_lessons_applied` (by content match). When both succeed on the same lesson, times_applied increments by 2 instead of 1. Zero-applied wildcards are also always incremented regardless of whether the model acted on them. This makes times_applied an unreliable metric: the top lessons (n8n gotchas) may have half their actual retrieval count; zero_applied is inflated by random wildcard exposure. Fix the double-count so the counter means what it says.
-
-Context
-From B-064 audit: top lesson `n8n sets finished:false` shows times_applied=34; with double-counting the real count may be ~17. The `increment_lessons_applied` (content-match) RPC was a safeguard for UUID-keyed entries that predate the slug convention. B-062 backfilled chromadb_ids, so the content-match path is now redundant for any lesson with a valid chromadb_id.
-
-Done when
-
-1. Root cause confirmed: read both RPC function bodies in Supabase to verify the double-increment.
-
-2. Fix applied: remove `increment_lessons_applied` (content-match) call from inject_context_v3, OR add a guard so it only fires for lessons whose chromadb_id is a UUID (legacy entries). The `increment_lessons_applied_by_id` (slug-based) path is the canonical one.
-
-3. Wildcard increment behaviour reviewed: decide whether zero_applied wildcards should increment on exposure or only on explicit apply. Document the decision in a code comment.
-
-4. Stats server deployed (cp claudis/stats-server/ → ~/aadp/stats-server/ + systemctl restart).
-
-5. Verification: retrieve a known lesson twice in one session (two inject_context_v3 calls), confirm times_applied increments by exactly 1 per call, not 2.
-
-Scope
-Touch:
-  ~/aadp/stats-server/stats_server.py (and claudis copy) — inject_context_v3 increment block
-  Supabase: read-only inspection of increment_lessons_applied and increment_lessons_applied_by_id RPCs
-
-Do not touch: lesson rows, ChromaDB documents, schema
-
-Verification checklist
-- Root cause confirmed (double-RPC or single-RPC depending on findings)
-- Fix applied and stats server restarted
-- times_applied increments by 1 per retrieval event, verified empirically
-
----
-
-B-066: Add situation field to lessons_learned + ChromaDB preamble
-
-Status: ready
-Depends on: B-065 (so times_applied is trustworthy before we test whether richer lessons get applied more)
-
-Goal
-Add a `situation` column (nullable text) to Supabase `lessons_learned`. When writing a lesson during close-session, prompt for 1–2 sentences describing the concrete trigger that caused the lesson to be written. Prepend `Situation: {situation}\n\n` to the ChromaDB document content so the embedding carries episode context. This is the "what I'd do first" recommendation from the B-064 audit.
-
-Context
-B-064 found that binding failures concentrate in older abstract/strategic lessons — ones that don't carry explicit trigger conditions. The `situation` field brings session-level episode grounding down to the individual lesson level. The ChromaDB prepend improves embedding specificity: when the same trigger situation recurs, the query naturally matches the situation sentence. Session-level grounding already exists (session_memory collection) but is orthogonal to individual lessons.
-
-Done when
-
-1. Schema change: `ALTER TABLE lessons_learned ADD COLUMN situation text;` executed.
-
-2. Close-session step 7 updated: after drafting lesson body, prompt "In 1–2 sentences: what specific condition or observation triggered this lesson?" Bill confirms/edits. Situation written to Supabase `situation` column.
-
-3. ChromaDB write change: when `situation` is present, prepend `Situation: {situation}\n\n` to the document content before calling `memory_add`. Supabase `content` column unchanged.
-
-4. Test on 3 existing "needs episode" lessons: add situation text to Supabase, delete and re-embed ChromaDB entries with the preamble. Query with a prompt describing the triggering situation. Confirm distance improves by ≥0.05 vs the current embedding.
-
-5. close-session.md skill file updated (in claudis/skills/, symlinked).
-
-Scope
-Touch:
-  Supabase: ALTER TABLE lessons_learned ADD COLUMN situation text
-  ~/aadp/mcp-server/.claude/skills/close-session.md (via claudis/skills/ symlink)
-  3 existing ChromaDB lesson entries (re-embed only, no content change)
-
-Do not touch: inject_context_v3 (situation arrives naturally via document content), other lesson rows
-
-Verification checklist
-- situation column exists in lessons_learned
-- close-session step 7 prompts for situation and writes it
-- ChromaDB documents for new lessons include Situation: preamble
-- 3 test lessons show improved retrieval distance
-
----
-
-B-067: Exempt session_memory from inject_context_v3 token-trim
-
-Status: ready
-Depends on: none
-
-Goal
-inject_context_v3 trims context blocks from the bottom when the 2000-token cap is exceeded. Session ordering is by routing list: lessons_learned → error_patterns → reference_material → session_memory → research_findings. Trimming pops from the end, so session_memory (episode grounding) is dropped before reference_material and error_patterns (generic patterns). This is backwards — session context is more valuable than generic architecture patterns when diagnosing a task. Fix the ordering so session_memory survives trimming.
-
-Context
-From B-064 audit: "The token budget currently optimises for lesson text over episode evidence." Session_memory results are 2 entries × 400-char truncation ≈ 200 tokens — small enough to always include. The fix is either to move session_memory earlier in the collections_to_query list (so it appears before reference_material in the output block and survives trimming) or to exempt it from trimming entirely.
-
-Done when
-
-1. Fix applied: in `_V3_DEFAULT_COLLECTIONS` and all per-task-type routing lists that include session_memory, move session_memory to position 2 (after lessons_learned, before error_patterns). This makes session context appear early in the block and survive bottom-up trimming.
-
-   OR: Add a trim exemption: collect session_memory results separately, append them after trimming is complete. Either approach is acceptable — document which was chosen and why.
-
-2. Stats server deployed.
-
-3. Verification: construct a synthetic request that exceeds 2000 tokens. Confirm session_memory section appears in output and reference_material is the section that gets trimmed instead.
-
-Scope
-Touch:
-  ~/aadp/stats-server/stats_server.py (and claudis copy) — _V3_DEFAULT_COLLECTIONS, per-task-type routing dicts, trim loop
-
-Verification checklist
-- session_memory section survives token-cap trimming in a test request
-- Stats server restarted and responsive
-
----
-
-B-068: Dedup duplicate lessons in lessons_learned
-
-Status: ready
-Depends on: B-065 (so times_applied counts are trustworthy before we decide which duplicate to keep)
-
-Goal
-At least 2 confirmed duplicate pairs exist in lessons_learned. Duplicates inflate retrieval scores (both entries surface for the same query, consuming 2 of the 5 lesson slots), inflate times_applied (both get incremented), and waste context budget. Identify all near-duplicates, merge or delete extras, and add a structural dedup check to close-session step 7 to prevent future duplicates.
-
-Context
-Confirmed pairs from B-064:
-- `lesson_retrieval_reactive_not_proactive_2026-03-25` and `368244db-20aa-4b2c-bfe7-6d15a0c6ae4a` (same root cause, same day, both high times_applied)
-- `lesson_n8n_merge_deadlock_2026-03-25` (times_applied=20) and `8eeaacd6` (times_applied=28) — both about n8n Merge node deadlock
-
-Done when
-
-1. Full duplicate scan: query Supabase for lessons with matching or highly similar titles (use ChromaDB search_lessons with each title as query, flag results with distance < 0.3 to a different lesson).
-
-2. For each confirmed pair: keep the richer entry (more content, higher confidence, better title), sum times_applied from both, delete the weaker from both Supabase and ChromaDB.
-
-3. Close-session step 7 dedup check strengthened: before writing any new lesson, the close ritual must run a ChromaDB search for the lesson title keywords and confirm no result returns distance < 0.4. If one does, update the existing lesson instead of creating a new one.
-
-4. Step 7 skill file updated to make the dedup check mandatory (currently it says "Before writing, search lessons_learned" — upgrade to a hard gate with explicit distance threshold).
-
-Scope
-Touch:
-  Supabase lessons_learned: DELETE duplicate rows (after Bill approves the specific deletion list)
-  ChromaDB lessons_learned: DELETE duplicate entries
-  ~/aadp/mcp-server/.claude/skills/close-session.md step 7 — dedup gate
-
-Do not touch: canonical lesson rows (only the duplicates are deleted)
-
-Verification checklist
-- No two lessons_learned rows share a ChromaDB search result at distance < 0.3
-- Duplicate rows deleted from Supabase and ChromaDB
-- close-session step 7 has a hard dedup gate with distance threshold
-- Bill has reviewed and approved the specific deletion list before any deletes run
-
----
-
+- The cascade delete on thread_entries.thread_id is intentional — when Bill deletes a thread, he wants the entries gone too. ChromaDB cleanup is the responsibility of B-071's callables (the write side). For B-070, manual ChromaDB delete in the test cleanup is fine.
+- last_activity_at vs updated_at: updated_at is for any row write (state change, bound_agent change, even title edit). last_activity_at is updated only when a thread_entry is added — it's the "did anything actually happen here" timestamp. This distinction matters for the Anvil view in B-072 ("show active threads sorted by activity") vs. the audit trail.
+- The bound_agent field intentionally allows null. A thread without a wired agent is fine — Annotate and Export still work. Gather is the only action that requires an agent.
+- close_reason is optional. A closed thread doesn't have to have a reason; a one-word "abandoned" or "completed" or a longer note are all valid.
+- The exclusion of thread_entries from boot retrieval is enforced by absence, not by explicit blocklist. LEAN_BOOT and bootstrap query specific collections (lessons_learned, etc.); they simply don't query thread_entries. This is the correct design — no negative configuration to maintain.
