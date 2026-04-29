@@ -9,16 +9,23 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
-- Fleet: 10 active agents; context_engineering_research pulls from 6 sources (HN, arXiv, dev.to, GitHub, lobste.rs, Medium)
-- Anvil UI: 52 callables; all 7 tabs have ⬇ Export buttons; Never Applied filter now excludes lessons < 7 days old
-- Lesson curation: 4 broken lessons backfilled (chromadb_id IS NULL → 0); close-session now checks sync integrity on every close
+- Thread architecture substrate live (B-070): `threads` + `thread_entries` Supabase tables, `thread_entries` ChromaDB collection excluded from default boot retrieval by design
+- B-074 filed: fix claudis git divergence — close-session pull-before-push (Option A) + optional Anvil Write Directive pre-flight check (Option B)
+- Fleet: 10 active agents, unchanged; lesson curation stable (chromadb_id IS NULL = 0)
 - Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
 
-**Project arc next:** B-062 complete. Bill sets next direction.
+**Project arc next:** B-071 — thread write callables (create_thread, add_thread_entry, update_thread_state, wire_thread_agent).
 
 ---
 
 ## Handoff (pick up here)
+
+**2026-04-28 (B-070):**
+- **What I was doing:** B-070 — Thread architecture substrate: threads + thread_entries Supabase tables, thread_entries ChromaDB collection, DEEP_DIVE_BRIEF Section 7 updated.
+- **What I learned:** Session opened with diverged claudis repo — local B-069 session artifact commit hadn't been pushed before Anvil wrote new DIRECTIVES.md to remote. `git pull --rebase` resolved it cleanly. B-074 filed to make close-session pull before push.
+- **Continue:** B-071 — thread write callables (create_thread, add_thread_entry, update_thread_state, wire_thread_agent). All 5 B-070 acceptance criteria verified.
+- **Left better:** Thread substrate live and tested; divergence failure mode documented and card filed for permanent fix.
+- **Usage:** session ~%, weekly ~%
 
 **2026-04-26 (B-062):**
 - **What I was doing:** B-062 — Lesson curation: Never Applied age filter, broken-lesson backfill, recurring sync check.
@@ -33,13 +40,6 @@
 - **Continue:** Bill sets next direction.
 - **Left better:** close-session.md and bootstrap.md now in git; DEEP_DIVE_BRIEF gap note resolved.
 - **Usage:** session ~28%, weekly ~100%
-
-**2026-04-26 (B-061):**
-- **What I was doing:** B-061 — Generalizing Export across all dashboard tabs. Added 7 uplink callables and ⬇ Export buttons to every tab.
-- **What I learned:** `_run_export()` helper cleanly abstracts the clipboard-then-fallback pattern; Fleet tab has no `_build_fleet_layout()` — needed inline header FlowPanel.
-- **Continue:** B-061a. Done above.
-- **Left better:** All 7 tabs export paste-ready markdown bundles for desktop Claude analysis.
-- **Usage:** session ~25%, weekly ~100%
 
 ---
 
