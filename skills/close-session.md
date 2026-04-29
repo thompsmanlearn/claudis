@@ -2,11 +2,17 @@
 # Invoked via: /close-session
 # Purpose: Execute the 10-step AADP session close ritual.
 # Load cost: zero until invoked. Replaces ~200 lines of prompt carried every session.
-# Last updated: 2026-04-27 (v29 — B-068: hard dedup gate with distance < 0.4 threshold)
+# Last updated: 2026-04-29 (v30 — B-074 Option A: pull-before-push to prevent claudis divergence)
 
 Execute the following 10 steps in order. Do not skip steps. Do not mark the session complete until all 10 are done.
 
 GitHub steps (1–5) happen BEFORE narrative entries (6–10) so narratives can reference actual commit hashes.
+
+**Pull before first push.** Before any `git push` in this skill, run once:
+```
+cd ~/aadp/claudis && git pull --rebase
+```
+This prevents divergence when Anvil has pushed new commits (DIRECTIVES.md, BACKLOG.md) since the session started. Do this at the start of Step 1 (or Step 3 if Steps 1–2 are skipped). If the rebase fails, Telegram Bill and stop.
 
 ---
 
