@@ -2041,6 +2041,141 @@ def get_thread_entries(thread_id):
     return r.json()
 
 
+@anvil.server.callable
+def trigger_thread_gather(thread_id):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers=_HEADERS,
+        params={'select': 'bound_agent', 'id': f'eq.{thread_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Thread {thread_id} not found.')
+    bound_agent = rows[0].get('bound_agent')
+    if not bound_agent:
+        raise Exception('No agent wired to this thread.')
+    ra = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_registry',
+        headers=_HEADERS,
+        params={'select': 'webhook_url,status', 'agent_name': f'eq.{bound_agent}'},
+        timeout=10,
+    )
+    ra.raise_for_status()
+    agents = ra.json()
+    if not agents:
+        raise Exception(f'Agent "{bound_agent}" not found.')
+    webhook_url = agents[0].get('webhook_url')
+    if not webhook_url:
+        raise Exception(f'Agent "{bound_agent}" has no webhook URL.')
+
+    def _fire():
+        try:
+            resp = requests.post(webhook_url, json={'thread_id': thread_id}, timeout=120)
+            log.info('trigger_thread_gather: thread=%s agent=%s status=%d',
+                     thread_id, bound_agent, resp.status_code)
+        except Exception as e:
+            log.warning('trigger_thread_gather webhook error: thread=%s %s', thread_id, e)
+
+    threading.Thread(target=_fire, daemon=True, name=f'gather-{thread_id[:8]}').start()
+    entry = _insert_thread_entry(
+        thread_id, 'gather',
+        f'Gather triggered: {bound_agent} (output not yet wired to thread)',
+        embed=False,
+    )
+    log.info('trigger_thread_gather: thread=%s agent=%s', thread_id, bound_agent)
+    return entry
+
+
+_BUNDLE_ICONS = {
+    'gather': '\U0001f50d',
+    'annotation': '✏️',
+    'analysis': '\U0001f52c',
+    'conclusion': '✅',
+    'state_change': '\U0001f501',
+}
+
+
+@anvil.server.callable
+def get_thread_bundle(thread_id):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers=_HEADERS,
+        params={'select': '*', 'id': f'eq.{thread_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Thread {thread_id} not found.')
+    t = rows[0]
+
+    re = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers=_HEADERS,
+        params={
+            'select': 'entry_type,content,source,created_at',
+            'thread_id': f'eq.{thread_id}',
+            'order': 'created_at.asc',
+        },
+        timeout=10,
+    )
+    re.raise_for_status()
+    entries = re.json()
+
+    rf = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers=_HEADERS,
+        params={
+            'select': 'id,content,created_at',
+            'target_type': 'eq.thread',
+            'target_id': f'eq.{thread_id}',
+            'or': '(processed.is.null,processed.eq.false)',
+            'order': 'created_at.asc',
+        },
+        timeout=10,
+    )
+    rf.raise_for_status()
+    feedback = rf.json()
+
+    lines = [
+        '---',
+        f'thread_id: {t["id"]}',
+        f'title: {t.get("title", "")}',
+        f'question: {t.get("question", "")}',
+        f'state: {t.get("state", "")}',
+        f'created_at: {t.get("created_at", "")}',
+        f'last_activity_at: {t.get("last_activity_at", "")}',
+        f'entry_count: {len(entries)}',
+        f'bound_agent: {t.get("bound_agent") or "none"}',
+        '---',
+        '',
+        f'# {t.get("title", "")}',
+        '',
+        f'> {t.get("question", "")}',
+        '',
+    ]
+    for e in entries:
+        icon = _BUNDLE_ICONS.get(e.get('entry_type', ''), '•')
+        lines.append(f'### {icon} {e.get("entry_type", "")} — {(e.get("created_at") or "")[:19]}')
+        if e.get('source'):
+            lines.append(f'*source: {e["source"]}*')
+        lines.append('')
+        lines.append(e.get('content', ''))
+        lines.append('')
+
+    if feedback:
+        lines.append('## Pending Feedback')
+        lines.append('')
+        for fb in feedback:
+            lines.append(f'- [{(fb.get("created_at") or "")[:19]}] {fb.get("content", "")}')
+        lines.append('')
+
+    log.info('get_thread_bundle: thread=%s entries=%d', thread_id, len(entries))
+    return '\n'.join(lines)
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
