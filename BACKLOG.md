@@ -85,3 +85,50 @@ Notes
 - The bound_agent field intentionally allows null. A thread without a wired agent is fine — Annotate and Export still work. Gather is the only action that requires an agent.
 - close_reason is optional. A closed thread doesn't have to have a reason; a one-word "abandoned" or "completed" or a longer note are all valid.
 - The exclusion of thread_entries from boot retrieval is enforced by absence, not by explicit blocklist. LEAN_BOOT and bootstrap query specific collections (lessons_learned, etc.); they simply don't query thread_entries. This is the correct design — no negative configuration to maintain.
+
+---
+
+B-074: Fix claudis git divergence between close-session push and Anvil Write Directive
+
+Status: ready
+Depends on: nothing
+
+Goal
+Eliminate the recurring failure mode where the local claudis repo diverges from origin, causing `git pull` to fail at the start of the next session. This has happened at least twice: close-session commits the session artifact locally but Anvil writes a new directive to the remote before that commit is pushed, leaving local and origin on divergent histories. Boot then fails with "fatal: Need to specify how to reconcile divergent branches" and requires manual intervention.
+
+Root causes
+Two independent failure points, either of which is sufficient to cause the divergence:
+1. close-session does not pull before pushing. If anything was pushed to origin between our local commit and our push (e.g. Anvil writing DIRECTIVES.md), the push is rejected — or, depending on config, fails silently. The next session opens with a diverged repo.
+2. Anvil's Write Directive callable does not check whether local has unpushed commits before writing to origin. It writes to the remote without knowing whether an in-flight session has a local commit that hasn't been synced yet.
+
+Done when (pick at least one; doing both is preferred)
+
+Option A — close-session pull-before-push (recommended as minimum):
+- close-session skill updated to run `git pull --rebase` on ~/aadp/claudis/ immediately before `git push` in the session artifact commit step
+- Verified: if origin has new commits at push time, rebase applies cleanly and push succeeds
+
+Option B — Anvil Write Directive pre-flight check:
+- The uplink callable that writes DIRECTIVES.md (and/or BACKLOG.md) first checks `git log @{u}..HEAD --oneline` on the Pi
+- If unpushed commits exist, the callable returns an error to Anvil instead of writing, and surfaces a message: "Local claudis has N unpushed commits. Push first, then re-issue directive."
+- Verified: attempting to write a directive when local is 1 ahead returns an error instead of diverging the repo
+
+Both options can be done in the same session; they are independent changes.
+
+Out of scope
+- Changes to LEAN_BOOT.md's recovery procedure (the current "Telegram and STOP" behaviour is correct — this card prevents the failure, not the recovery)
+- Changing how Anvil writes to GitHub directly (the Pi-local git repo is the canonical path)
+
+Scope
+Touch:
+  ~/aadp/claudis/skills/close-session.md — Option A
+  ~/aadp/claudis/uplink_server.py (or wherever Write Directive callable lives) — Option B
+
+Verification checklist
+- Option A: close-session successfully pulls before pushing; session artifact commits don't leave repo in diverged state
+- Option B: Write Directive callable rejects write when local has unpushed commits
+- Simulated divergence (commit locally without pushing, then write from Anvil) produces an error, not a diverged repo
+
+Notes
+- Filed 2026-04-28 after B-070 session opened with a diverged repo requiring manual `git pull --rebase` to recover.
+- B-071, B-072, B-073 are reserved for thread architecture (write callables, Anvil read view, Anvil actions).
+- Option A is the higher-priority fix — it's one line in close-session and eliminates the most common path to divergence.
