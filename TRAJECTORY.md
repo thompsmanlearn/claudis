@@ -9,16 +9,23 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
-- Thread architecture substrate live (B-070): `threads` + `thread_entries` Supabase tables, `thread_entries` ChromaDB collection excluded from default boot retrieval by design
-- B-074 Option A shipped: close-session v30 pulls --rebase before first push — divergence failure mode closed
-- Fleet: 10 active agents, unchanged; lesson curation stable (chromadb_id IS NULL = 0)
+- Thread callable layer live (B-071): create_thread, add_thread_entry, update_thread_state, wire_thread_agent, get_threads, get_thread_entries registered in uplink_server.py; last_activity_at trigger in Supabase
+- Thread substrate complete (B-070 + B-071): threads + thread_entries tables, trigger, ChromaDB collection, callable API — ready for Anvil UI (B-072)
+- Fleet: 10 active agents, unchanged; lesson curation stable
 - Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
 
-**Project arc next:** B-071 — thread write callables (create_thread, add_thread_entry, update_thread_state, wire_thread_agent).
+**Project arc next:** B-072 — Anvil Threads tab read view.
 
 ---
 
 ## Handoff (pick up here)
+
+**2026-04-29 (B-071):**
+- **What I was doing:** B-071 — Thread write callables: 6 uplink callables + last_activity_at Supabase trigger. Smoke test passed (10/10). Merged and pushed.
+- **What I learned:** Supabase trigger for denormalized timestamps (last_activity_at) is the right pattern — putting it in callable code means every future writer has to remember; trigger guarantees it automatically. Use `_insert_thread_entry` as a shared helper so all callers (create_thread, update_thread_state, wire_thread_agent) share the embed/chromadb logic.
+- **Continue:** B-072 — Anvil Threads tab read view (get_threads + get_thread_entries callables already available).
+- **Left better:** Thread callable layer live; threads are now a usable working surface from code.
+- **Usage:** session ~20%, weekly ~%
 
 **2026-04-29 (B-074 Option A):**
 - **What I was doing:** B-074 — Adding `git pull --rebase` before first push in close-session. Direct edit to skills/close-session.md on main (no branch — doc change).
@@ -33,20 +40,6 @@
 - **Continue:** B-071 — thread write callables. All 5 B-070 acceptance criteria verified.
 - **Left better:** Thread substrate live and tested; divergence failure mode now permanently fixed.
 - **Usage:** session ~%, weekly ~%
-
-**2026-04-26 (B-062):**
-- **What I was doing:** B-062 — Lesson curation: Never Applied age filter, broken-lesson backfill, recurring sync check.
-- **What I learned:** When lessons are written to ChromaDB using the Supabase UUID as doc_id (older convention), the Supabase chromadb_id column may remain NULL even though the lesson IS in ChromaDB. Backfill in that case means pointing chromadb_id to the UUID, not creating a new entry.
-- **Continue:** Bill sets next direction.
-- **Left better:** Never Applied view trustworthy (7-day threshold); 4 backfilled lessons now visible to semantic search; close-session step 7a catches future sync gaps.
-- **Usage:** session ~%, weekly ~%
-
-**2026-04-26 (B-061a):**
-- **What I was doing:** B-061a — Bring close-session.md and bootstrap.md into claudis version control. Replaced flat files with symlinks into claudis/skills/.
-- **What I learned:** Symlinks from non-git directories into the versioned repo eliminate manual sync entirely — cleaner than the lean_runner.sh dual-location pattern.
-- **Continue:** Bill sets next direction.
-- **Left better:** close-session.md and bootstrap.md now in git; DEEP_DIVE_BRIEF gap note resolved.
-- **Usage:** session ~28%, weekly ~100%
 
 ---
 
