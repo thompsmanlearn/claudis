@@ -1856,6 +1856,191 @@ def get_skill(name):
     return {'name': name, 'file_path': file_path, 'content': content}
 
 
+# ── Thread callables ─────────────────────────────────────────────────────────
+
+_THREAD_ENTRY_TYPES = {'gather', 'annotation', 'analysis', 'conclusion', 'state_change'}
+_THREAD_STATES = {'active', 'dormant', 'closed'}
+
+
+def _validate_agent_webhook(agent_name):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_registry',
+        headers=_HEADERS,
+        params={'select': 'webhook_url', 'agent_name': f'eq.{agent_name}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Agent "{agent_name}" not found in agent_registry.')
+    if not rows[0].get('webhook_url'):
+        raise Exception(f'Agent "{agent_name}" has no webhook_url — cannot wire to thread.')
+
+
+def _insert_thread_entry(thread_id, entry_type, content, source=None, embed=True, metadata=None):
+    payload = {'thread_id': thread_id, 'entry_type': entry_type, 'content': content}
+    if source:
+        payload['source'] = source
+    if metadata:
+        payload['metadata'] = metadata
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json=payload,
+        timeout=10,
+    )
+    r.raise_for_status()
+    row = r.json()[0]
+    if embed:
+        try:
+            coll_id = _get_chromadb_collection_id('thread_entries')
+            doc_id = row['id']
+            meta = {'thread_id': thread_id, 'entry_type': entry_type}
+            if source:
+                meta['source'] = source
+            rc = requests.post(
+                f'{_CHROMADB_URL}/api/v1/collections/{coll_id}/add',
+                json={'ids': [doc_id], 'documents': [content], 'metadatas': [meta]},
+                timeout=15,
+            )
+            rc.raise_for_status()
+            ru = requests.patch(
+                f'{_SUPABASE_URL}/rest/v1/thread_entries',
+                headers={**_HEADERS, 'Prefer': 'return=representation'},
+                params={'id': f'eq.{row["id"]}'},
+                json={'chromadb_id': doc_id},
+                timeout=10,
+            )
+            ru.raise_for_status()
+            row = ru.json()[0]
+        except Exception as e:
+            log.warning('ChromaDB embed failed for thread_entry %s: %s', row.get('id'), e)
+    return row
+
+
+@anvil.server.callable
+def create_thread(title, question, bound_agent=None):
+    if not (title or '').strip():
+        raise Exception('title cannot be empty.')
+    if not (question or '').strip():
+        raise Exception('question cannot be empty.')
+    if bound_agent:
+        _validate_agent_webhook(bound_agent)
+    payload = {'title': title.strip(), 'question': question.strip()}
+    if bound_agent:
+        payload['bound_agent'] = bound_agent
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json=payload,
+        timeout=10,
+    )
+    r.raise_for_status()
+    thread = r.json()[0]
+    _insert_thread_entry(thread['id'], 'state_change', 'Thread created', embed=False)
+    log.info('create_thread: %s (%s)', thread['id'], title[:60])
+    return thread
+
+
+@anvil.server.callable
+def add_thread_entry(thread_id, entry_type, content, source=None, embed=True, metadata=None):
+    if entry_type not in _THREAD_ENTRY_TYPES:
+        raise Exception(f'Invalid entry_type "{entry_type}". Must be one of: {sorted(_THREAD_ENTRY_TYPES)}.')
+    row = _insert_thread_entry(thread_id, entry_type, content, source=source, embed=embed, metadata=metadata)
+    log.info('add_thread_entry: thread=%s type=%s embed=%s chromadb_id=%s',
+             thread_id, entry_type, embed, row.get('chromadb_id'))
+    return row
+
+
+@anvil.server.callable
+def update_thread_state(thread_id, state, close_reason=None):
+    if state not in _THREAD_STATES:
+        raise Exception(f'Invalid state "{state}". Must be one of: {sorted(_THREAD_STATES)}.')
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers=_HEADERS,
+        params={'select': 'state', 'id': f'eq.{thread_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Thread {thread_id} not found.')
+    old_state = rows[0]['state']
+    payload = {'state': state, 'updated_at': datetime.now(timezone.utc).isoformat()}
+    if state == 'closed' and close_reason:
+        payload['close_reason'] = close_reason.strip()[:500]
+    r2 = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        params={'id': f'eq.{thread_id}'},
+        json=payload,
+        timeout=10,
+    )
+    r2.raise_for_status()
+    thread = r2.json()[0]
+    entry_content = f'{old_state} → {state}' + (f': {close_reason}' if state == 'closed' and close_reason else '')
+    _insert_thread_entry(thread_id, 'state_change', entry_content, embed=False)
+    log.info('update_thread_state: %s %s → %s', thread_id, old_state, state)
+    return thread
+
+
+@anvil.server.callable
+def wire_thread_agent(thread_id, agent_name):
+    if agent_name is not None:
+        _validate_agent_webhook(agent_name)
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        params={'id': f'eq.{thread_id}'},
+        json={'bound_agent': agent_name, 'updated_at': datetime.now(timezone.utc).isoformat()},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Thread {thread_id} not found.')
+    thread = rows[0]
+    entry_content = f'Wired agent: {agent_name}' if agent_name else 'Unwired agent'
+    _insert_thread_entry(thread_id, 'state_change', entry_content, embed=False)
+    log.info('wire_thread_agent: thread=%s agent=%s', thread_id, agent_name)
+    return thread
+
+
+@anvil.server.callable
+def get_threads(state='active'):
+    params = {
+        'select': 'id,title,question,state,close_reason,bound_agent,created_at,updated_at,last_activity_at',
+        'order': 'last_activity_at.desc',
+    }
+    if state is not None:
+        params['state'] = f'eq.{state}'
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def get_thread_entries(thread_id):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers=_HEADERS,
+        params={
+            'select': 'id,thread_id,entry_type,content,source,chromadb_id,metadata,created_at',
+            'thread_id': f'eq.{thread_id}',
+            'order': 'created_at.asc',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
