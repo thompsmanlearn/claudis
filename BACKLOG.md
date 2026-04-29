@@ -132,3 +132,115 @@ Notes
 - Filed 2026-04-28 after B-070 session opened with a diverged repo requiring manual `git pull --rebase` to recover.
 - B-071, B-072, B-073 are reserved for thread architecture (write callables, Anvil read view, Anvil actions).
 - Option A is the higher-priority fix — it's one line in close-session and eliminates the most common path to divergence.
+B-071: Thread architecture — write callables and read minimum
+
+Status: ready
+Depends on: B-070 (schema + ChromaDB collection, complete)
+
+Goal
+Build the callable layer for thread architecture v0.1: write callables that the Anvil UI (B-072, B-073) and future agents will call to create threads, append entries, change state, and wire agents — plus the two read callables needed to verify the write layer works and to give B-072 a foundation. After this card, the substrate has a working API; the next card adds a UI on top.
+
+Context
+B-070 created the threads and thread_entries tables and the thread_entries ChromaDB collection. No code paths read or write these yet. B-071 adds the callable layer on the uplink server, plus a Supabase trigger for the last_activity_at invariant that should have been part of B-070's substrate.
+
+Design decisions already made (do not relitigate):
+- last_activity_at is maintained by a Supabase trigger on thread_entries inserts, not by callable responsibility. The trigger updates threads.last_activity_at = now() whenever a thread_entries row is inserted referencing that thread.
+- ChromaDB embedding is controlled by a single embed=True parameter on add_thread_entry. Default True. Caller can opt out per-call (e.g. for state_change entries that don't warrant embedding). No per-entry-type default differentiation in v0.1.
+- Read minimum: two callables — get_threads(state='active') and get_thread_entries(thread_id) — sufficient to verify writes and to support B-072's UI without re-doing the read layer.
+- All callables return plain dicts; no custom return objects.
+- wire_thread_agent validates that the agent exists in agent_registry AND has a non-null webhook_url. v0.1 only supports agents that already support on-demand invocation.
+
+Done when
+
+1. Supabase trigger created:
+   - Function update_thread_last_activity() that sets threads.last_activity_at = now() WHERE id = NEW.thread_id
+   - Trigger thread_entry_activity_trigger AFTER INSERT ON thread_entries FOR EACH ROW EXECUTE update_thread_last_activity()
+   - Verified by inserting a thread_entries row and confirming the parent thread's last_activity_at advances
+
+2. Five new uplink callables registered in ~/aadp/claudis/anvil/uplink_server.py:
+
+   create_thread(title, question, bound_agent=None) -> dict
+     - Inserts a row into threads with state='active'
+     - If bound_agent provided, validates it exists in agent_registry and has non-null webhook_url; raises if not
+     - Also writes an initial thread_entry of type 'state_change' with content "Thread created" (embed=False)
+     - Returns the thread row as dict
+
+   add_thread_entry(thread_id, entry_type, content, source=None, embed=True, metadata=None) -> dict
+     - Validates entry_type is in allowed set ('gather','annotation','analysis','conclusion','state_change')
+     - Inserts the thread_entry row
+     - If embed=True, calls memory_add on the thread_entries ChromaDB collection with the content; updates the row's chromadb_id field
+     - Trigger fires automatically and bumps last_activity_at on the parent thread
+     - Returns the entry row as dict (with chromadb_id populated when embedded)
+
+   update_thread_state(thread_id, state, close_reason=None) -> dict
+     - Validates state is in ('active','dormant','closed')
+     - close_reason is optional for any state but is the only place it's accepted; if state != 'closed', close_reason is ignored
+     - Updates the threads row
+     - Also writes a thread_entry of type 'state_change' describing the transition (e.g. "active → dormant", "dormant → closed: completed"); embed=False for these entries
+     - Returns the updated thread row
+
+   wire_thread_agent(thread_id, agent_name) -> dict
+     - Validates agent_name exists in agent_registry AND has non-null webhook_url; raises if not
+     - Updates threads.bound_agent
+     - Writes a thread_entry of type 'state_change' with content "Wired agent: {agent_name}"; embed=False
+     - Returns the updated thread row
+     - Pass agent_name=None to unwire (sets bound_agent to null; entry says "Unwired agent")
+
+   get_threads(state='active') -> list[dict]
+     - Returns threads filtered by state, ordered by last_activity_at desc
+     - Pass state=None to return all threads regardless of state
+     - Returns a list (possibly empty)
+
+   get_thread_entries(thread_id) -> list[dict]
+     - Returns all thread_entries for a thread, ordered by created_at asc (chronological reading order)
+     - Returns a list (possibly empty)
+
+3. Restart uplink (sudo systemctl restart aadp-anvil) and verify reconnection in journal log.
+
+4. End-to-end smoke test (run from MCP supabase_exec_sql + the new callables, document in session artifact):
+   - Create a test thread with title and question, no bound_agent — confirm row exists with state='active' and an initial state_change entry
+   - Add an annotation entry with embed=True — confirm chromadb_id is populated, last_activity_at advanced
+   - Add a state_change entry with embed=False — confirm chromadb_id is null
+   - Wire a real agent (use context_engineering_research, which has webhook_url) — confirm bound_agent updates and entry written
+   - Try wire_thread_agent with a non-existent agent — confirm raises
+   - Try wire_thread_agent with an agent that has null webhook_url (e.g. claude_code_master) — confirm raises
+   - Read get_threads(state='active') — confirm test thread appears
+   - Read get_thread_entries(test_thread_id) — confirm chronological list with all entries
+   - Update state to 'closed' with close_reason='smoke test complete' — confirm row updated and final state_change entry written
+   - Cleanup: delete the test thread, confirm cascade removes entries, confirm ChromaDB embeddings are also gone (manual ChromaDB delete by chromadb_id; cascade does not extend to ChromaDB)
+
+5. Note in the B-071 commit message: the last_activity_at trigger should have been part of B-070's substrate. Filing as a small process observation.
+
+Out of scope (separate cards or deferred)
+- Anvil Threads tab read view (B-072) and actions (B-073)
+- Boot-time surfacing of dormant or stale threads (deferred — possibly never)
+- Agent-request entry type
+- Cross-thread analysis or search across thread_entries collection
+- Bulk operations on threads (close-many, archive-many)
+- A delete_thread callable — deletion happens via Supabase directly for v0.1; once B-073 lands, decide whether to add an Anvil-friendly callable
+
+Scope
+Touch:
+  Supabase: trigger function and trigger on thread_entries
+  ~/aadp/claudis/anvil/uplink_server.py — five new callables
+  
+Do not touch:
+  Form1/__init__.py (no UI yet — that's B-072)
+  LEAN_BOOT.md, skills/bootstrap.md, skills/close-session.md
+  Any other tables, collections, agents, or services
+
+Verification checklist
+- Trigger function and trigger exist in Supabase
+- Inserting a thread_entries row advances the parent thread's last_activity_at
+- Five new callables registered and reachable via uplink
+- Smoke test completes all steps without error
+- Smoke test cleanup leaves the database in original state (no test rows or stranded ChromaDB embeddings)
+- Branch attempt/b071-thread-callables, merged to main, pushed (close-session's new pull-before-push exercises automatically)
+
+Notes
+- The trigger approach for last_activity_at is the right call: putting it in callable code would mean every future writer (including agents calling add_thread_entry directly) has to remember to update both fields. The trigger guarantees it.
+- ChromaDB cleanup on thread deletion is intentionally manual for v0.1. The Supabase cascade removes thread_entries rows, but ChromaDB embeddings linger until something deletes them. A delete_thread callable in B-073 (or whichever card needs it) should handle this — it's a known gap, not a bug.
+- The initial "Thread created" state_change entry on every new thread gives the entry log a clean origin point. Without it, the first user-added entry would be the only history, which feels wrong when looking at older threads.
+- wire_thread_agent's validation against webhook_url IS NOT NULL is the simplest enforcement of the v0.1 constraint that threads only use on-demand agents. If we later want to support scheduled agents or different invocation patterns, this validation relaxes. For now, keep it strict.
+- Return types are plain dicts (matching uplink callable conventions in the existing codebase). No structured types.
+- The smoke test in step 4 can be done directly via the uplink callables (Bill calls them from a Python REPL or via a one-shot script) since the UI doesn't exist yet. Document the actual commands run in the session artifact for future reference.
