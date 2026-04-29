@@ -522,15 +522,18 @@ Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → l
 
 All collections use `all-MiniLM-L6-v2` embeddings. ChromaDB v0.5.20 at localhost:8000.
 
-| Collection | Count (approx) | Purpose |
-|---|---|---|
-| `lessons_learned` | 224+ | Technical lessons from sessions |
-| `reference_material` | 173 | Architecture patterns, runbooks |
-| `research_findings` | 141 | arXiv/HN research items |
-| `session_memory` | 71+ | Episodic session context |
-| `error_patterns` | 15 | Known failure modes |
-| `self_diagnostics` | 11 | Diagnostic procedures |
-| `agent_templates` | 4 | Agent scaffolding templates |
+| Collection | Count (approx) | Purpose | Boot retrieval |
+|---|---|---|---|
+| `lessons_learned` | 224+ | Technical lessons from sessions | ✓ default |
+| `reference_material` | 173 | Architecture patterns, runbooks | ✓ default |
+| `research_findings` | 141 | arXiv/HN research items | ✓ default |
+| `session_memory` | 71+ | Episodic session context | ✓ default |
+| `error_patterns` | 15 | Known failure modes | ✓ default |
+| `self_diagnostics` | 11 | Diagnostic procedures | ✓ default |
+| `agent_templates` | 4 | Agent scaffolding templates | ✓ default |
+| `thread_entries` | — | Thread entry embeddings (B-070+) | **excluded by design** |
+
+**thread_entries is excluded from default boot retrieval.** LEAN_BOOT step 11 and bootstrap step 3 query specific named collections; they do not query `thread_entries`. This is enforced by absence — there is no explicit blocklist to maintain. Future cards that add in-thread semantic search will query this collection explicitly. Do not add it to default routing without a deliberate decision.
 
 Distance thresholds: < 0.8 high confidence; 0.8–1.2 review carefully; > 1.2 weak match.
 
