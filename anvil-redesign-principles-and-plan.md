@@ -9,6 +9,7 @@
 - Thread detail view partitions `thread_entries` by `entry_type` at render time — no schema changes
 - History drawer collapses `state_change` entries; collapsed by default, count shown in toggle button
 - Question (full text) + state badge render at the top of the expanded card
+- `get_thread_bundle` (B-073) produces a real markdown export bundle for threads — Export principle is partially live on the threads surface, not aspirational
 
 ### Built but removed in cleanup pass (pre-card, 2026-05-02)
 

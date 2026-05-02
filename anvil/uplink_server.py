@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """AADP Anvil Uplink — read-only and control callables for the Claude Dashboard."""
+import json
 import logging
 import os
 import subprocess
@@ -7,6 +8,7 @@ import threading
 import time
 import requests
 import anvil.server
+import anthropic
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -1858,7 +1860,10 @@ def get_skill(name):
 
 # ── Thread callables ─────────────────────────────────────────────────────────
 
-_THREAD_ENTRY_TYPES = {'gather', 'annotation', 'analysis', 'conclusion', 'state_change'}
+_THREAD_ENTRY_TYPES = {
+    'gather', 'annotation', 'analysis', 'conclusion', 'state_change',
+    'summary', 'screening', 'screening_uncertain', 'sub_question_candidate',
+}
 _THREAD_STATES = {'active', 'dormant', 'closed'}
 
 
@@ -2174,6 +2179,155 @@ def get_thread_bundle(thread_id):
 
     log.info('get_thread_bundle: thread=%s entries=%d', thread_id, len(entries))
     return '\n'.join(lines)
+
+
+# ── Extraction callables ─────────────────────────────────────────────────────
+
+_HAIKU_MODEL = 'claude-haiku-4-5-20251001'
+_EXTRACT_SYSTEM = """\
+You are an extraction assistant. Analyze the provided desktop Claude analysis prose and extract structured implications into exactly four buckets.
+
+Output ONLY valid JSON with this schema:
+{
+  "synthesis": "brief overall synthesis (1-3 sentences)",
+  "conclusions": ["conclusion 1", "conclusion 2"],
+  "screening": [
+    {"item_id": "uuid", "decision": "kept", "reason": "brief reason", "confidence": "high"}
+  ],
+  "sub_questions": [
+    {"question": "the question text", "prompted_by": "optional context", "confidence": "high"}
+  ]
+}
+
+Rules:
+- synthesis: one concise paragraph synthesizing the analysis prose
+- conclusions: key short conclusions extracted from the analysis (array of strings, may be empty)
+- screening: decisions on research articles listed below. decision must be "kept" or "dismissed". \
+confidence "high" = explicitly stated; "low" = implied or uncertain. item_id must match an article ID from the list.
+- sub_questions: candidate new research questions raised by the analysis. confidence "high" = clearly stated, "low" = implied.
+- If no screening decisions are present, return an empty array.
+- If no sub-questions are present, return an empty array.
+- Output ONLY the JSON object, no other text.\
+"""
+
+
+@anvil.server.callable
+def extract_analysis(thread_id, prose, source='desktop_claude'):
+    """Extract four-bucket structured output from desktop Claude analysis prose.
+    Returns dict with synthesis/conclusions/screening/sub_questions keys, or {error, raw_output}."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers=_HEADERS,
+        params={'select': 'question', 'id': f'eq.{thread_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        return {'error': f'Thread {thread_id} not found', 'raw_output': ''}
+    question = rows[0].get('question', '')
+
+    re_ = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers=_HEADERS,
+        params={
+            'select': 'id,entry_type,content,source',
+            'thread_id': f'eq.{thread_id}',
+            'order': 'created_at.asc',
+        },
+        timeout=10,
+    )
+    re_.raise_for_status()
+    entries = re_.json()
+
+    items_lines = []
+    for e in entries:
+        src = e.get('source', '') or ''
+        if src.startswith('research_articles:'):
+            article_id = src.split(':', 1)[1]
+            excerpt = (e.get('content') or '')[:200].replace('\n', ' ')
+            items_lines.append(f'- id={article_id}: {excerpt}')
+
+    items_block = (
+        '\n\nResearch articles in this thread:\n' + '\n'.join(items_lines)
+        if items_lines else ''
+    )
+    user_prompt = f'Thread question: {question}{items_block}\n\nAnalysis text:\n{prose}'
+
+    try:
+        client = anthropic.Anthropic(api_key=_ENV['ANTHROPIC_API_KEY'])
+        message = client.messages.create(
+            model=_HAIKU_MODEL,
+            max_tokens=2048,
+            system=_EXTRACT_SYSTEM,
+            messages=[{'role': 'user', 'content': user_prompt}],
+        )
+        raw = message.content[0].text
+    except Exception as e:
+        log.warning('extract_analysis LLM call failed: %s', e)
+        return {'error': str(e), 'raw_output': ''}
+
+    try:
+        text = raw.strip()
+        if text.startswith('```'):
+            text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+        result = json.loads(text)
+        result.setdefault('synthesis', '')
+        result.setdefault('conclusions', [])
+        result.setdefault('screening', [])
+        result.setdefault('sub_questions', [])
+        log.info('extract_analysis: thread=%s screening=%d sub_q=%d conclusions=%d',
+                 thread_id, len(result['screening']), len(result['sub_questions']),
+                 len(result['conclusions']))
+        return result
+    except Exception as e:
+        log.warning('extract_analysis JSON parse failed: %s | raw: %.200s', e, raw)
+        return {'error': f'JSON parse failed: {e}', 'raw_output': raw}
+
+
+@anvil.server.callable
+def resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, resolution):
+    """Apply a confirm/override/reject resolution to a screening_uncertain thread entry."""
+    if resolution not in ('confirm', 'override', 'reject'):
+        raise Exception(f'Invalid resolution "{resolution}". Must be confirm, override, or reject.')
+
+    if resolution == 'confirm':
+        rating = 1 if decision == 'kept' else -1
+        requests.patch(
+            f'{_SUPABASE_URL}/rest/v1/research_articles',
+            headers={**_HEADERS, 'Prefer': 'return=minimal'},
+            params={'id': f'eq.{item_id}'},
+            json={'rating': rating, 'status': 'reviewed'},
+            timeout=10,
+        ).raise_for_status()
+        audit_content = f'Confirmed: {decision} — {reason}'
+    elif resolution == 'override':
+        flipped = 'dismissed' if decision == 'kept' else 'kept'
+        rating = 1 if flipped == 'kept' else -1
+        requests.patch(
+            f'{_SUPABASE_URL}/rest/v1/research_articles',
+            headers={**_HEADERS, 'Prefer': 'return=minimal'},
+            params={'id': f'eq.{item_id}'},
+            json={'rating': rating, 'status': 'reviewed'},
+            timeout=10,
+        ).raise_for_status()
+        audit_content = f'Override: {decision} → {flipped} — {reason}'
+    else:
+        audit_content = f'Rejected screening: {decision} — {reason}'
+
+    _insert_thread_entry(thread_id, 'screening', audit_content, source='bill', embed=False)
+
+    requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{entry_id}'},
+        json={'metadata': {'resolved': True, 'resolution': resolution}},
+        timeout=10,
+    ).raise_for_status()
+
+    log.info('resolve_screening_uncertain: entry=%s item=%s resolution=%s',
+             entry_id, item_id, resolution)
+    return {'resolved': True, 'resolution': resolution}
 
 
 log.info('Connecting to Anvil uplink...')
