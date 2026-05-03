@@ -106,12 +106,38 @@ class _HealthHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def do_POST(self):
+        if self.path == '/write_thread_gather_entries':
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                body = json.loads(self.rfile.read(length))
+                thread_id = body.get('thread_id')
+                article_ids = body.get('article_ids', [])
+                if not thread_id or not isinstance(article_ids, list):
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b'missing thread_id or article_ids')
+                    return
+                result = _write_thread_gather_entries_impl(thread_id, article_ids)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(result).encode())
+            except Exception as e:
+                log.warning('write_thread_gather_entries HTTP error: %s', e)
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(str(e).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def log_message(self, *args):
         pass  # suppress per-request logging
 
 
 threading.Thread(
-    target=lambda: HTTPServer(('127.0.0.1', 9101), _HealthHandler).serve_forever(),
+    target=lambda: HTTPServer(('0.0.0.0', 9101), _HealthHandler).serve_forever(),
     daemon=True,
     name='health-server',
 ).start()
@@ -2102,6 +2128,46 @@ def trigger_thread_gather(thread_id):
     )
     log.info('trigger_thread_gather: thread=%s agent=%s queries=%s', thread_id, bound_agent, queries)
     return entry
+
+
+def _write_thread_gather_entries_impl(thread_id, article_ids):
+    """Write gather thread entries for each article. Idempotent on (thread_id, source)."""
+    written = 0
+    for article_id in article_ids:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/research_articles',
+            headers=_HEADERS,
+            params={'select': 'id,title,url,summary', 'id': f'eq.{article_id}'},
+            timeout=10,
+        )
+        r.raise_for_status()
+        rows = r.json()
+        if not rows:
+            continue
+        art = rows[0]
+        source = f'research_articles:{article_id}'
+        rc = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/thread_entries',
+            headers=_HEADERS,
+            params={'select': 'id', 'thread_id': f'eq.{thread_id}', 'source': f'eq.{source}'},
+            timeout=10,
+        )
+        rc.raise_for_status()
+        if rc.json():
+            continue  # idempotent: entry already exists
+        title = art.get('title', '')
+        url = art.get('url', '')
+        summary = art.get('summary', '')
+        content = f'**{title}**\n{url}\n\n{summary}'
+        _insert_thread_entry(thread_id, 'gather', content, source=source)
+        written += 1
+    log.info('write_thread_gather_entries: thread=%s written=%d of %d', thread_id, written, len(article_ids))
+    return {'written': written}
+
+
+@anvil.server.callable
+def write_thread_gather_entries(thread_id, article_ids):
+    return _write_thread_gather_entries_impl(thread_id, article_ids)
 
 
 _BUNDLE_ICONS = {

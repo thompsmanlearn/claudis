@@ -3412,6 +3412,7 @@ def run_context_research(payload: dict = {}):
     ]
     _incoming = payload.get('queries')
     QUERIES = _incoming if (isinstance(_incoming, list) and len(_incoming) > 0) else _default_queries
+    thread_id = payload.get('thread_id')
     # Per-source configs — tags chosen to match agent/memory/orchestration content specifically
     DEVTO_TAGS    = ["agents", "n8n", "llmops", "rag", "claude"]
     MEDIUM_TAGS   = ["ai", "machine-learning", "agents", "llm"]
@@ -3520,7 +3521,7 @@ def run_context_research(payload: dict = {}):
             pass
 
         try:
-            _sb_upsert(env, "research_articles", {
+            row = {
                 "agent_run_id": agent_run_id,
                 "title": title,
                 "url": url,
@@ -3528,18 +3529,31 @@ def run_context_research(payload: dict = {}):
                 "summary": summary,
                 "query_used": query,
                 "provenance": "context_engineering_research_agent",
-            })
+            }
+            if thread_id:
+                row["thread_id"] = thread_id
+            _sb_upsert(env, "research_articles", row)
             inserted += 1
         except Exception as e:
             _log_research_error(env, url, str(e))
             errors_logged += 1
 
+    article_ids = []
+    if thread_id and inserted > 0:
+        try:
+            rows = _sb_get(env, f"research_articles?agent_run_id=eq.{agent_run_id}&select=id")
+            article_ids = [r["id"] for r in rows]
+        except Exception:
+            pass
+
     return JSONResponse({
         "agent_run_id": agent_run_id,
+        "thread_id": thread_id,
         "inserted": inserted,
         "skipped_dupe": skipped_dupe,
         "capped": capped,
         "errors_logged": errors_logged,
+        "article_ids": article_ids,
     })
 
 
