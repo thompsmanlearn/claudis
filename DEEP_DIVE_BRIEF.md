@@ -318,7 +318,7 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Serendipity engine (Wikipedia On This Day synthesis — paused)
 
 **Research:**
-- On-demand research runs via Anvil "Run research" button (`context_engineering_research` agent) — fetches from 6 sources: HN, arXiv, dev.to, GitHub, lobste.rs, Medium; per-source cap=5, global cap=20, skip-on-empty-fetch
+- On-demand research runs via Anvil "Run research" button (`context_engineering_research` agent) — fetches from 8 sources: HN, arXiv, dev.to, GitHub, lobste.rs, Medium, openai (RSS), deepmind (RSS); per-source cap=5, global cap=20, skip-on-empty-fetch. Anthropic blog deferred — no public RSS feed (lesson: anthropic_no_rss_2026-05-03).
 - Article review: rate (👍/👎), comment, and status-track articles in Anvil Research tab (58 articles as of 2026-04-26)
 - Bundle export: one-click markdown export of a run (articles + ratings + pending feedback) for desktop analysis
 - Boot-time feedback pickup: both LEAN_BOOT and bootstrap surface unprocessed `agent_feedback` rows at session start
@@ -592,7 +592,7 @@ All paused agents can be reactivated from the Anvil dashboard.
 | research_synthesis_agent | JUBCbXJe3TwwpB2T | Sunday 14:00 UTC | Weekly synthesis of research corpus. **PROTECTED.** |
 | arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | Mon/Wed/Fri 15:00 UTC | arXiv preprints → research_findings + research_papers. **PROTECTED.** |
 | architecture_review | 7mVc61pDCIObJFos | Biweekly Sunday 16:00 UTC | Research findings → design decisions → work_queue items. |
-| context_engineering_research | gzCSocUFNxTGIzSD | On-demand webhook | 6 sources (HN, arXiv, dev.to, GitHub, lobste.rs, Medium) → Haiku summarize → research_articles. Per-source cap=5, global cap=20. Empty-fetch skips item (no thin rows). dev.to tags: agents, n8n, llmops, rag, claude. |
+| context_engineering_research | gzCSocUFNxTGIzSD | On-demand webhook | 8 sources (HN, arXiv, dev.to, GitHub, lobste.rs, Medium, openai RSS, deepmind RSS) → Haiku summarize → research_articles. Per-source cap=5, global cap=20. Empty-fetch skips item (no thin rows). Company blogs are freshness-driven (30-day window, 3/feed). Anthropic blog deferred — no RSS. dev.to tags: agents, n8n, llmops, rag, claude. |
 
 ### Platform Infrastructure Agents
 

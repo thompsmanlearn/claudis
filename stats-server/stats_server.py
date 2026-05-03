@@ -473,6 +473,73 @@ def _fetch_lobsters(tags, max_per_tag=3):
     return results
 
 
+COMPANY_ENGINEERING_BLOGS = [
+    ("openai", "https://openai.com/news/rss.xml"),
+    ("deepmind", "https://deepmind.google/blog/rss.xml"),
+    # Anthropic: no public RSS feed as of 2026-05-03 (lesson: anthropic_no_rss_2026-05-03)
+]
+_COMPANY_BLOG_CAP = 3  # posts per feed per run; raise this constant to tune
+
+
+def _fetch_company_engineering_blogs(max_per_feed=None):
+    """Freshness-driven fetcher for company engineering blogs via RSS.
+    This source is freshness-driven, not query-driven; queries are ignored.
+    Returns up to max_per_feed posts per feed from the last 30 days.
+    One feed erroring does not block the others; errors logged to journald.
+    """
+    import xml.etree.ElementTree as _ET
+    from email.utils import parsedate_to_datetime
+    if max_per_feed is None:
+        max_per_feed = _COMPANY_BLOG_CAP
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    results = []
+    for org, feed_url in COMPANY_ENGINEERING_BLOGS:
+        try:
+            req = urllib.request.Request(
+                feed_url,
+                headers={"User-Agent": "AADP-Claudis/1.0 (research scout; contact via github.com/thompsmanlearn/claudis)"}
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+                raw = r.read()
+            root = _ET.fromstring(raw)
+            count = 0
+            for item in root.findall(".//item"):
+                if count >= max_per_feed:
+                    break
+                title = (item.findtext("title") or "").strip()
+                link = (item.findtext("link") or "").strip()
+                desc = (item.findtext("description") or "").strip()
+                pub_date_str = (item.findtext("pubDate") or "").strip()
+                if not title or not link:
+                    continue
+                if pub_date_str:
+                    try:
+                        pub_dt = parsedate_to_datetime(pub_date_str)
+                        if pub_dt.tzinfo is None:
+                            pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+                        if pub_dt < cutoff:
+                            continue
+                    except Exception:
+                        pass
+                results.append({
+                    "title": title,
+                    "url": link,
+                    "source": org,
+                    "summary": desc or title,
+                })
+                count += 1
+        except Exception as e:
+            try:
+                subprocess.run(
+                    ["systemd-cat", "-t", "aadp-stats", "-p", "err"],
+                    input=f"_fetch_company_engineering_blogs: feed={org} url={feed_url} error={e}",
+                    text=True, timeout=5
+                )
+            except Exception:
+                pass
+    return results
+
+
 def _fetch_anthropic_signals(env, max_reddit=10, max_releases=5):
     """Fetch developer signals about Claude/Anthropic from Reddit r/ClaudeAI and Anthropic GitHub releases."""
     results = []
@@ -3431,7 +3498,7 @@ def run_context_research(payload: dict = {}):
         "human in the loop llm agent",
     ]
     # Sources that carry rich content and don't need a page fetch
-    SKIP_FETCH_SOURCES = {"arXiv", "GitHub"}
+    SKIP_FETCH_SOURCES = {"arXiv", "GitHub", "openai", "deepmind"}
     # Max candidates from any single source before global cap — prevents one source dominating
     PER_SOURCE_CAP = 5
 
@@ -3476,6 +3543,13 @@ def run_context_research(payload: dict = {}):
         if url and title and url not in seen_in_batch:
             seen_in_batch.add(url)
             candidates.append((item, item.get("topic", "lobsters")))
+
+    for item in _fetch_company_engineering_blogs():
+        url = item.get("url", "")
+        title = item.get("title", "")
+        if url and title and url not in seen_in_batch:
+            seen_in_batch.add(url)
+            candidates.append((item, "freshness-driven"))
 
     # Phase 2: batch dedup against existing research_articles
     try:
@@ -3522,10 +3596,11 @@ def run_context_research(payload: dict = {}):
             summary = raw_content[:500]
 
         source = item.get("source", "")
-        try:
-            source = urllib.parse.urlparse(url).netloc.replace("www.", "") or source
-        except Exception:
-            pass
+        if source not in {"openai", "deepmind"}:
+            try:
+                source = urllib.parse.urlparse(url).netloc.replace("www.", "") or source
+            except Exception:
+                pass
 
         try:
             row = {
