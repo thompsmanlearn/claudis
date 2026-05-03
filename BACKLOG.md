@@ -1,4 +1,81 @@
-B-077: Collapse thread action panel to redesign shape
+B-079: Thread-aware query derivation for context_engineering_research agent
+
+## Goal
+
+When a gather is triggered from a thread, the agent should derive its queries from the thread's question and recent entries rather than running against its rotating defaults. Fixes the most upstream half of Gap A: today the agent fetches articles unrelated to what the thread is asking. After this card, a thread-triggered gather pulls material that's actually relevant to the thread question; the agent's existing default queries remain as the fallback for non-thread runs (e.g., if anything still triggers it generically).
+
+## Context
+
+Diagnostic from 2026-05-03: the "Configure vs. create" thread fired its gather and the agent ran its standing query set (`ai, claude, llmops, machine-learning, n8n, programming`) — none of which reflect the thread question ("when a non-technical person uses an agent today, are they actually creating one or configuring a templated agent..."). 15 articles came back; ~14 were noise. The agent wasn't told what the thread was about.
+
+Current gather flow:
+- Anvil "Gather" button calls `trigger_thread_gather(thread_id)` in uplink_server.py
+- That callable currently fires the agent's webhook with no thread context
+- The agent's n8n workflow (`context_engineering_research`, workflow_id `gzCSocUFNxTGIzSD`) reads from a hardcoded query set
+- Output lands in `research_articles` with no `thread_id` (problem 3, separate card)
+
+This card adds thread context to the trigger and uses it to derive queries. It does NOT auto-wire output to the thread (that's the next card) and does NOT change summarization (the card after that).
+
+Approach: keep the agent's rotating-default behavior intact for non-thread invocations. When invoked with a `thread_id`, derive a small set of queries (3-5) from the thread's question and most recent annotation/analysis entries via a Haiku call, and pass them as the query set for that run only. Per-source cap and global cap behavior stays the same.
+
+LLM for query derivation: Haiku 4.5 (already in mcp-server venv, already used by extract_analysis). Per Section 12 of DEEP_DIVE_BRIEF, no cache_control.
+
+Query derivation prompt shape (Claudis owns wording):
+- Input: thread question, plus up to the 5 most recent annotation/analysis/summary entries (truncated)
+- Output: JSON with a single key `queries` whose value is a list of 3-5 short strings (1-4 words each) suitable for hitting HN, arXiv, dev.to, GitHub, lobste.rs, Medium search interfaces
+- Constraint in the prompt: queries should be specific to what the thread is asking; do not include the agent's domain framing (no "agentic system" or "ChromaDB" unless the thread question is about those)
+- On LLM error or parse failure: fall back to the agent's default rotating queries and log the failure to journald
+
+Where the queries get applied: this is the part that needs care. The agent's n8n workflow currently reads its query set from inside the workflow. Two implementation options:
+
+(a) **Override at trigger time.** `trigger_thread_gather` builds the query list and passes it as JSON in the webhook payload. The n8n workflow is updated to read incoming queries from the webhook payload when present, falling back to its hardcoded set when absent. Smaller change to the agent; localizes thread-awareness to the trigger path.
+
+(b) **Move query derivation entirely into a pre-step inside n8n.** Larger change; not recommended this card.
+
+Use (a). The webhook payload contract becomes:
+  `{thread_id: <uuid>, queries: [<str>, <str>, ...]}` for thread-triggered runs
+  `{}` (or no payload) for non-thread runs (existing default behavior)
+
+The agent's n8n workflow needs one node added or modified to check for incoming queries; if present, use them; otherwise use the existing default rotation. Document the contract in a comment on the workflow's first node.
+
+The thread entry written by `trigger_thread_gather` (the one that says "Gather triggered: <agent> (output not yet wired to thread)") should now also include the derived queries in its content, so the thread carries an audit trail of what was searched for. Update the entry text to something like:
+  `Gather triggered: <agent>. Queries: q1, q2, q3, q4 (output not yet wired to thread)`
+
+If query derivation falls back to defaults due to LLM error:
+  `Gather triggered: <agent>. Queries: <defaults — derivation failed: <reason>>`
+
+## Done when
+
+- New helper in `~/aadp/claudis/anvil/uplink_server.py`: `_derive_thread_queries(thread_id) -> list[str]` that pulls the thread question + recent entries, calls Haiku, parses the JSON response, returns the list. On failure: returns the agent's default query set (read from the agent's workflow or a known constant) and logs the reason.
+- `trigger_thread_gather` updated to call `_derive_thread_queries`, pass the resulting list in the webhook payload as `queries`, and write the thread entry with the queries inline.
+- The agent's n8n workflow `context_engineering_research` (id `gzCSocUFNxTGIzSD`) updated: a node early in the flow reads the webhook payload's `queries` field if present and uses that as the query set for the run; if absent, the existing default rotating queries are used. First node documented with a comment naming this contract.
+- Smoke test in session: trigger a thread gather on the existing "Configure vs. create" thread (id `e6f7f118-0dea-4326-b12a-426ace71aa37`) by calling `trigger_thread_gather` from a Claudis Python REPL or an inline test; verify the n8n execution log shows the derived queries running, not the defaults. Check `research_articles` for new rows with `agent_run_id` matching the new run; spot-check that titles look more relevant to the thread question than the previous run did.
+- Trigger a non-thread invocation of the agent (use `workflow_execute` is broken; instead use the agent's own webhook with no payload, or n8n's UI "Execute workflow" button if the workflow has a manual trigger) to confirm the default rotating queries still fire when no `queries` field is in the payload. (If non-thread invocation is hard to test in this session, document why and skip — the Anvil button always passes thread context.)
+- One commit on claudis main with the uplink changes and any necessary helper code. The n8n workflow update happens via the MCP `workflow_update` tool — this does not commit to claudis directly, but the change should be noted in the session artifact.
+- Session artifact written; include the diagnostic context (today's failed gather, what queries fired vs. what queries should have fired) and a short explanation of why this card was prioritized first among the three Gap A fixes.
+
+## Scope
+
+Touch:
+- `~/aadp/claudis/anvil/uplink_server.py` (add `_derive_thread_queries`, update `trigger_thread_gather` and the gather entry text)
+- The `context_engineering_research` n8n workflow (id `gzCSocUFNxTGIzSD`) via `workflow_update`: add or modify one early node to read `queries` from the webhook payload, falling back to the existing default set
+- session artifact in `~/aadp/claudis/sessions/lean/`
+
+Do not touch:
+- `extract_analysis` or any other uplink callable
+- `research_articles` schema (no `thread_id` column added — that's the next card)
+- The agent's summarization prompt (that's the third card)
+- Any Form1 code in claude-dashboard (no UI changes needed; the Gather button already passes thread_id)
+- Any other agent workflow
+- The aadp-anvil systemd service (uplink restart at the end of the session per normal practice; no service changes)
+
+If you find yourself wanting to:
+- Add a `thread_id` column to `research_articles` — stop. Next card.
+- Rewrite the agent's summarization prompt to drop the "Reflexion-style" framing — stop. Card after that.
+- Build a query-derivation UI so Bill can edit the derived queries before they fire — stop. The redesign's "Gather form rework" item covers this; future card.
+- Refactor the agent into multiple smaller agents — stop. Out of scope.
+
+If query derivation tips into something larger than a Haiku-call helper (e.g., a separate microservice, a new table, multi-LLM orchestration), surface that early and propose a split. The expected size is ~50 lines of new Python in uplink_server.py plus one node-level edit to the n8n workflow.B-077: Collapse thread action panel to redesign shape
 
 ## Goal
 
