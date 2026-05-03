@@ -13,7 +13,7 @@
 - "Add desktop analysis" now runs extraction: Haiku 4.5 parses prose into synthesis (analysis entry), conclusions (summary entry), screening decisions (screening/screening_uncertain entries), and sub-question candidates; confident screening patches research_articles immediately; uncertain items await Bill's Confirm/Override/Reject
 - Research tab article cards: "Add to thread" button still live (source=research_articles:{id})
 - Fleet: 10 active agents, unchanged; anthropic 0.97.0 added to mcp-server venv
-- context_engineering_research (B-081): neutral summaries live — Reflexion/AADP lens removed; prompt is in stats_server.py:_summarize_article_haiku (not in n8n); relevance judgment deferred to consumption site
+- context_engineering_research (B-081/B-082): neutral summaries live; now 8 sources — added openai RSS + deepmind RSS (freshness-driven, 30-day window, 3/feed); Anthropic has no public RSS, deferred (lesson: anthropic_no_rss_2026-05-03)
 - Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
 
 **Project arc next:** Bill smoke-tests extraction: paste desktop analysis into a thread, verify four-bucket output; test uncertain-item resolution buttons. Then: Gap A (automated agent→thread wiring) or ChromaDB leverage card.
@@ -22,25 +22,25 @@
 
 ## Handoff (pick up here)
 
+**2026-05-03 (B-082):**
+- **What I was doing:** B-082 — added `_fetch_company_engineering_blogs()` to stats_server.py; wired into `run_context_research`; smoke-tested on Source expansion thread: 3 openai + 3 deepmind articles with correct source names and neutral summaries. Anthropic has no public RSS — deferred, lesson written.
+- **What I learned:** Anthropic does not publish a public RSS feed as of 2026-05-03 (tried 10+ paths). First confirmed build-from-input loop: Bill annotated a thread noting a source gap; this session closed it.
+- **Continue:** B-078 smoke test still pending — paste desktop Claude analysis into a thread, confirm four-bucket output, test Confirm/Override/Reject buttons. 14 unresolved errors in error_logs.
+- **Left better:** context_engineering_research now pulls from 8 sources; first-party company blog content will surface alongside HN/arXiv/Medium on every gather.
+- **Usage:** session ~%, weekly ~%
+
 **2026-05-03 (B-081):**
 - **What I was doing:** B-081 — rewrote `_summarize_article_haiku` in stats_server.py to remove Reflexion/AADP framing; deployed, smoke-tested 9 new articles across the Consumer AI thread.
 - **What I learned:** context_engineering_research's prompt lives in stats_server.py:_summarize_article_haiku, not in the n8n workflow — n8n is a thin webhook→stats server call. Baked-in consumer-specific lens becomes a leak when the agent has multiple consumers (threads with different questions).
-- **Continue:** Bill smoke-tests extraction end-to-end (B-078 still pending — paste desktop Claude analysis into a thread, confirm four-bucket output, test Confirm/Override/Reject buttons). 9 unresolved errors in error_logs worth a triage pass when scope allows.
+- **Continue:** B-082 completed same session.
 - **Left better:** Articles gathered by thread-triggered runs now get neutral summaries — relevance judgment happens at the extraction/thread layer, not inside the summarizer.
 - **Usage:** session ~%, weekly ~%
 
 **2026-05-02 (B-078):**
 - **What I was doing:** B-078 — extraction step for desktop-Claude analysis paste: `extract_analysis` callable + `resolve_screening_uncertain` callable in uplink_server.py; Form1 `_add_analysis` rewired; four new entry types rendered; both repos merged and pushed.
 - **What I learned:** `_make_screening_handlers` factory pattern is the right idiom for Anvil action closures needing per-entry state — avoids Python closure-in-loop issue cleanly. Supabase JSONB PATCH via PostgREST accepts Python dicts directly. anthropic 0.97.0 installs into mcp-server venv.
-- **Continue:** Bill smoke-tests extraction end-to-end: paste desktop Claude analysis into a thread, confirm four-bucket output renders correctly; test Confirm/Override/Reject buttons on a screening_uncertain entry. Uplink needs restart (exit and re-enter Claude Code) to pick up new callables.
-- **Left better:** Passback channel complete — desktop Claude can now reason over thread content and have structured implications recovered by the system. The thread architecture is fully functional for the human-in-the-loop research workflow.
-- **Usage:** session ~%, weekly ~%
-
-**2026-04-30 (B-075):**
-- **What I was doing:** B-075 — Add-to-thread affordances: 106 lines added to Form1/__init__.py; "Add desktop analysis" section + "Add to thread" inline picker on Research tab; merged to master, pushed.
-- **What I learned:** get_threads(state='active') already existed from B-071 — no new callable needed; toggle-to-dismiss pattern keeps article cards clean without a modal.
-- **Continue:** B-078 completed.
-- **Left better:** Threads accumulate content manually from two surfaces.
+- **Continue:** B-082 completed 2026-05-03. B-078 smoke test still pending.
+- **Left better:** Passback channel complete — desktop Claude can now reason over thread content and have structured implications recovered by the system.
 - **Usage:** session ~%, weekly ~%
 
 
