@@ -3402,14 +3402,16 @@ def run_context_research(payload: dict = {}):
     api_key = env.get("ANTHROPIC_API_KEY", "")
     PER_RUN_CAP = 20
 
-    # HN + arXiv queries
-    QUERIES = [
+    # HN + arXiv queries — overridden by incoming payload['queries'] for thread-triggered runs
+    _default_queries = [
         "autonomous agent platform persistent memory",
         "agent dashboard human in the loop",
         "lessons-learned vector memory architecture",
         "n8n LLM agent orchestration",
         "Reflexion ExpeL agent system production",
     ]
+    _incoming = payload.get('queries')
+    QUERIES = _incoming if (isinstance(_incoming, list) and len(_incoming) > 0) else _default_queries
     # Per-source configs — tags chosen to match agent/memory/orchestration content specifically
     DEVTO_TAGS    = ["agents", "n8n", "llmops", "rag", "claude"]
     MEDIUM_TAGS   = ["ai", "machine-learning", "agents", "llm"]
