@@ -170,7 +170,7 @@ Either alone is a broken lesson. chromadb_id links the two records.
 ---
 
 ## 4. Current Project: Anvil Dashboard
-*Last updated: 2026-04-26*
+*Last updated: 2026-05-03*
 
 ### Status: Live and Operational
 
@@ -262,6 +262,17 @@ A Claude Code skill reference exists at `skills/anvil/REFERENCE.md` — loaded a
 | `get_research_run_summary()` | Supabase `research_articles` — most recent run stats | Read |
 | `get_research_bundle(agent_run_id)` | Supabase `research_articles` + `agent_feedback` — markdown export | Read |
 | `get_research_counters()` | Supabase `research_articles` — total/unreviewed/new-24h counts | Read |
+| `create_thread(title, question)` | Supabase `threads` POST | Write |
+| `get_threads(state_filter)` | Supabase `threads` ordered by last_activity_at | Read |
+| `get_thread_entries(thread_id)` | Supabase `thread_entries` ordered by created_at | Read |
+| `get_thread_bundle(thread_id)` | Supabase `threads` + `thread_entries` — markdown export | Read |
+| `add_thread_entry(thread_id, entry_type, content, source)` | Supabase `thread_entries` POST | Write |
+| `update_thread_state(thread_id, state, close_reason)` | Supabase `threads` PATCH | Write |
+| `wire_thread_agent(thread_id, agent_name)` | Supabase `threads` PATCH | Write |
+| `trigger_thread_gather(thread_id, agent_name)` | Haiku derives queries → agent webhook → stats_server | Write |
+| `write_thread_gather_entries(thread_id, article_ids)` | Supabase `thread_entries` POST batch | Write |
+| `extract_analysis(thread_id, prose, source)` | Haiku → Supabase `thread_entries` POST (4 buckets) | Write |
+| `resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, resolution)` | Supabase `research_articles` + `thread_entries` PATCH | Write |
 
 ### Architecture Decision Record
 
@@ -278,7 +289,7 @@ These aren't UI improvements — they make the system's boundary with the physic
 ---
 
 ## 5. Capabilities Inventory
-*Last updated: 2026-04-26*
+*Last updated: 2026-05-03*
 
 This section tracks what the system as a whole can actually accomplish today. This is distinct from the skills list (what Claude Code knows how to do) and the agent fleet (what's deployed). Capabilities are end-to-end outcomes.
 
@@ -322,6 +333,15 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Article review: rate (👍/👎), comment, and status-track articles in Anvil Research tab (58 articles as of 2026-04-26)
 - Bundle export: one-click markdown export of a run (articles + ratings + pending feedback) for desktop analysis
 - Boot-time feedback pickup: both LEAN_BOOT and bootstrap surface unprocessed `agent_feedback` rows at session start
+- Thread-aware gather: when triggered from a thread, Haiku derives queries from the thread question; results tagged with thread_id; gather entries written back automatically
+
+**Thread Architecture:**
+- Create and browse threads by research question and state (active/dormant/closed)
+- Add annotations, analysis pastes, and manually triggered gathers to threads
+- Paste desktop-Claude analysis → Haiku extracts synthesis, conclusions, screening decisions, and sub-question candidates as typed entries
+- Uncertain screening decisions surface inline Confirm/Override/Reject controls; confident decisions commit to research_articles immediately
+- Standing summary: most recent `summary` entry displayed at top of thread for at-a-glance conclusions
+- Export thread as markdown bundle for offline review
 
 **Dashboard & Governance (Anvil + GitHub Pages):**
 - View system status, agent fleet, work queue, inbox from any browser
@@ -332,6 +352,12 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Browse sessions, lessons, memory, skills, artifacts in dashboard tabs
 - Toggle autonomous mode (scheduler + auto-cycle) from dashboard and site
 - Research tab: run agent, review articles, leave directional feedback for agent and UI
+- Thread architecture (B-070–B-083): browse/create threads by question and state (active/dormant/closed), collapsed cards with lazy-loaded entries
+- Thread entries: per-type rendering (annotation, gather, analysis, summary, screening, screening_uncertain, sub_question_candidate) with icons; History drawer collapses state_change entries by default
+- Thread action panel: Gather / Export / Add-as-analysis-entry primary; annotation secondary; Thread settings (state, wire agent) in collapsible drawer
+- Extraction passback: paste desktop-Claude analysis → Haiku extracts to typed entries (synthesis, conclusions, screening decisions, sub-question candidates); uncertain screening surfaces inline Confirm/Override/Reject buttons
+- Thread-aware gather: Haiku derives 3-5 queries from thread question + recent entries; articles tagged with thread_id; gather entries written back to originating thread automatically
+- Standing summary: most recent `summary` entry shown at top of thread between header and main content; filtered from chronological list
 
 **GitHub Pages Site (https://thompsmanlearn.github.io):**
 - 6-page site generated from live Supabase data: Home, Fleet, Capabilities, Architecture, Sessions, Direction
@@ -382,7 +408,7 @@ Periodically (cadence TBD — every few sessions or weekly), a desktop session s
 ---
 
 ## 7. Technical Architecture
-*Last updated: 2026-04-26*
+*Last updated: 2026-05-03*
 
 ### Services Map
 
@@ -486,7 +512,11 @@ Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → l
 
 **agent_registry** — id (uuid), agent_name (unique), display_name, agent_type, description, status (active/paused/retired/building/broken/sandbox), input_types/output_types/data_sources (text[]), schedule, workflow_id, performance_metrics (jsonb), protected (bool), telegram_command, created_at, updated_at
 
-**research_articles** — id (uuid), agent_run_id (uuid, groups articles from one run), title (text), url (text), source (text, domain), summary (text), query_used (text), retrieved_at (timestamptz), rating (smallint, default 0: -1/0/1), comment (text), status (text, default 'new': new/reviewed/archived), provenance (text, default 'context_engineering_research_agent'). Index on agent_run_id and status.
+**research_articles** — id (uuid), agent_run_id (uuid, groups articles from one run), title (text), url (text), source (text, domain), summary (text), query_used (text), retrieved_at (timestamptz), rating (smallint, default 0: -1/0/1), comment (text), status (text, default 'new': new/reviewed/archived), provenance (text, default 'context_engineering_research_agent'), thread_id (uuid, nullable — set when article was gathered via a thread-triggered run). Index on agent_run_id and status.
+
+**threads** — id (uuid), title (text), question (text), state (text, default 'active': active/dormant/closed), close_reason (text, nullable), bound_agent (text, nullable), created_at, updated_at, last_activity_at.
+
+**thread_entries** — id (uuid), thread_id (uuid), entry_type (text, CHECK constraint: annotation/gather/analysis/summary/screening/screening_uncertain/sub_question_candidate/state_change), content (text), source (text, nullable), chromadb_id (text, nullable), metadata (jsonb, default '{}'), created_at. Embeddings mirrored to ChromaDB `thread_entries` collection (excluded from default boot retrieval by design).
 
 **agent_feedback** — id (uuid), target_type (text, not null, e.g. 'agent', 'anvil_view', 'lesson', 'card'), target_id (text, not null), content (text, not null), created_at (timestamptz), processed (boolean, nullable), processed_at (timestamptz, nullable), processed_in_session (text, nullable), action_summary (text, nullable — required on every processed=true write; use "Deferred: [reason]" prefix when not acted on), action_session (text, nullable — artifact filename or commit SHA; required on every processed=true write), action_result_url (text, nullable — optional, only when a specific URL exists). Index on (target_type, target_id, processed). Boot-time pickup: LEAN_BOOT step 10 queries unprocessed rows and surfaces them. Acting on feedback writes action_summary + action_session immediately; deferred items are swept and written at session close. This converts the table from a queue to a conversation thread.
 
@@ -556,7 +586,7 @@ Store sync check (run at close-session step 7a): `SELECT COUNT(*) FROM lessons_l
 ---
 
 ## 8. Agent Fleet
-*Last updated: 2026-04-26*
+*Last updated: 2026-05-03*
 
 **Lifecycle:** `building` → `sandbox` → (behavioral_health_check + 4-Pillars evaluation) → `active` OR `retired/paused`
 
@@ -592,7 +622,7 @@ All paused agents can be reactivated from the Anvil dashboard.
 | research_synthesis_agent | JUBCbXJe3TwwpB2T | Sunday 14:00 UTC | Weekly synthesis of research corpus. **PROTECTED.** |
 | arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | Mon/Wed/Fri 15:00 UTC | arXiv preprints → research_findings + research_papers. **PROTECTED.** |
 | architecture_review | 7mVc61pDCIObJFos | Biweekly Sunday 16:00 UTC | Research findings → design decisions → work_queue items. |
-| context_engineering_research | gzCSocUFNxTGIzSD | On-demand webhook | 8 sources (HN, arXiv, dev.to, GitHub, lobste.rs, Medium, openai RSS, deepmind RSS) → Haiku summarize → research_articles. Per-source cap=5, global cap=20. Empty-fetch skips item (no thin rows). Company blogs are freshness-driven (30-day window, 3/feed). Anthropic blog deferred — no RSS. dev.to tags: agents, n8n, llmops, rag, claude. |
+| context_engineering_research | gzCSocUFNxTGIzSD | On-demand webhook | 8 sources (HN, arXiv, dev.to, GitHub, lobste.rs, Medium, openai RSS, deepmind RSS) → Haiku neutral summarize → research_articles. Per-source cap=5, global cap=20. Empty-fetch skips item. Company blogs freshness-driven (30-day window, 3/feed). Anthropic deferred — no RSS. dev.to tags: agents, n8n, llmops, rag, claude. Thread-aware: when payload includes thread_id, Haiku derives 3-5 queries from thread question + recent entries; articles tagged with thread_id; Code node writes gather entries back to originating thread. |
 
 ### Platform Infrastructure Agents
 
@@ -704,7 +734,7 @@ Before ending a desktop session:
 ---
 
 ## 12. Known Gaps and Fragilities
-*Last updated: 2026-04-26*
+*Last updated: 2026-05-03*
 
 **Anvil uplink silent disconnects.** The websocket can die without the systemd service noticing. Restart=always only catches crashes. B-031 adds a watchdog. Until then, if the dashboard stops responding, `sudo systemctl restart aadp-anvil.service` fixes it.
 
@@ -739,6 +769,8 @@ Before ending a desktop session:
 **lean_runner.sh dual-location.** Live copy at `~/aadp/sentinel/lean_runner.sh`; version-controlled copy at `claudis/sentinel/lean_runner.sh`. Changes must be made to both manually — no sync mechanism.
 
 **close-session.md and bootstrap.md are version-controlled in claudis.** Authoritative copies live at `~/aadp/claudis/skills/close-session.md` and `~/aadp/claudis/skills/bootstrap.md`. The `.claude/skills/` paths are symlinks into claudis — no manual sync needed. Edit in claudis, commit, done. Resolved B-061a 2026-04-26.
+
+**n8n webhook v2 body fields are nested.** In n8n webhook v2 nodes, payload body fields live at `$json.body.fieldName`, not `$json.fieldName`. Using `$json.queries` silently falls back to defaults if the field is actually at `$json.body.queries`. Always inspect actual webhook execution data to confirm field paths. Found in B-079 regression, fixed in B-080.
 
 **Telegram chat_id hardcoded** in scheduler.sh, lean_runner.sh, stats_server.py, and many n8n workflows.
 

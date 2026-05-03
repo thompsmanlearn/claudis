@@ -11,13 +11,16 @@
 - `get_thread_bundle` (B-073) produces a real markdown export bundle for threads — Export principle is partially live, not aspirational
 - Action panel collapsed (B-077): three primary actions (Gather, Export, Add as analysis entry) plus annotation secondary; state-change and wire-agent moved into a "Thread settings" drawer
 - Extraction passback channel (B-078): "Add as analysis entry" runs Haiku 4.5 over pasted prose and writes structured entries — `analysis` (full prose), `summary` (conclusions), `screening` or `screening_uncertain` (per-article decisions), `sub_question_candidate` (new questions). Confident screening commits to `research_articles` immediately; uncertain entries surface inline Confirm / Override / Reject buttons.
+- Thread-aware gather (B-079/B-080): Haiku derives 3-5 queries from thread question + recent entries when gather is triggered from a thread; articles tagged with thread_id; Code node writes gather entries back to originating thread automatically. n8n webhook v2 body nesting bug fixed (B-080 regression patch).
+- Standing summary at top of thread page (B-083): most recent non-empty `summary` entry displayed in a labeled block between the header and the chronological entry list; filtered from the main list to prevent duplication.
+- Neutral summarization for context_engineering_research (B-081): summarization prompt no longer bakes in AADP/Reflexion framing; relevance judgment deferred to the extraction step and thread consumer.
+- Company engineering blogs as fetched source (B-082): openai RSS + deepmind RSS added to context_engineering_research (8 sources total, freshness-driven, 3/feed). Anthropic deferred — no public RSS.
 
 ### Built but removed in cleanup pass (pre-card, 2026-05-02)
 - **Standing summary** — B-076 implemented first-paragraph-of-analysis as a standing summary; removed because the first paragraph of an analysis is framing, not conclusions, making the section actively misleading. The B-078 `summary` entry type now writes the conclusions bucket; surfacing it at the top of the thread page is a future card.
 - **Sub-questions placeholder** — B-076 rendered a "(none yet)" section; removed because no sub-questions schema exists, and a placeholder implies a working loop.
 
 ### Not yet built
-- Standing summary rendered at the top of the thread page (reads most recent `summary` entry written by extraction)
 - Spawn-thread button on `sub_question_candidate` entries; sub-questions schema or `parent_thread_id` lineage
 - Persistent memory consultation discipline — every gather queries ChromaDB before going external; surface results visibly until trust is earned
 - Passback channel for agent output landing in the triggering thread (Gap A)
@@ -42,7 +45,7 @@ UI implication: one render component (small pill, color-coded, type label) drawi
 **Layout (top to bottom in expanded card):**
 
 1. **Header** — full question text, one-line state badge
-2. **Standing summary slot** — most recent `summary` entry (currently rendered inline with content; future card surfaces at top)
+2. **Standing summary slot** — most recent `summary` entry displayed at top between header and main content (B-083 live)
 3. **Main content** — `annotation`, `gather`, `analysis`, `summary`, `screening`, `screening_uncertain`, `sub_question_candidate` entries in chronological order
 4. **History log drawer** — collapsed by default; click to reveal `state_change` entries
 5. **Action panel** — Gather / Export / Add-as-analysis-entry primary; annotation secondary; Thread settings drawer (state, wire-agent) tertiary
