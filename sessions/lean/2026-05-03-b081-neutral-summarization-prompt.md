@@ -48,6 +48,14 @@ Triggered a gather on thread `1b3a5cd9` (Consumer AI: "What useful tasks can be 
 
 ---
 
+## Capability delta
+
+**New:** context_engineering_research now produces neutral article summaries decoupled from AADP-specific framing. Articles gathered by any thread — regardless of the thread's question domain — receive summaries that describe what the article says. Relevance judgment is deferred to the extraction step, desktop Claude, or whatever consumer is operating in the thread's context.
+
+**Commits:** `141fee5` (prompt rewrite), `c38677e` (session artifact)
+
+---
+
 ## Done-when check
 
 - [x] Prompt rewritten per contract — no Reflexion/AADP/ChromaDB framing, neutral three-paragraph structure
