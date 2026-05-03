@@ -2075,21 +2075,32 @@ def trigger_thread_gather(thread_id):
     if not webhook_url:
         raise Exception(f'Agent "{bound_agent}" has no webhook URL.')
 
+    queries, derive_err = _derive_thread_queries(thread_id)
+
     def _fire():
         try:
-            resp = requests.post(webhook_url, json={'thread_id': thread_id}, timeout=120)
+            resp = requests.post(
+                webhook_url,
+                json={'thread_id': thread_id, 'queries': queries},
+                timeout=120,
+            )
             log.info('trigger_thread_gather: thread=%s agent=%s status=%d',
                      thread_id, bound_agent, resp.status_code)
         except Exception as e:
             log.warning('trigger_thread_gather webhook error: thread=%s %s', thread_id, e)
 
     threading.Thread(target=_fire, daemon=True, name=f'gather-{thread_id[:8]}').start()
+
+    if derive_err:
+        q_text = f'{", ".join(queries)} — derivation failed: {derive_err}'
+    else:
+        q_text = ', '.join(queries)
     entry = _insert_thread_entry(
         thread_id, 'gather',
-        f'Gather triggered: {bound_agent} (output not yet wired to thread)',
+        f'Gather triggered: {bound_agent}. Queries: {q_text} (output not yet wired to thread)',
         embed=False,
     )
-    log.info('trigger_thread_gather: thread=%s agent=%s', thread_id, bound_agent)
+    log.info('trigger_thread_gather: thread=%s agent=%s queries=%s', thread_id, bound_agent, queries)
     return entry
 
 
@@ -2184,6 +2195,92 @@ def get_thread_bundle(thread_id):
 # ── Extraction callables ─────────────────────────────────────────────────────
 
 _HAIKU_MODEL = 'claude-haiku-4-5-20251001'
+
+# Default queries used when thread-query derivation fails or gather is non-thread
+_DERIVE_QUERIES_FALLBACK = [
+    "autonomous agent platform persistent memory",
+    "agent dashboard human in the loop",
+    "n8n LLM agent orchestration",
+    "Reflexion ExpeL agent system production",
+]
+
+_DERIVE_QUERIES_SYSTEM = """\
+You are a search query assistant. Given a research thread question and recent entries, \
+derive 3-5 short search queries (1-4 words each) that will surface articles relevant \
+to the thread question.
+
+Output ONLY valid JSON with a single key:
+{"queries": ["query 1", "query 2", "query 3"]}
+
+Rules:
+- Queries must be specific to the thread question, not generic domain terms
+- Do NOT include domain framing like "agentic system" or "ChromaDB" unless the thread asks about those
+- Each query must be 1-4 words, suitable for HN/arXiv/GitHub/dev.to/lobste.rs search
+- Return between 3 and 5 queries
+- Output ONLY the JSON object, no other text\
+"""
+
+
+def _derive_thread_queries(thread_id):
+    """Derive 3-5 search queries from thread question and recent entries via Haiku 4.5.
+    Returns (queries, error_reason). On failure: returns (_DERIVE_QUERIES_FALLBACK, reason)."""
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/threads',
+            headers=_HEADERS,
+            params={'select': 'question', 'id': f'eq.{thread_id}'},
+            timeout=10,
+        )
+        r.raise_for_status()
+        rows = r.json()
+        if not rows:
+            return _DERIVE_QUERIES_FALLBACK, 'thread not found'
+        question = rows[0].get('question', '')
+
+        re_ = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/thread_entries',
+            headers=_HEADERS,
+            params={
+                'select': 'entry_type,content',
+                'thread_id': f'eq.{thread_id}',
+                'entry_type': 'in.(annotation,analysis,summary)',
+                'order': 'created_at.desc',
+                'limit': '5',
+            },
+            timeout=10,
+        )
+        re_.raise_for_status()
+        recent = re_.json()
+
+        entries_text = ''
+        if recent:
+            lines = [
+                f'- [{e["entry_type"]}] {(e.get("content") or "")[:200].replace(chr(10), " ")}'
+                for e in recent
+            ]
+            entries_text = '\n\nRecent entries:\n' + '\n'.join(lines)
+
+        client = anthropic.Anthropic(api_key=_ENV['ANTHROPIC_API_KEY'])
+        message = client.messages.create(
+            model=_HAIKU_MODEL,
+            max_tokens=256,
+            system=_DERIVE_QUERIES_SYSTEM,
+            messages=[{'role': 'user', 'content': f'Thread question: {question}{entries_text}'}],
+        )
+        raw = message.content[0].text.strip()
+        if raw.startswith('```'):
+            raw = raw.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+        result = json.loads(raw)
+        queries = result.get('queries', [])
+        if not isinstance(queries, list) or len(queries) < 1:
+            raise ValueError(f'invalid queries: {queries}')
+        log.info('_derive_thread_queries: thread=%s queries=%s', thread_id, queries)
+        return queries, None
+    except Exception as e:
+        log.warning('_derive_thread_queries failed: thread=%s %s', thread_id, e)
+        return _DERIVE_QUERIES_FALLBACK, str(e)
+
+
 _EXTRACT_SYSTEM = """\
 You are an extraction assistant. Analyze the provided desktop Claude analysis prose and extract structured implications into exactly four buckets.
 
