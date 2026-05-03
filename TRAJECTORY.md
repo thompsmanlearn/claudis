@@ -9,11 +9,10 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
-- Thread architecture v0.1 + manual inflow complete (B-070–B-078): schema, callables, read view, all action affordances, both add-to-thread surfaces, and extraction passback channel all live in Anvil
-- "Add desktop analysis" now runs extraction: Haiku 4.5 parses prose into synthesis (analysis entry), conclusions (summary entry), screening decisions (screening/screening_uncertain entries), and sub-question candidates; confident screening patches research_articles immediately; uncertain items await Bill's Confirm/Override/Reject
-- Research tab article cards: "Add to thread" button still live (source=research_articles:{id})
-- Fleet: 10 active agents, unchanged; anthropic 0.97.0 added to mcp-server venv
-- context_engineering_research (B-081/B-082): neutral summaries live; now 8 sources — added openai RSS + deepmind RSS (freshness-driven, 30-day window, 3/feed); Anthropic has no public RSS, deferred (lesson: anthropic_no_rss_2026-05-03)
+- Thread architecture complete (B-070–B-083): schema, callables, read view, action panel, extraction passback, thread-aware gather with output wiring, standing summary at top — all live
+- context_engineering_research: 8 sources, neutral summaries, thread-aware query derivation; articles tagged with thread_id; gather entries written back to originating thread automatically
+- Fleet: 10 active agents, unchanged
+- Redesign chapter complete; system in use-period — no card pending; Bill scopes next direction
 - Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
 
 **Project arc next:** Bill smoke-tests extraction: paste desktop analysis into a thread, verify four-bucket output; test uncertain-item resolution buttons. Then: Gap A (automated agent→thread wiring) or ChromaDB leverage card.
@@ -22,10 +21,17 @@
 
 ## Handoff (pick up here)
 
+**2026-05-03 (cleanup + B-083):**
+- **What I was doing:** Cleanup pass — updated DEEP_DIVE_BRIEF.md sections 4/5/7/8/12, anvil-redesign-principles-and-plan.md, TRAJECTORY.md. Verified all 6 recent lessons exist in both ChromaDB and Supabase (confirmed). Classified 19 unresolved errors: all fetch_error from context_engineering_research (Medium/URL empty-fetch or SSL timeout — expected behavior, all resolved). Also shipped B-083: standing summary at top of thread page.
+- **What I learned:** All 19 error_log entries are expected operational noise — Medium bot-blocking and external URL timeouts. The error_logs table is being used as a fetch-attempt log, not a failure log; these entries should be resolved on sight rather than accumulating.
+- **Continue:** Thread architecture complete. System in use-period. B-078 smoke test still pending — paste desktop Claude analysis into a thread, confirm four-bucket output, test Confirm/Override/Reject buttons. Next chapter: Bill decides. Candidates: Gap A completion (automated agent→thread wiring beyond current B-080 path), ChromaDB leverage card, or Life OS direction.
+- **Left better:** Docs current; 19 stale errors cleared; lessons verified dual-store.
+- **Usage:** session ~%, weekly ~%
+
 **2026-05-03 (B-082):**
 - **What I was doing:** B-082 — added `_fetch_company_engineering_blogs()` to stats_server.py; wired into `run_context_research`; smoke-tested on Source expansion thread: 3 openai + 3 deepmind articles with correct source names and neutral summaries. Anthropic has no public RSS — deferred, lesson written.
 - **What I learned:** Anthropic does not publish a public RSS feed as of 2026-05-03 (tried 10+ paths). First confirmed build-from-input loop: Bill annotated a thread noting a source gap; this session closed it.
-- **Continue:** B-078 smoke test still pending — paste desktop Claude analysis into a thread, confirm four-bucket output, test Confirm/Override/Reject buttons. 14 unresolved errors in error_logs.
+- **Continue:** See cleanup entry above.
 - **Left better:** context_engineering_research now pulls from 8 sources; first-party company blog content will surface alongside HN/arXiv/Medium on every gather.
 - **Usage:** session ~%, weekly ~%
 
@@ -34,13 +40,6 @@
 - **What I learned:** context_engineering_research's prompt lives in stats_server.py:_summarize_article_haiku, not in the n8n workflow — n8n is a thin webhook→stats server call. Baked-in consumer-specific lens becomes a leak when the agent has multiple consumers (threads with different questions).
 - **Continue:** B-082 completed same session.
 - **Left better:** Articles gathered by thread-triggered runs now get neutral summaries — relevance judgment happens at the extraction/thread layer, not inside the summarizer.
-- **Usage:** session ~%, weekly ~%
-
-**2026-05-02 (B-078):**
-- **What I was doing:** B-078 — extraction step for desktop-Claude analysis paste: `extract_analysis` callable + `resolve_screening_uncertain` callable in uplink_server.py; Form1 `_add_analysis` rewired; four new entry types rendered; both repos merged and pushed.
-- **What I learned:** `_make_screening_handlers` factory pattern is the right idiom for Anvil action closures needing per-entry state — avoids Python closure-in-loop issue cleanly. Supabase JSONB PATCH via PostgREST accepts Python dicts directly. anthropic 0.97.0 installs into mcp-server venv.
-- **Continue:** B-082 completed 2026-05-03. B-078 smoke test still pending.
-- **Left better:** Passback channel complete — desktop Claude can now reason over thread content and have structured implications recovered by the system.
 - **Usage:** session ~%, weekly ~%
 
 
