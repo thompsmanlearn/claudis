@@ -3342,11 +3342,18 @@ def _summarize_article_haiku(title, url, raw_content, api_key):
         f"Article title: {title}\n"
         f"URL: {url}\n"
         f"Content:\n{raw_content[:1500]}\n\n"
-        "Write a 2-3 paragraph summary (~150 words) covering:\n"
-        "1. What the article is about and its main claim\n"
-        "2. The key pattern or technique it describes\n"
-        "3. Why it might matter for a Reflexion-style agentic system with ChromaDB memory\n"
-        "No bullet points. Be concise."
+        "Your job is to summarize this article for a general reader unfamiliar with the article's "
+        "domain. The relevance judgment happens downstream.\n\n"
+        "Write a 2-3 paragraph summary (~150 words):\n"
+        "1. What the article says — its central claim or finding, stated neutrally\n"
+        "2. The key technique, pattern, or argument the article rests on\n"
+        "3. (Optional) What is notable, surprising, or contested about the claim — only if the "
+        "article genuinely has such an angle. Omit this paragraph if the article is "
+        "straightforward.\n"
+        "No bullet points. Do not mention Reflexion, AADP, ChromaDB, memory architecture, or "
+        "agent-system implications unless the article itself is about those subjects. "
+        "Do not refer to 'the reader,' 'this system,' 'a typical implementation,' or any other "
+        "implied use case. The summary is about the article, not about how anyone might apply it."
     )
     payload = _json.dumps({
         "model": "claude-haiku-4-5-20251001",
