@@ -4061,6 +4061,179 @@ def run_research_cycle(payload: dict = {}):
     })
 
 
+# ── Watch state (B-098) ──────────────────────────────────────────────────────
+_WATCH_INTERVALS = {
+    "daily": timedelta(days=1),
+    "weekly": timedelta(weeks=1),
+    "monthly": timedelta(days=30),
+}
+
+
+def _get_existing_thread_urls(thread_id: str, env) -> set:
+    """Collect all URLs already referenced in thread gather entries."""
+    rows = _sb_query(env, "thread_entries",
+                     {"thread_id": f"eq.{thread_id}", "entry_type": "eq.gather",
+                      "select": "content", "limit": "20"})
+    import re
+    urls = set()
+    for r in rows:
+        for url in re.findall(r'https?://[^\s\)]+', r.get("content", "")):
+            urls.add(url.rstrip("."),)
+    return urls
+
+
+def _update_watch_timestamps(thread_id: str, interval: str, env):
+    """Update last_watch_cycle_at and next_watch_due_at on the thread."""
+    now = datetime.now(timezone.utc)
+    delta = _WATCH_INTERVALS.get(interval, timedelta(weeks=1))
+    next_due = (now + delta).isoformat()
+    url = f"{env['SUPABASE_URL']}/rest/v1/threads?id=eq.{thread_id}"
+    data = _json.dumps({"last_watch_cycle_at": now.isoformat(), "next_watch_due_at": next_due}).encode()
+    req = urllib.request.Request(url, data=data, method="PATCH", headers={
+        "apikey": env["SUPABASE_SERVICE_KEY"],
+        "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    })
+    with urllib.request.urlopen(req, timeout=8):
+        pass
+
+
+@app.post("/run_watch_cycle")
+def run_watch_cycle(payload: dict = {}):
+    """Run a lighter recency-focused cycle for a watch-enabled thread."""
+    thread_id = payload.get("thread_id", "").strip()
+    if not thread_id:
+        return JSONResponse({"error": "thread_id required"}, status_code=400)
+
+    env = _read_env_simple()
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "ANTHROPIC_API_KEY not found"}, status_code=500)
+
+    # Read charter and thread watch settings
+    charter = _get_thread_charter(thread_id, env)
+    if not charter:
+        return JSONResponse({"error": "No charter for thread"}, status_code=404)
+
+    thread_rows = _sb_query(env, "threads",
+                            {"id": f"eq.{thread_id}", "select": "watch_interval,watch_enabled"})
+    thread_meta = thread_rows[0] if thread_rows else {}
+    interval = thread_meta.get("watch_interval", "weekly")
+
+    # Existing URLs — novelty baseline
+    existing_urls = _get_existing_thread_urls(thread_id, env)
+
+    # Run 2-3 searches focused on recent content
+    question = charter.get("question", "")
+    searches = [
+        {"query": f"{question} recent 2025", "rationale": "recency scan", "source_type": "news"},
+        {"query": f"{question} new developments", "rationale": "new developments", "source_type": "blog"},
+    ]
+
+    search_results = _execute_searches(searches, charter, api_key, env)
+
+    # Novelty filter: keep only URLs not already in thread
+    novel = [r for r in search_results if r.get("url", "") not in existing_urls]
+    overlap_pct = 1.0 - (len(novel) / max(len(search_results), 1))
+
+    if overlap_pct > 0.8 or not novel:
+        # No change — write only cycle_metadata
+        cycle_n = _get_cycle_number(thread_id, env)
+        _sb_post_entry(env, {
+            "thread_id": thread_id,
+            "entry_type": "cycle_metadata",
+            "content": f"Watch cycle {cycle_n}: no new content found",
+            "metadata": _json.dumps({"cycle_number": cycle_n, "outcome": "no_change",
+                                     "is_watch_cycle": True, "overlap_pct": round(overlap_pct, 2)}),
+            "source": "watch",
+        })
+        _update_watch_timestamps(thread_id, interval, env)
+        return JSONResponse({"outcome": "no_change", "novel_count": 0,
+                             "overlap_pct": round(overlap_pct, 2)})
+
+    # Novel content found — run normal cycle logic on novel results only
+    fetched = _fetch_promising_urls(novel[:4], charter, api_key, env)
+    try:
+        synthesis = _synthesize(charter, fetched, {"summary": "", "results": []}, api_key)
+    except Exception as e:
+        _update_watch_timestamps(thread_id, interval, env)
+        return JSONResponse({"error": f"synthesis failed: {e}"}, status_code=500)
+
+    cycle_n = _get_cycle_number(thread_id, env)
+    entry_ids = _write_cycle_entries(thread_id, cycle_n, novel, fetched, synthesis, env)
+
+    # Tag as watch cycle in metadata
+    _sb_post_entry(env, {
+        "thread_id": thread_id, "entry_type": "cycle_metadata",
+        "content": f"Watch cycle {cycle_n}: {len(novel)} novel results",
+        "metadata": _json.dumps({"cycle_number": cycle_n, "outcome": "new_content",
+                                  "is_watch_cycle": True, "novel_count": len(novel)}),
+        "source": "watch",
+    })
+
+    # Grade the watch cycle
+    try:
+        grade_data = _json.dumps({"thread_id": thread_id, "cycle_number": cycle_n}).encode()
+        grade_req = urllib.request.Request(
+            "http://localhost:9100/grade_research_cycle", data=grade_data,
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(grade_req, timeout=90) as gr:
+            grade_result = _json.loads(gr.read())
+        grader_verdict = grade_result.get("verdict", "continue")
+    except Exception:
+        grader_verdict = "continue"
+
+    # If significant (complete verdict), re-open thread to active
+    if grader_verdict == "complete":
+        url = f"{env['SUPABASE_URL']}/rest/v1/threads?id=eq.{thread_id}"
+        data = _json.dumps({"state": "active"}).encode()
+        req = urllib.request.Request(url, data=data, method="PATCH", headers={
+            "apikey": env["SUPABASE_SERVICE_KEY"],
+            "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+            "Content-Type": "application/json", "Prefer": "return=minimal",
+        })
+        with urllib.request.urlopen(req, timeout=8):
+            pass
+        # Telegram notification would go here via stats_server _send_telegram if wired
+
+    _update_watch_timestamps(thread_id, interval, env)
+    return JSONResponse({"outcome": "new_content", "novel_count": len(novel),
+                         "cycle_number": cycle_n, "grader_verdict": grader_verdict,
+                         "entry_ids": entry_ids})
+
+
+@app.get("/check_watch_threads")
+def check_watch_threads():
+    """Hourly job endpoint: run watch cycles for all due threads."""
+    env = _read_env_simple()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        due_threads = _sb_query(env, "threads",
+                                {"watch_enabled": "eq.true",
+                                 "next_watch_due_at": f"lte.{now_iso}",
+                                 "select": "id,title,watch_interval"})
+    except Exception as e:
+        return JSONResponse({"error": f"query failed: {e}"}, status_code=500)
+
+    results = []
+    for t in due_threads:
+        try:
+            data = _json.dumps({"thread_id": t["id"]}).encode()
+            req = urllib.request.Request(
+                "http://localhost:9100/run_watch_cycle", data=data,
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=150) as r:
+                outcome = _json.loads(r.read()).get("outcome", "error")
+            results.append({"thread_id": t["id"], "title": t["title"][:40], "outcome": outcome})
+        except Exception as ex:
+            results.append({"thread_id": t["id"], "outcome": f"error: {ex}"})
+
+    return JSONResponse({"checked": len(due_threads), "results": results})
+
+
 # ── Research cycle grader (B-097) ────────────────────────────────────────────
 _CYCLE_GRADER_SYSTEM = """You are grading a research cycle against a charter. You have no context
 from the team that ran the cycle — judge from artifacts only. Do not ask for clarification.

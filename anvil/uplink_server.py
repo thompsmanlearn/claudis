@@ -2041,7 +2041,7 @@ def wire_thread_agent(thread_id, agent_name):
 @anvil.server.callable
 def get_threads(state='active'):
     params = {
-        'select': 'id,title,question,state,close_reason,bound_agent,created_at,updated_at,last_activity_at',
+        'select': 'id,title,question,state,close_reason,bound_agent,created_at,updated_at,last_activity_at,watch_enabled,watch_interval,last_watch_cycle_at,next_watch_due_at',
         'order': 'last_activity_at.desc',
     }
     if state is not None:
@@ -2491,6 +2491,31 @@ def resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, 
     log.info('resolve_screening_uncertain: entry=%s item=%s resolution=%s',
              entry_id, item_id, resolution)
     return {'resolved': True, 'resolution': resolution}
+
+
+# ── Watch state (B-098) ──────────────────────────────────────────────────────
+
+@anvil.server.callable
+def set_watch_state(thread_id, enabled, interval='weekly'):
+    """Enable or disable watch state for a thread. interval: daily|weekly|monthly."""
+    VALID = {'daily', 'weekly', 'monthly'}
+    if interval not in VALID:
+        raise Exception(f'Invalid interval "{interval}". Must be one of: {sorted(VALID)}')
+    from datetime import datetime, timezone, timedelta
+    intervals = {'daily': timedelta(days=1), 'weekly': timedelta(weeks=1), 'monthly': timedelta(days=30)}
+    payload = {'watch_enabled': bool(enabled), 'watch_interval': interval}
+    if enabled:
+        payload['next_watch_due_at'] = (datetime.now(timezone.utc) + intervals[interval]).isoformat()
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{thread_id}'},
+        json=payload,
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('set_watch_state: thread=%s enabled=%s interval=%s', thread_id, enabled, interval)
+    return {'watch_enabled': bool(enabled), 'watch_interval': interval}
 
 
 # ── Cycle grader (B-097) ─────────────────────────────────────────────────────
