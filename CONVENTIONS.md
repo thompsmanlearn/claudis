@@ -72,6 +72,10 @@ Apply when executing work.
 
 `agent_feedback` is the unified annotation table for the whole system — agents, lessons, skills, sessions, cards, capabilities, threads. File observations here; the classifier (B-086) determines intent. See `architecture/decisions/annotation-pattern.md` for target_type vocabulary and uplink callables.
 
+### Authorization Tiers
+
+Every agent and capability has a tier (1/2/3). Tier 1: act then notify. Tier 2: ask first, 24h/72h timeout escalation, Tier 2 requests use `agent_feedback` with `target_type='approval_request'`. Tier 3: no act without in-session confirmation. See `architecture/decisions/authorization-tiers.md`.
+
 ### Naming
 
 - Agents: `snake_case`. `agent_name` column is canonical.
