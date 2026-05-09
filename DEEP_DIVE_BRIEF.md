@@ -188,7 +188,7 @@ Either alone is a broken lesson. chromadb_id links the two records.
 ---
 
 ## 4. Current Project: Anvil Dashboard
-*Last updated: 2026-05-03*
+*Last updated: 2026-05-08*
 
 ### Status: Live and Operational
 
@@ -291,6 +291,11 @@ A Claude Code skill reference exists at `skills/anvil/REFERENCE.md` — loaded a
 | `write_thread_gather_entries(thread_id, article_ids)` | Supabase `thread_entries` POST batch | Write |
 | `extract_analysis(thread_id, prose, source)` | Haiku → Supabase `thread_entries` POST (4 buckets) | Write |
 | `resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, resolution)` | Supabase `research_articles` + `thread_entries` PATCH | Write |
+| `confirm_project_complete(project_id, notes)` | Supabase `aadp_projects` PATCH → complete | Write |
+| `reject_project_completion(project_id, reason)` | Supabase `agent_feedback` POST (rejection record) | Write |
+| `retire_agent(agent_name, reason)` | Supabase `agent_registry` PATCH → retired | Write |
+| `retire_skill(skill_name, reason)` | Supabase `skills_registry` PATCH → retired | Write |
+| `get_lesson_stats()` | stats_server `/lesson_stats` — utilization summary | Read |
 
 ### Architecture Decision Record
 
@@ -307,7 +312,7 @@ These aren't UI improvements — they make the system's boundary with the physic
 ---
 
 ## 5. Capabilities Inventory
-*Last updated: 2026-05-03*
+*Last updated: 2026-05-08*
 
 This section tracks what the system as a whole can actually accomplish today. This is distinct from the skills list (what Claude Code knows how to do) and the agent fleet (what's deployed). Capabilities are end-to-end outcomes.
 
@@ -339,7 +344,16 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Execute focused build sessions from backlog cards
 - Write and commit session artifacts
 - Manage n8n workflows (create, update, activate/deactivate)
-- Agent lifecycle management (register, update, promote)
+- Agent lifecycle management (register, update, promote, retire)
+- Grade completed cards with calibrated commit SHA (B-104)
+- Export grader reviews for desktop analysis (B-102)
+- Run capability curation scan: surfaces paused+no-workflow agents and never-triggered skills as Tier 2 approval requests (B-109)
+
+**Governance:**
+- Three-tier authorization model (Tier 1: act+notify, Tier 2: ask first, Tier 3: in-session only)
+- Unified annotation backbone — agent_feedback as the single annotation table; Haiku classifier (B-086) routes by intent_type
+- Auto-cycle project completion requires Bill's explicit confirmation (B-107)
+- Lesson utilization visibility: /lesson_stats shows total, never-applied %, mean times_applied, top categories (B-111)
 
 **Communication:**
 - Telegram command routing (deprioritized but functional when Telegram is working)
@@ -789,7 +803,7 @@ Before ending a desktop session:
 ---
 
 ## 12. Known Gaps and Fragilities
-*Last updated: 2026-05-03*
+*Last updated: 2026-05-08*
 
 **Anvil uplink silent disconnects.** The websocket can die without the systemd service noticing. Restart=always only catches crashes. B-031 adds a watchdog. Until then, if the dashboard stops responding, `sudo systemctl restart aadp-anvil.service` fixes it.
 
