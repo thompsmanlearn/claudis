@@ -2493,6 +2493,46 @@ def resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, 
     return {'resolved': True, 'resolution': resolution}
 
 
+# ── Research charter (B-095) ─────────────────────────────────────────────────
+
+@anvil.server.callable
+def add_charter(thread_id, charter_content):
+    """Write a charter entry to a thread. Older charters remain in chronological list."""
+    charter_content = (charter_content or '').strip()
+    if not charter_content:
+        raise Exception('Charter content cannot be empty.')
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json={
+            'thread_id': thread_id,
+            'entry_type': 'charter',
+            'content': charter_content[:10000],
+            'source': 'bill',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    row = r.json()[0] if r.json() else {}
+    entry_id = row.get('id', '')
+    log.info('add_charter: thread=%s entry=%s', thread_id, entry_id)
+
+    # Trigger memory consultation (B-099 will wire this fully; placeholder call)
+    try:
+        import re as _re
+        question_match = _re.search(r'(?:^|\n)##?\s*Question\s*\n(.*?)(?=\n##|\Z)', charter_content, _re.DOTALL)
+        question_text = question_match.group(1).strip()[:500] if question_match else charter_content[:200]
+        requests.post(
+            f'{_STATS_URL}/consult_memory',
+            json={'thread_id': thread_id, 'question': question_text, 'charter_summary': charter_content[:300]},
+            timeout=30,
+        )
+    except Exception as e:
+        log.warning('add_charter: memory consultation failed (non-fatal): %s', e)
+
+    return {'id': entry_id, 'created': True}
+
+
 # ── Capability index (B-089) ─────────────────────────────────────────────────
 
 @anvil.server.callable
