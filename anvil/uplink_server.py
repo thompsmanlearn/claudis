@@ -432,6 +432,62 @@ def set_autonomous_mode(enabled):
 
 
 @anvil.server.callable
+def retire_agent(agent_name, reason=''):
+    """Retire an agent: set status=retired in agent_registry, write annotation."""
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/agent_registry',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'agent_name': f'eq.{agent_name}'},
+        json={'status': 'retired', 'workflow_id': None},
+        timeout=5,
+    )
+    r.raise_for_status()
+    requests.post(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        json={
+            'target_type': 'agent',
+            'target_id': agent_name,
+            'content': f'Agent retired by Bill. Reason: {reason}' if reason else 'Agent retired by Bill.',
+            'action_session': 'uplink_retire_agent',
+            'processed': True,
+            'metadata': {'intent_type': 'state_change', 'new_status': 'retired'},
+        },
+        timeout=5,
+    )
+    log.info('Agent %s retired: %s', agent_name, reason)
+    return {'status': 'retired', 'agent_name': agent_name}
+
+
+@anvil.server.callable
+def retire_skill(skill_name, reason=''):
+    """Retire a skill: set status=retired in skills_registry, write annotation."""
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/skills_registry',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'name': f'eq.{skill_name}'},
+        json={'status': 'retired'},
+        timeout=5,
+    )
+    r.raise_for_status()
+    requests.post(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        json={
+            'target_type': 'skill',
+            'target_id': skill_name,
+            'content': f'Skill retired by Bill. Reason: {reason}' if reason else 'Skill retired by Bill.',
+            'action_session': 'uplink_retire_skill',
+            'processed': True,
+            'metadata': {'intent_type': 'state_change', 'new_status': 'retired'},
+        },
+        timeout=5,
+    )
+    log.info('Skill %s retired: %s', skill_name, reason)
+    return {'status': 'retired', 'skill_name': skill_name}
+
+
+@anvil.server.callable
 def confirm_project_complete(project_id, notes=''):
     """Mark a project complete after Bill's explicit confirmation."""
     r = requests.patch(
