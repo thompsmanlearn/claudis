@@ -3724,18 +3724,53 @@ def _memory_pass(charter: dict, thread_entries: list, env) -> dict:
         except Exception:
             pass
 
-    # Supabase research_articles with matching keywords
+    # research_articles: semantic search via ChromaDB research_findings (B-103)
+    # Uses subprocess chromadb client (same pattern as _chroma_multi_query) with where filter.
+    _article_script = """
+import chromadb, json, sys
+args = json.loads(sys.argv[1])
+client = chromadb.HttpClient(host='localhost', port=8000)
+col = client.get_collection(args['collection'])
+results = col.query(
+    query_texts=[args['question']],
+    n_results=args['n_results'],
+    where={'type': {'$eq': 'research_article'}},
+)
+ids   = results.get('ids', [[]])[0]
+docs  = results.get('documents', [[]])[0]
+dists = results.get('distances', [[]])[0]
+output = [{'id': i, 'content': d, 'distance': dist}
+          for i, d, dist in zip(ids, docs, dists) if dist < args['threshold']]
+print(json.dumps(output))
+"""
     try:
-        kw = question.split()[:3]
-        if kw:
-            art_rows = _sb_query(env, "research_articles",
-                                 {"select": "title,url,summary", "limit": "5",
-                                  "title": f"ilike.%{kw[0]}%"})
-            for art in art_rows:
-                results.append({"source": "research_articles", "distance": 0.5,
-                                 "content": f"{art.get('title','')} — {art.get('summary','')[:200]}"})
+        proc = subprocess.run(
+            ["/home/thompsman/aadp/mcp-server/venv/bin/python", "-c",
+             _article_script,
+             _json.dumps({"collection": "research_findings", "question": question,
+                          "n_results": 5, "threshold": 1.4})],
+            capture_output=True, text=True, timeout=20
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            for item in _json.loads(proc.stdout):
+                results.append({"source": "research_articles_semantic",
+                                 "distance": round(item["distance"], 3),
+                                 "content": item["content"][:300]})
+        else:
+            raise Exception(proc.stderr[:100] if proc.stderr else "empty output")
     except Exception:
-        pass
+        # Fallback: keyword ilike
+        try:
+            kw = [w for w in question.split() if len(w) > 4][:2]
+            if kw:
+                art_rows = _sb_query(env, "research_articles",
+                                     {"select": "title,url,summary", "limit": "5",
+                                      "title": f"ilike.%{kw[0]}%"})
+                for art in art_rows:
+                    results.append({"source": "research_articles_keyword", "distance": 0.5,
+                                    "content": f"{art.get('title','')} — {art.get('summary','')[:200]}"})
+        except Exception:
+            pass
 
     # Prior thread entries
     for e in thread_entries[:10]:
@@ -4059,6 +4094,200 @@ def run_research_cycle(payload: dict = {}):
         "grader_verdict": grader_verdict,
         "entry_ids": entry_ids,
     })
+
+
+# ── Semantic article indexing (B-103) ────────────────────────────────────────
+_CHROMA_URL = "http://localhost:8000"
+
+
+def _get_chroma_collection_id(name: str) -> str:
+    """Get ChromaDB collection UUID by name."""
+    req = urllib.request.Request(f"{_CHROMA_URL}/api/v1/collections/{name}")
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return _json.loads(r.read())["id"]
+
+
+def _chroma_add_documents_via_client(collection_name: str, doc_ids: list, documents: list, metadatas: list):
+    """Add documents via Python client subprocess so embeddings are generated automatically."""
+    script = """
+import chromadb, json, sys
+args = json.loads(sys.argv[1])
+client = chromadb.HttpClient(host='localhost', port=8000)
+col = client.get_collection(args['collection'])
+# Add in one batch
+col.add(ids=args['ids'], documents=args['documents'], metadatas=args['metadatas'])
+print(json.dumps({'added': len(args['ids'])}))
+"""
+    proc = subprocess.run(
+        ["/home/thompsman/aadp/mcp-server/venv/bin/python", "-c", script,
+         _json.dumps({"collection": collection_name, "ids": doc_ids,
+                      "documents": documents, "metadatas": metadatas})],
+        capture_output=True, text=True, timeout=60
+    )
+    if proc.returncode != 0:
+        raise Exception(f"chroma add failed: {proc.stderr[:200]}")
+    return _json.loads(proc.stdout)
+
+
+def _chroma_query(collection_id: str, query_text: str, n_results: int = 5) -> list:
+    """Semantic query against a ChromaDB collection. Returns [{content, distance, metadata}]."""
+    payload = _json.dumps({
+        "query_texts": [query_text],
+        "n_results": n_results,
+        "include": ["documents", "distances", "metadatas"],
+    }).encode()
+    req = urllib.request.Request(
+        f"{_CHROMA_URL}/api/v1/collections/{collection_id}/query",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        data = _json.loads(r.read())
+    docs = (data.get("documents") or [[]])[0]
+    dists = (data.get("distances") or [[]])[0]
+    metas = (data.get("metadatas") or [[]])[0]
+    return [{"content": d, "distance": dist, "metadata": m}
+            for d, dist, m in zip(docs, dists, metas)]
+
+
+def _embed_single_article(article: dict, collection_name: str, env) -> str:
+    """Embed one research_article via Python client (generates embeddings). Returns chromadb_id."""
+    title = article.get("title", "")
+    summary = (article.get("summary") or "")[:2000]
+    url = article.get("url", "")
+    source = article.get("source", "")
+    article_id = str(article.get("id", ""))
+    import re as _re
+    slug = _re.sub(r'[^a-z0-9_]', '', title.lower()[:30].replace(" ", "_"))
+    doc_id = f"article_{article_id[:8]}_{slug}"[:80]
+    document = f"{title}\n{url}\nSource: {source}\n\n{summary}"
+    metadata = {
+        "title": title[:200],
+        "url": url[:300],
+        "source": source[:100],
+        "supabase_id": article_id,
+        "type": "research_article",
+    }
+    _chroma_add_documents_via_client(collection_name, [doc_id], [document], [metadata])
+    # Update chromadb_id in Supabase
+    patch_url = f"{env['SUPABASE_URL']}/rest/v1/research_articles?id=eq.{article_id}"
+    data = _json.dumps({"chromadb_id": doc_id}).encode()
+    req = urllib.request.Request(patch_url, data=data, method="PATCH", headers={
+        "apikey": env["SUPABASE_SERVICE_KEY"],
+        "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    })
+    with urllib.request.urlopen(req, timeout=8):
+        pass
+    return doc_id
+
+
+@app.post("/backfill_articles_to_chromadb")
+def backfill_articles_to_chromadb(payload: dict = {}):
+    """Batch backfill: embed research_articles into research_findings via Python client."""
+    env = _read_env_simple()
+    batch_size = int(payload.get("batch_size", 20))
+
+    rows = _sb_query(env, "research_articles",
+                     {"chromadb_id": "is.null",
+                      "select": "id,title,url,source,summary",
+                      "limit": str(batch_size)})
+
+    # Filter rows with usable content
+    import re as _re
+    to_embed = [r for r in rows if r.get("title") and (r.get("summary") or "").strip()[:10]]
+
+    if not to_embed:
+        remaining = _sb_query(env, "research_articles",
+                              {"chromadb_id": "is.null", "select": "id", "limit": "1"})
+        return JSONResponse({"embedded": 0, "errors": [], "has_more": len(remaining) > 0, "call_again": False})
+
+    # Build batch data
+    ids, docs, metas, article_ids = [], [], [], []
+    for art in to_embed:
+        article_id = str(art.get("id", ""))
+        title = art.get("title", "")
+        summary = (art.get("summary") or "")[:2000]
+        url = art.get("url", "")
+        source = art.get("source", "")
+        slug = _re.sub(r'[^a-z0-9_]', '', title.lower()[:25].replace(" ", "_"))
+        doc_id = f"article_{article_id[:8]}_{slug}"[:80]
+        ids.append(doc_id)
+        docs.append(f"{title}\n{url}\nSource: {source}\n\n{summary}")
+        metas.append({"title": title[:200], "url": url[:300], "source": source[:100],
+                      "supabase_id": article_id, "type": "research_article"})
+        article_ids.append((article_id, doc_id))
+
+    # Batch embed via Python client subprocess
+    script = """
+import chromadb, json, sys
+args = json.loads(sys.argv[1])
+client = chromadb.HttpClient(host='localhost', port=8000)
+col = client.get_collection(args['collection'])
+col.add(ids=args['ids'], documents=args['documents'], metadatas=args['metadatas'])
+print(json.dumps({'added': len(args['ids'])}))
+"""
+    try:
+        proc = subprocess.run(
+            ["/home/thompsman/aadp/mcp-server/venv/bin/python", "-c", script,
+             _json.dumps({"collection": "research_findings", "ids": ids,
+                          "documents": docs, "metadatas": metas})],
+            capture_output=True, text=True, timeout=120
+        )
+        if proc.returncode != 0 or not proc.stdout.strip():
+            return JSONResponse({"error": f"batch embed failed: {proc.stderr[:300]}"}, status_code=500)
+    except subprocess.TimeoutExpired:
+        return JSONResponse({"error": "batch embed timed out — try smaller batch_size"}, status_code=500)
+
+    # Update chromadb_ids in Supabase
+    embedded = 0
+    errors = []
+    for article_id, doc_id in article_ids:
+        try:
+            patch_url = f"{env['SUPABASE_URL']}/rest/v1/research_articles?id=eq.{article_id}"
+            data = _json.dumps({"chromadb_id": doc_id}).encode()
+            req = urllib.request.Request(patch_url, data=data, method="PATCH", headers={
+                "apikey": env["SUPABASE_SERVICE_KEY"],
+                "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            })
+            with urllib.request.urlopen(req, timeout=8):
+                pass
+            embedded += 1
+        except Exception as e:
+            errors.append(f"{article_id[:8]}: {e}")
+
+    remaining = _sb_query(env, "research_articles",
+                          {"chromadb_id": "is.null", "select": "id", "limit": "1"})
+    return JSONResponse({
+        "embedded": embedded,
+        "errors": errors[:3],
+        "has_more": len(remaining) > 0,
+        "call_again": len(remaining) > 0,
+    })
+
+
+@app.post("/embed_article")
+def embed_article(payload: dict = {}):
+    """Embed a single research_article by id into research_findings."""
+    article_id = payload.get("article_id", "").strip()
+    if not article_id:
+        return JSONResponse({"error": "article_id required"}, status_code=400)
+
+    env = _read_env_simple()
+    rows = _sb_query(env, "research_articles",
+                     {"id": f"eq.{article_id}", "select": "id,title,url,source,summary"})
+    if not rows:
+        return JSONResponse({"error": "article not found"}, status_code=404)
+
+    try:
+        collection_id = _get_chroma_collection_id("research_findings")
+        doc_id = _embed_single_article(rows[0], collection_id, env)
+        return JSONResponse({"doc_id": doc_id, "embedded": True})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ── Memory consultation (B-099) ──────────────────────────────────────────────
