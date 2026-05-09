@@ -2520,8 +2520,26 @@ def annotate(target_type, target_id, content, source='bill'):
     )
     r.raise_for_status()
     row = r.json()[0] if r.json() else {}
-    log.info('annotate: type=%s id=%s source=%s', target_type, target_id, source)
-    return {'id': row.get('id'), 'created': True}
+    feedback_id = row.get('id', '')
+    log.info('annotate: type=%s id=%s source=%s feedback_id=%s', target_type, target_id, source, feedback_id)
+
+    # Async classification — fire and forget; don't block the caller
+    if feedback_id:
+        try:
+            requests.post(
+                f'{_STATS_URL}/classify_annotation',
+                json={
+                    'feedback_id': feedback_id,
+                    'target_type': target_type,
+                    'target_id': str(target_id),
+                    'content': content[:2000],
+                },
+                timeout=25,
+            )
+        except Exception as e:
+            log.warning('classify_annotation failed (non-fatal): %s', e)
+
+    return {'id': feedback_id, 'created': True}
 
 
 @anvil.server.callable

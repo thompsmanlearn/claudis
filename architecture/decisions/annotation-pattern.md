@@ -62,12 +62,25 @@ Feedback the system acted on in a session: mark immediately, not at close.
 
 The `annotate()` callable calls `/classify_annotation` on the stats server after writing. The classifier writes back to `metadata`:
 ```json
-{"intent_type": "correction", "confidence": 0.91, "classified_at": "..."}
+{"intent_type": "correction", "confidence": 0.91, "reasoning": "...", "classified_at": "..."}
 ```
 
-Intent types: `direction`, `correction`, `gap`, `question`, `screening`, `note`, `noise`, `uncertain`
+**Intent types:**
+
+| intent_type | Meaning |
+|---|---|
+| `direction` | Bill steering the system — refine charter, change priority, add/remove scope |
+| `correction` | Something is wrong with the target — incorrect lesson, broken skill, stale agent |
+| `gap` | Target is missing something — source gap, capability gap, knowledge gap |
+| `question` | Bill asking a question that may need research or clarification |
+| `screening` | Agreement or override of an automatic decision |
+| `note` | Observation worth keeping but no action required |
+| `noise` | Not actionable, likely filed in error |
+| `uncertain` | Classifier confidence below threshold (< 0.8); surface for Bill review |
 
 High-confidence threshold: ≥ 0.8. Below that, `intent_type = 'uncertain'`.
+
+The classifier is Haiku-class (cost ~$0.001/call). It does not call back for clarification — it judges from content alone.
 
 ## Authorization Requests (B-088)
 

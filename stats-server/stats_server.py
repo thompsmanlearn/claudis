@@ -3651,5 +3651,124 @@ def test_research_error_path(payload: dict = {}):
     return JSONResponse({"logged": False, "note": "page fetch unexpectedly succeeded"})
 
 
+# ── Annotation classifier (B-086) ────────────────────────────────────────────
+# Intent types for the annotation classification system.
+_ANNOTATION_INTENT_TYPES = [
+    "direction",   # Bill steering the system (refine charter, change priority, add/remove scope)
+    "correction",  # something is wrong with the target (incorrect lesson, broken skill)
+    "gap",         # target is missing something (source gap, capability gap, knowledge gap)
+    "question",    # Bill asking a question that may need research or clarification
+    "screening",   # agreement or override of an automatic decision
+    "note",        # observation worth keeping but no action required
+    "noise",       # not actionable, likely filed in error
+]
+_ANNOTATION_HIGH_CONFIDENCE = 0.8
+
+
+def _classify_annotation_haiku(target_type, target_id, target_summary, content, api_key):
+    """Call Haiku to classify annotation intent. Returns (intent_type, confidence, reasoning)."""
+    intent_list = "\n".join(f"- {t}" for t in _ANNOTATION_INTENT_TYPES)
+    prompt = (
+        f"You are classifying an annotation filed against a system target.\n\n"
+        f"Target type: {target_type}\n"
+        f"Target ID: {target_id}\n"
+        f"Target summary: {target_summary or '(not provided)'}\n"
+        f"Annotation content: {content}\n\n"
+        f"Classify the annotation intent. Choose exactly one:\n{intent_list}\n\n"
+        f"Respond with JSON only:\n"
+        f'{{"intent_type": "<one of the above>", "confidence": <0.0-1.0>, "reasoning": "<one sentence>"}}'
+    )
+    payload = _json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 256,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+    )
+    with urllib.request.urlopen(req, timeout=20) as r:
+        resp = _json.loads(r.read())
+    text = resp["content"][0]["text"].strip()
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    result = _json.loads(text[start:end])
+    intent = result.get("intent_type", "uncertain")
+    confidence = float(result.get("confidence", 0.0))
+    reasoning = result.get("reasoning", "")
+    if intent not in _ANNOTATION_INTENT_TYPES or confidence < _ANNOTATION_HIGH_CONFIDENCE:
+        intent = "uncertain"
+    return intent, confidence, reasoning
+
+
+def _write_annotation_classification(feedback_id, intent_type, confidence, reasoning, env):
+    """Write classifier output back to agent_feedback.metadata."""
+    classified_at = datetime.now(timezone.utc).isoformat()
+    metadata = _json.dumps({
+        "intent_type": intent_type,
+        "confidence": confidence,
+        "reasoning": reasoning,
+        "classified_at": classified_at,
+    })
+    url = f"{env['SUPABASE_URL']}/rest/v1/agent_feedback?id=eq.{feedback_id}"
+    data = _json.dumps({"metadata": metadata}).encode()
+    req = urllib.request.Request(url, data=data, method="PATCH", headers={
+        "apikey": env["SUPABASE_SERVICE_KEY"],
+        "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    })
+    with urllib.request.urlopen(req, timeout=8):
+        pass
+
+
+@app.post("/classify_annotation")
+def classify_annotation(payload: dict = {}):
+    """Classify the intent of an annotation. Called by annotate() uplink callable after write."""
+    feedback_id = payload.get("feedback_id", "")
+    target_type = payload.get("target_type", "")
+    target_id = payload.get("target_id", "")
+    target_summary = payload.get("target_summary", "")
+    content = payload.get("content", "")
+
+    if not content:
+        return JSONResponse({"error": "content required"}, status_code=400)
+
+    env = _read_env_simple()
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "ANTHROPIC_API_KEY not found"}, status_code=500)
+
+    try:
+        intent_type, confidence, reasoning = _classify_annotation_haiku(
+            target_type, target_id, target_summary, content, api_key
+        )
+    except Exception as e:
+        return JSONResponse({"error": f"classification failed: {e}"}, status_code=500)
+
+    if feedback_id:
+        try:
+            _write_annotation_classification(feedback_id, intent_type, confidence, reasoning, env)
+        except Exception as e:
+            return JSONResponse({
+                "intent_type": intent_type,
+                "confidence": confidence,
+                "reasoning": reasoning,
+                "write_error": str(e),
+            })
+
+    return JSONResponse({
+        "intent_type": intent_type,
+        "confidence": confidence,
+        "reasoning": reasoning,
+        "high_confidence": confidence >= _ANNOTATION_HIGH_CONFIDENCE,
+    })
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=9100, log_level="warning", access_log=False)
