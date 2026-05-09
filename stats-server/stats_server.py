@@ -3651,6 +3651,416 @@ def test_research_error_path(payload: dict = {}):
     return JSONResponse({"logged": False, "note": "page fetch unexpectedly succeeded"})
 
 
+# ── Research orchestrator (B-096) ────────────────────────────────────────────
+_ORCHESTRATOR_COST_CAP_USD = 0.50
+_MAX_FETCHES_PER_CYCLE = 8
+_ORCHESTRATOR_MODEL = "claude-sonnet-4-6"
+
+_CHARTER_SECTIONS = [
+    "Question", "Scope", "Success Criteria", "Disqualifying Criteria",
+    "Initial Sub-Questions", "Source Preferences", "Time Bounds", "Memory Check"
+]
+
+
+def _parse_charter(content: str) -> dict:
+    """Parse charter markdown into section dict."""
+    import re
+    sections = {}
+    pattern = r"##\s+(" + "|".join(re.escape(s) for s in _CHARTER_SECTIONS) + r")\s*\n(.*?)(?=\n##\s|\Z)"
+    for match in re.finditer(pattern, content, re.DOTALL | re.IGNORECASE):
+        key = match.group(1).strip().lower().replace(" ", "_")
+        sections[key] = match.group(2).strip()
+    return sections
+
+
+def _get_thread_charter(thread_id: str, env) -> dict:
+    """Fetch most recent charter entry for thread. Returns parsed sections."""
+    rows = _sb_query(env, "thread_entries",
+                     {"thread_id": f"eq.{thread_id}", "entry_type": "eq.charter",
+                      "select": "id,content,created_at", "order": "created_at.desc", "limit": "1"})
+    if not rows:
+        return {}
+    return {"entry_id": rows[0]["id"], "content": rows[0]["content"],
+            **_parse_charter(rows[0]["content"])}
+
+
+def _get_thread_entries_for_cycle(thread_id: str, env) -> list:
+    """Fetch all non-state_change entries for memory pass."""
+    rows = _sb_query(env, "thread_entries",
+                     {"thread_id": f"eq.{thread_id}",
+                      "select": "id,entry_type,content,created_at",
+                      "order": "created_at.desc", "limit": "50"})
+    return [r for r in rows if r.get("entry_type") != "state_change"]
+
+
+def _memory_pass(charter: dict, thread_entries: list, env) -> dict:
+    """Query ChromaDB + Supabase for prior coverage. Returns summary."""
+    question = charter.get("question", "")[:300]
+    if not question:
+        return {"summary": "No question in charter.", "results": []}
+
+    results = []
+
+    # ChromaDB collections
+    chroma_url = f"http://localhost:8000"
+    for collection in ["research_findings", "lessons_learned", "reference_material"]:
+        try:
+            coll_r = requests.get(f"{chroma_url}/api/v1/collections/{collection}", timeout=5)
+            if coll_r.status_code != 200:
+                continue
+            coll_id = coll_r.json().get("id")
+            query_r = requests.post(f"{chroma_url}/api/v1/collections/{coll_id}/query",
+                                    json={"query_texts": [question], "n_results": 3,
+                                          "include": ["documents", "distances", "metadatas"]},
+                                    timeout=10)
+            if query_r.status_code == 200:
+                qdata = query_r.json()
+                docs = (qdata.get("documents") or [[]])[0]
+                dists = (qdata.get("distances") or [[]])[0]
+                for doc, dist in zip(docs, dists):
+                    if dist < 1.2:
+                        results.append({"source": collection, "distance": round(dist, 3),
+                                        "content": doc[:300]})
+        except Exception:
+            pass
+
+    # Supabase research_articles with matching keywords
+    try:
+        kw = question.split()[:3]
+        if kw:
+            art_rows = _sb_query(env, "research_articles",
+                                 {"select": "title,url,summary", "limit": "5",
+                                  "title": f"ilike.%{kw[0]}%"})
+            for art in art_rows:
+                results.append({"source": "research_articles", "distance": 0.5,
+                                 "content": f"{art.get('title','')} — {art.get('summary','')[:200]}"})
+    except Exception:
+        pass
+
+    # Prior thread entries
+    for e in thread_entries[:10]:
+        if e.get("entry_type") in ("analysis", "summary", "conclusion") and e.get("content"):
+            results.append({"source": f"thread_entry:{e['entry_type']}",
+                             "distance": 0.3, "content": e["content"][:300]})
+
+    high_relevance = [r for r in results if r["distance"] < 0.8]
+    summary = (f"Found {len(results)} relevant items across memory ({len(high_relevance)} high-relevance). "
+               f"Sources: {', '.join(set(r['source'] for r in results[:5]))}")
+    return {"summary": summary, "results": results[:10], "high_relevance_count": len(high_relevance)}
+
+
+def _plan_searches(charter: dict, memory_results: list, api_key: str) -> list:
+    """Use Haiku to plan 3-7 searches based on charter + memory."""
+    question = charter.get("question", "")
+    sub_qs = charter.get("initial_sub-questions", charter.get("initial_sub_questions", ""))
+    prior = "\n".join(r["content"][:100] for r in memory_results[:3]) if memory_results else "None"
+    src_prefs = charter.get("source_preferences", "")
+    time_bounds = charter.get("time_bounds", "")
+
+    prompt = (
+        f"Plan web searches for a research question.\n\n"
+        f"QUESTION: {question}\n"
+        f"SUB-QUESTIONS: {sub_qs}\n"
+        f"SOURCE PREFERENCES: {src_prefs}\n"
+        f"TIME BOUNDS: {time_bounds}\n"
+        f"ALREADY KNOWN (skip these): {prior}\n\n"
+        f"Produce 3-7 specific search queries. Each should target a different angle.\n"
+        f"Respond with JSON only:\n"
+        f'{{"searches": [{{"query": "...", "rationale": "...", "source_type": "paper|blog|doc|news|forum"}}]}}'
+    )
+    payload = _json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode()
+    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload, headers={
+        "x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"
+    })
+    with urllib.request.urlopen(req, timeout=20) as r:
+        resp = _json.loads(r.read())
+    text = resp["content"][0]["text"].strip()
+    start, end = text.find("{"), text.rfind("}") + 1
+    return _json.loads(text[start:end]).get("searches", [])
+
+
+def _execute_searches(searches: list, charter: dict, api_key: str, env) -> list:
+    """Run each search via /web_search, apply source preferences filter."""
+    disqualify_text = charter.get("disqualifying_criteria", "").lower()
+    time_bounds = charter.get("time_bounds", "")
+    freshness = None
+    if "past year" in time_bounds.lower() or "12 month" in time_bounds.lower():
+        freshness = "py"
+    elif "past month" in time_bounds.lower():
+        freshness = "pm"
+
+    all_results = []
+    seen_urls = set()
+    for s in searches[:7]:
+        try:
+            _ws_data = _json.dumps({"query": s["query"], "max_results": 5, "freshness_window": freshness}).encode()
+            _ws_req = urllib.request.Request("http://localhost:9100/web_search", data=_ws_data,
+                                             headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(_ws_req, timeout=20) as _ws_r:
+                _ws_resp = _json.loads(_ws_r.read())
+            if True:
+                for item in _ws_resp.get("results", []):
+                    url = item.get("url", "")
+                    if url in seen_urls:
+                        continue
+                    # Apply disqualifying filter (simple keyword check)
+                    snippet_lower = (item.get("snippet", "") + item.get("title", "")).lower()
+                    if disqualify_text and any(kw in snippet_lower for kw in disqualify_text.split("\n")[:3] if len(kw) > 5):
+                        continue
+                    seen_urls.add(url)
+                    item["search_query"] = s["query"]
+                    item["source_type"] = s.get("source_type", "")
+                    all_results.append(item)
+        except Exception:
+            pass
+    return all_results
+
+
+def _fetch_promising_urls(search_results: list, charter: dict, api_key: str, env) -> list:
+    """Select and fetch the most promising URLs (cap _MAX_FETCHES_PER_CYCLE)."""
+    # Score by source_type preference alignment
+    preferred_text = charter.get("source_preferences", "").lower()
+    def _score(item):
+        st = item.get("source_type", "")
+        if "paper" in preferred_text and st == "paper":
+            return 3
+        if "doc" in preferred_text and st == "doc":
+            return 2
+        return 1
+
+    scored = sorted(search_results, key=_score, reverse=True)[:_MAX_FETCHES_PER_CYCLE]
+
+    fetched = []
+    for item in scored:
+        try:
+            _wf_data = _json.dumps({"url": item["url"], "max_chars": 3000}).encode()
+            _wf_req = urllib.request.Request("http://localhost:9100/web_fetch", data=_wf_data,
+                                             headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(_wf_req, timeout=25) as _wf_r:
+                item["fetched_content"] = _json.loads(_wf_r.read()).get("content", "")
+            fetched.append(item)
+        except Exception:
+            item["fetched_content"] = ""
+            fetched.append(item)
+    return fetched
+
+
+def _synthesize(charter: dict, fetched: list, memory: dict, api_key: str) -> dict:
+    """Call Sonnet to synthesize findings against the charter."""
+    question = charter.get("question", "")
+    success_criteria = charter.get("success_criteria", "")
+    disqualify = charter.get("disqualifying_criteria", "")
+
+    sources_text = ""
+    for i, item in enumerate(fetched[:8]):
+        content = item.get("fetched_content") or item.get("snippet", "")
+        sources_text += f"\n--- SOURCE {i+1}: {item.get('title','?')} ({item.get('url','?')}) ---\n{content[:1500]}\n"
+
+    memory_summary = memory.get("summary", "")
+    prior_text = "\n".join(r["content"][:200] for r in memory.get("results", [])[:3])
+
+    prompt = (
+        f"Synthesize research findings for this question.\n\n"
+        f"QUESTION: {question}\n\n"
+        f"SUCCESS CRITERIA:\n{success_criteria}\n\n"
+        f"DISQUALIFYING CRITERIA:\n{disqualify}\n\n"
+        f"PRIOR KNOWLEDGE FROM MEMORY:\n{memory_summary}\n{prior_text}\n\n"
+        f"NEW SOURCES THIS CYCLE:{sources_text}\n\n"
+        f"Produce:\n"
+        f"1. A synthesis paragraph (what the sources say, agreements, disagreements, gaps)\n"
+        f"2. Criteria assessment: for each success criterion, is it met, partially met, or unmet?\n"
+        f"3. Sub-questions to pursue next (0-3, only if genuinely unanswered)\n"
+        f"4. A one-sentence summary if conclusions can be drawn\n"
+        f"5. Self-assessment: does this cycle advance the charter? (yes/partial/no)\n\n"
+        f"Respond with JSON only:\n"
+        f'{{"synthesis": "...", '
+        f'"criteria_assessment": [{{"criterion": "...", "status": "met|partial|unmet", "evidence": "..."}}], '
+        f'"sub_questions": ["...", "..."], '
+        f'"summary": "...", '
+        f'"charter_advancement": "yes|partial|no", '
+        f'"memory_contribution": "..."}}'
+    )
+
+    payload = _json.dumps({
+        "model": _ORCHESTRATOR_MODEL,
+        "max_tokens": 2048,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode()
+    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload, headers={
+        "x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"
+    })
+    with urllib.request.urlopen(req, timeout=60) as r:
+        resp = _json.loads(r.read())
+    text = resp["content"][0]["text"].strip()
+    start, end = text.find("{"), text.rfind("}") + 1
+    return _json.loads(text[start:end])
+
+
+def _sb_post_entry(env, payload: dict) -> str:
+    """POST a thread_entry row. Returns row id or ''."""
+    url = f"{env['SUPABASE_URL']}/rest/v1/thread_entries"
+    data = _json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=data, method="POST", headers={
+        "apikey": env["SUPABASE_SERVICE_KEY"],
+        "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    })
+    with urllib.request.urlopen(req, timeout=10) as r:
+        rows = _json.loads(r.read())
+    return rows[0].get("id", "") if rows else ""
+
+
+def _write_cycle_entries(thread_id: str, cycle_n: int, search_results: list,
+                          fetched: list, synthesis: dict, env) -> dict:
+    """Write gather, analysis, summary, sub_question_candidates, cycle_metadata entries."""
+    entry_ids = {}
+
+    # Gather entry
+    gather_lines = [f"- [{item.get('title','?')}]({item.get('url','?')}) — {item.get('snippet','')[:120]}"
+                    for item in search_results[:20]]
+    gather_content = f"Cycle {cycle_n} gather — {len(search_results)} results, {len(fetched)} fetched\n\n" + "\n".join(gather_lines)
+    entry_ids["gather"] = _sb_post_entry(env, {
+        "thread_id": thread_id, "entry_type": "gather",
+        "content": gather_content, "source": "orchestrator"
+    })
+
+    # Analysis entry
+    analysis_content = (
+        f"## Cycle {cycle_n} Analysis\n\n"
+        f"{synthesis.get('synthesis', '')}\n\n"
+        f"**Memory contribution:** {synthesis.get('memory_contribution', 'None noted')}\n\n"
+        f"**Charter advancement:** {synthesis.get('charter_advancement', '?')}"
+    )
+    entry_ids["analysis"] = _sb_post_entry(env, {
+        "thread_id": thread_id, "entry_type": "analysis",
+        "content": analysis_content, "source": "orchestrator"
+    })
+
+    # Summary entry (if conclusions available)
+    summary_text = synthesis.get("summary", "").strip()
+    if summary_text:
+        entry_ids["summary"] = _sb_post_entry(env, {
+            "thread_id": thread_id, "entry_type": "summary",
+            "content": summary_text, "source": "orchestrator"
+        })
+
+    # Sub-question candidates
+    for sq in synthesis.get("sub_questions", [])[:3]:
+        if sq.strip():
+            _sb_post_entry(env, {
+                "thread_id": thread_id, "entry_type": "sub_question_candidate",
+                "content": sq, "source": "orchestrator"
+            })
+
+    # Cycle metadata
+    meta_obj = {
+        "cycle_number": cycle_n,
+        "searches_run": len(search_results),
+        "urls_fetched": len(fetched),
+        "charter_advancement": synthesis.get("charter_advancement", "?"),
+        "outcome": "complete" if synthesis.get("charter_advancement") == "yes" else "partial",
+        "grader_verdict": "",  # filled in by B-097
+    }
+    entry_ids["cycle_metadata"] = _sb_post_entry(env, {
+        "thread_id": thread_id, "entry_type": "cycle_metadata",
+        "content": f"Cycle {cycle_n}: {len(search_results)} results, {len(fetched)} fetched",
+        "metadata": _json.dumps(meta_obj), "source": "orchestrator"
+    })
+
+    return entry_ids
+
+
+def _get_cycle_number(thread_id: str, env) -> int:
+    """Count existing cycle_metadata entries to determine next cycle number."""
+    try:
+        rows = _sb_query(env, "thread_entries",
+                         {"thread_id": f"eq.{thread_id}", "entry_type": "eq.cycle_metadata", "select": "id"})
+        return len(rows) + 1
+    except Exception:
+        return 1
+
+
+@app.post("/run_research_cycle")
+def run_research_cycle(payload: dict = {}):
+    """Run one research cycle against a thread's charter."""
+    thread_id = payload.get("thread_id", "").strip()
+    if not thread_id:
+        return JSONResponse({"error": "thread_id required"}, status_code=400)
+
+    env = _read_env_simple()
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+    brave_key = env.get("BRAVE_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "ANTHROPIC_API_KEY not found"}, status_code=500)
+    if not brave_key:
+        return JSONResponse({"error": "BRAVE_API_KEY not found"}, status_code=500)
+
+    # Step 1: Read charter
+    charter = _get_thread_charter(thread_id, env)
+    if not charter or not charter.get("question"):
+        return JSONResponse({"error": "No charter found for thread. Add a charter first."}, status_code=404)
+
+    cycle_n = _get_cycle_number(thread_id, env)
+
+    # Step 2: Memory pass
+    thread_entries = _get_thread_entries_for_cycle(thread_id, env)
+    memory = _memory_pass(charter, thread_entries, env)
+
+    # Step 3: Plan searches (Haiku)
+    try:
+        searches = _plan_searches(charter, memory.get("results", []), api_key)
+    except Exception as e:
+        return JSONResponse({"error": f"search planning failed: {e}"}, status_code=500)
+
+    if not searches:
+        return JSONResponse({"error": "Planner returned no searches"}, status_code=500)
+
+    # Step 4: Execute searches
+    search_results = _execute_searches(searches, charter, api_key, env)
+
+    # Step 5: Fetch promising URLs
+    fetched = _fetch_promising_urls(search_results, charter, api_key, env)
+
+    # Step 6: Synthesize (Sonnet)
+    try:
+        synthesis = _synthesize(charter, fetched, memory, api_key)
+    except Exception as e:
+        return JSONResponse({"error": f"synthesis failed: {e}"}, status_code=500)
+
+    # Step 7: Write entries
+    try:
+        entry_ids = _write_cycle_entries(thread_id, cycle_n, search_results, fetched, synthesis, env)
+    except Exception as e:
+        return JSONResponse({"error": f"entry write failed: {e}"}, status_code=500)
+
+    # Step 8: Call grader (B-097 will complete this path)
+    try:
+        grade_data = _json.dumps({"thread_id": thread_id, "cycle_number": cycle_n}).encode()
+        grade_req = urllib.request.Request(
+            "http://localhost:9100/grade_research_cycle", data=grade_data,
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(grade_req, timeout=90) as gr:
+            grader_verdict = _json.loads(gr.read()).get("verdict", "continue")
+    except Exception:
+        grader_verdict = "continue"
+
+    return JSONResponse({
+        "cycle_number": cycle_n,
+        "searches_run": len(searches),
+        "results_found": len(search_results),
+        "urls_fetched": len(fetched),
+        "charter_advancement": synthesis.get("charter_advancement"),
+        "grader_verdict": grader_verdict,
+        "entry_ids": entry_ids,
+    })
+
+
 # ── Web search + fetch (B-094) ───────────────────────────────────────────────
 _BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 _USER_AGENT = "AADP-Research/1.0 (+https://github.com/thompsmanlearn/claudis)"
