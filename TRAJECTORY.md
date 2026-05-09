@@ -10,24 +10,30 @@
 
 **Where we are:**
 - Lean mode: sentinel timer disabled, `autonomous_growth_scheduler` deactivated. Desktop scopes cards; Claude Code executes.
-- **Chapter 1 complete (B-084–B-093):** Foundation patterns — boot consolidation, annotation backbone + classifier, grader, auth tiers, capability index, skill resolution, carry documents.
-- **Chapter 2 complete (B-094–B-101):** Research orchestrator — web search (Brave), charter format, cycle orchestrator, cycle grader, watch state, memory consultation, sub-question spawning. context_engineering_research deprecated.
-- **Chapter 3 complete (B-106–B-112):** Cleanup + ChromaDB leverage — context_engineering_research retired, auto-cycle approval gate, lean_runner.sh symlink, boot episodic memory verified + backfilled, lesson utilization visibility (/lesson_stats), capability curation pass (greeter_bot retired, 9 candidates in Anvil queue), doc consolidation.
+- **Chapter 1 complete (B-084–B-093):** Foundation patterns.
+- **Chapter 2 complete (B-094–B-101):** Research orchestrator.
+- **Chapter 3 complete (B-106–B-112):** Cleanup + ChromaDB leverage.
+- **Post-chapter additions (B-113–B-114):** Execution disciplines in CONVENTIONS + close-session scope check (B-113). Comment-driven card generation loop (B-114) — classifier-routed comments auto-generate B-NNN-cmt backlog cards, non-blocking execution, grader-gated. Fleet tab: thumbs-up/down removed, Comment button wired to v2 classifier path, "✏️ Comment work" export button, per-agent modification indicator.
 - Thread architecture complete (B-070–B-083): all live.
-- Fleet: 9 active agents. lean_runner.sh is now a symlink — edit canonical only. Hourly watch timer enabled.
-- Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits.
+- Fleet: 9 active agents. B-115-cmt in BACKLOG.md (first comment-generated card, unexecuted). 9 curation candidates in Anvil queue.
+- **Next session:** System review — examine, test, and revise. DIRECTIVES.md set.
 
-**Project arc next:** Chapter 4 when Bill decides. Destinations: Life OS integration, automated agent→thread wiring (Gap A), system self-repair. 9 curation candidates pending Bill's Anvil review (retire_agent/retire_skill callables ready).
+**Project arc next:** System review, then Chapter 4 when Bill decides.
 
 ---
 
 ## Handoff (pick up here)
 
+**2026-05-09 (B-113–B-114 + system review prep):**
+- **What I was doing:** B-113 (Karpathy execution disciplines → CONVENTIONS + close-session scope check). B-114 (comment-driven card loop — /generate_card_from_comment Sonnet endpoint, annotate() trigger, /export_comment_driven_results, Fleet tab "✏️ Comment work" button + per-agent indicator, USERS_MANUAL.md). Also: DEEP_DIVE_BRIEF Section 7/8 accuracy pass (wrong line count, stale endpoints, missing DB tables), removed Fleet thumbs-up/down (performative → classifier-routed Comment button).
+- **What I learned:** stats_server doesn't import pathlib at module level — use os.path. annotate() was fire-and-forget for classify_annotation; changed to synchronous read so card gen trigger can check result. The comment_box in the Fleet tab had no submit button — the thumbs were its only submit path; had to add a Comment button as part of the removal.
+- **Continue:** Next session is a system review. Read DIRECTIVES.md. B-115-cmt (first comment-generated card) is in BACKLOG.md unexecuted. 9 curation candidates await decisions. "Document AADP on the Site" needs project_completion decision.
+- **Left better:** Full comment→card→execute→grade→export loop live. Fleet tab has real annotation path. USERS_MANUAL.md explains comment framing. Execution disciplines codified.
+
 **2026-05-08 (Chapter 3: B-106–B-112):**
-- **What I was doing:** Desktop session scoped Chapter 3 (dropped B-110 grader formatting, folded B-111 convention into B-112, added C-1/C-2 as ChromaDB cards). Executed B-106 (retire context_engineering_research — n8n workflow deleted, webhook 404 confirmed), B-107 (auto-cycle approval gate — annotation instead of auto-PATCH, 2 new callables), B-108 (lean_runner.sh symlink), B-110 (boot episodic memory — verified inject_context_v3 already queries session_memory; backfilled Chapter 1+2 narratives; close-session step 9 updated with Do Not Skip warning), B-111 (/lesson_stats: 255 lessons, 83 never-applied/32.5%; work_queue compression item closed), B-109 (capability curation: 10 candidates surfaced, greeter_bot retired, 9 in queue), B-112 (this wrap).
-- **What I learned:** inject_context_v3 already queries session_memory — the April/May gap was missing close-session step 9 writes, not missing queries. agent_registry has no last_used column — curation uses updated_at + workflow_id presence. system_config value column is JSONB — must cast booleans. live uplink_server.py runs directly from claudis (no separate copy).
-- **Continue:** Chapter 4 when Bill decides. 9 curation candidates in Anvil queue for retirement decisions. "Document AADP on the Site" project has project_completion annotation (all 8 nodes done).
-- **Left better:** Annotation queue has real items; grader calibrated; session_memory episodic tier populated; lesson utilization visible; curation infrastructure live; all sediment retired.
+- **What I was doing:** Chapter 3 — cleanup + ChromaDB leverage. B-106 (retire context_engineering_research), B-107 (auto-cycle approval gate), B-108 (lean_runner.sh symlink), B-110 (session_memory verified + backfilled), B-111 (/lesson_stats), B-109 (curation pass — 10 candidates, greeter_bot retired), B-112 (doc wrap).
+- **What I learned:** inject_context_v3 already queries session_memory — the gap was missing close-session writes. agent_registry has no last_used column. system_config value is JSONB. live uplink_server.py runs from claudis directly.
+- **Continue:** B-113 and B-114 executed same day. See above entry.
 
 **2026-05-08 (Chapter 1: B-084–B-093):**
 - **What I was doing:** Executed all 10 Chapter 1 foundation cards in a single session. B-084 (boot consolidation), B-085 (annotation backbone), B-086 (classifier), B-087 (grader + dashboard tab), B-088 (auth tiers), B-089 (capability index), B-090 (skill resolver), B-091 (carry docs), B-092 (retire INQUIRIES), B-093 (chapter wrap).

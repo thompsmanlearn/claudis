@@ -1,6 +1,6 @@
 # CARRY_QUESTIONS.md
 # Auto-generated. Read at desktop session start.
-# Generated: 2026-05-09 06:45 UTC
+# Generated: 2026-05-09 22:06 UTC
 
 - **Thread question** [e0560a85]: What are the documented failure modes and limitations of autonomous AI agents in scientific research, such as hallucination in literature synthesis, flawed experiment design, or data misinterpretation
 - **Thread question** [e0560a85]: What specific agentic AI systems (e.g., ChemCrow, AI Scientist, BioAgent) have been deployed in real laboratory or literature review workflows, and what empirical performance results have been publish
