@@ -2763,6 +2763,103 @@ def add_charter(thread_id, charter_content):
     return {'id': entry_id, 'created': True}
 
 
+# ── Grader evaluation export (B-102) ─────────────────────────────────────────
+
+@anvil.server.callable
+def export_grader_review(review_id):
+    """Return a structured markdown block for desktop AI analysis of a grader verdict."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/grader_reviews',
+        headers=_HEADERS,
+        params={
+            'id': f'eq.{review_id}',
+            'select': 'id,card_id,target_id,review_type,verdict,rationale,criteria_results,input_snapshot,created_at,reviewed_by_bill,bill_override',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Review {review_id} not found.')
+    rv = rows[0]
+
+    # Format criteria_results
+    criteria = rv.get('criteria_results') or []
+    if isinstance(criteria, str):
+        import json as _j
+        try:
+            criteria = _j.loads(criteria)
+        except Exception:
+            criteria = []
+    criteria_lines = []
+    for c in criteria:
+        met = c.get('met', False)
+        badge = '✅' if met else '❌'
+        ev = c.get('evidence', '')
+        crit_text = c.get('criterion', '')
+        criteria_lines.append(f'{badge} **{crit_text}**')
+        if ev:
+            criteria_lines.append(f'   Evidence: {ev}')
+
+    # Format input_snapshot
+    snapshot = rv.get('input_snapshot') or {}
+    if isinstance(snapshot, str):
+        try:
+            snapshot = _j.loads(snapshot)
+        except Exception:
+            snapshot = {}
+    snap_lines = []
+    for k, v in snapshot.items():
+        snap_lines.append(f'- **{k}:** {str(v)[:300]}')
+
+    # Build markdown
+    ts = (rv.get('created_at') or '')[:19].replace('T', ' ')
+    review_type = rv.get('review_type', 'card')
+    target = rv.get('card_id') or rv.get('target_id') or '?'
+    verdict = rv.get('verdict', '?').upper()
+    verdict_icons = {'PASS': '✅', 'PAUSE': '⚠️', 'FAIL': '❌',
+                     'CONTINUE': '🔄', 'COMPLETE': '✅'}
+    icon = verdict_icons.get(verdict, '❓')
+
+    lines = [
+        f'# Grader Review Export',
+        f'',
+        f'## Metadata',
+        f'- **Review ID:** {rv["id"]}',
+        f'- **Target:** {target} ({review_type})',
+        f'- **Verdict:** {icon} {verdict}',
+        f'- **Graded at:** {ts} UTC',
+        f'- **Reviewed by Bill:** {rv.get("reviewed_by_bill", False)}',
+        f'',
+        f'## Verdict',
+        f'**{verdict}**',
+        f'',
+        f'## Rationale',
+        rv.get('rationale') or '(none)',
+        f'',
+        f'## Criteria Assessment',
+    ]
+    lines.extend(criteria_lines or ['(no criteria recorded)'])
+    lines += [
+        f'',
+        f'## What the Grader Saw (Input Snapshot)',
+    ]
+    lines.extend(snap_lines or ['(no snapshot recorded)'])
+    if rv.get('bill_override'):
+        lines += ['', f'## Bill Override', rv['bill_override']]
+
+    lines += [
+        f'',
+        f'---',
+        f'*Paste into a desktop AI session and ask:*',
+        f'*"Was this verdict correct? If not, what about the input or rubric should change to fix it?"*',
+    ]
+
+    markdown = '\n'.join(lines)
+    log.info('export_grader_review: id=%s verdict=%s', review_id, verdict)
+    return {'review_id': review_id, 'verdict': verdict, 'markdown': markdown}
+
+
 # ── Capability index (B-089) ─────────────────────────────────────────────────
 
 @anvil.server.callable
