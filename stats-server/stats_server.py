@@ -967,6 +967,68 @@ def lessons_applied(payload: dict):
     return JSONResponse({"status": "ok", "by_id": by_id, "by_content": by_content})
 
 
+@app.get("/lesson_stats")
+def lesson_stats():
+    """Lesson utilization summary (B-111, 2026-05-08).
+    Returns total lessons, mean times_applied, never-applied count, top applied,
+    and category breakdown. Used by Anvil get_lesson_stats() callable.
+    """
+    env = _read_env_simple()
+    sb_url = env.get("SUPABASE_URL", "")
+    sb_key = env.get("SUPABASE_SERVICE_KEY", "")
+    if not sb_url or not sb_key:
+        return JSONResponse({"error": "Supabase credentials not found"}, status_code=500)
+
+    headers = {
+        "apikey": sb_key,
+        "Authorization": f"Bearer {sb_key}",
+        "Content-Type": "application/json",
+    }
+
+    def _sb_get(path):
+        req = urllib.request.Request(sb_url + path, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return _json.loads(r.read())
+
+    try:
+        # Summary stats via RPC
+        rows = _sb_get(
+            "/rest/v1/lessons_learned"
+            "?select=times_applied,category"
+            "&limit=1000"
+        )
+        total = len(rows)
+        never_applied = sum(1 for r in rows if (r.get("times_applied") or 0) == 0)
+        applied_counts = [r.get("times_applied") or 0 for r in rows]
+        mean_applied = sum(applied_counts) / total if total else 0
+        max_applied = max(applied_counts) if applied_counts else 0
+
+        # Category distribution (top 10 by count)
+        from collections import Counter
+        cat_counts = Counter(r.get("category") or "uncategorized" for r in rows)
+        top_categories = [{"category": c, "count": n} for c, n in cat_counts.most_common(10)]
+
+        # Top 5 most applied (by times_applied desc)
+        top_applied = _sb_get(
+            "/rest/v1/lessons_learned"
+            "?select=id,title,category,times_applied"
+            "&order=times_applied.desc"
+            "&limit=5"
+        )
+
+        return JSONResponse({
+            "total": total,
+            "never_applied": never_applied,
+            "never_applied_pct": round(never_applied / total * 100, 1) if total else 0,
+            "mean_times_applied": round(mean_applied, 2),
+            "max_times_applied": max_applied,
+            "top_categories": top_categories,
+            "top_applied": top_applied,
+        })
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.get("/get_outputs")
 def get_outputs(agent_name: str, limit: int = 5, exclude_type: str = ""):
     """Fetch recent experimental_outputs for an agent from Supabase.
