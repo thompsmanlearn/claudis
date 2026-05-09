@@ -10,17 +10,24 @@
 
 **Where we are:**
 - Lean mode: sentinel timer disabled, `autonomous_growth_scheduler` deactivated. Desktop scopes cards; Claude Code executes.
-- **Chapter 1 complete (B-084–B-093):** Foundation patterns established — boot consolidation, annotation backbone + classifier, grader, authorization tiers, capability index, skill resolution, carry documents. All committed and pushed.
+- **Chapter 1 complete (B-084–B-093):** Foundation patterns — boot consolidation, annotation backbone + classifier, grader, auth tiers, capability index, skill resolution, carry documents.
+- **Chapter 2 complete (B-094–B-101):** Research orchestrator — web search (Brave), charter format, cycle orchestrator, cycle grader, watch state, memory consultation, sub-question spawning. context_engineering_research deprecated.
 - Thread architecture complete (B-070–B-083): all live
-- context_engineering_research: 8 sources, neutral summaries, thread-aware
-- Fleet: 10 active agents, all Tier 1
+- Fleet: 9 active agents + 1 deprecated (context_engineering_research). Hourly watch timer enabled.
 - Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
 
-**Project arc next:** Chapter 2 — research orchestrator. Bill decides when to start. Carry documents (CARRY_QUESTIONS.md, CARRY_PROPOSALS.md, CARRY_HEALTH.md) are available at repo root for desktop session orientation.
+**Project arc next:** Chapter 3 when Bill decides. Candidates: Life OS integration, automated agent→thread wiring (Gap A), ChromaDB leverage, or system self-repair. Carry documents at repo root for desktop session orientation.
 
 ---
 
 ## Handoff (pick up here)
+
+**2026-05-08 (Chapter 2: B-094–B-101):**
+- **What I was doing:** Executed all 8 Chapter 2 cards in a single session. B-094 (Brave Search API), B-095 (charter format), B-096 (orchestrator), B-097 (cycle grader), B-098 (watch state + systemd timer), B-099 (memory consultation), B-100 (sub-question spawning), B-101 (wrap + deprecation).
+- **What I learned:** stats_server uses urllib throughout — not the `requests` library. Internal endpoint calls within stats_server must use urllib.request. grader_reviews verdict CHECK constraint blocked 'continue'/'complete' — extended the constraint. agent_registry status CHECK doesn't include 'deprecated' — extended that too.
+- **Continue:** Chapter 3 when Bill decides. Smoke test thread (e0560a85) has 2 cycles, 1 child thread (a64b48e1), grader verdict=continue. System fully functional — run /run_research_cycle on any thread with a charter to test the full loop.
+- **Left better:** Charter-driven research, web search, cycle grader, watch state, memory consultation, recursive sub-question spawning all live.
+- **Usage:** session ~%, weekly ~%
 
 **2026-05-08 (Chapter 1: B-084–B-093):**
 - **What I was doing:** Executed all 10 Chapter 1 foundation cards in a single session. B-084 (boot consolidation), B-085 (annotation backbone), B-086 (classifier), B-087 (grader + dashboard tab), B-088 (auth tiers), B-089 (capability index), B-090 (skill resolver), B-091 (carry docs), B-092 (retire INQUIRIES), B-093 (chapter wrap).

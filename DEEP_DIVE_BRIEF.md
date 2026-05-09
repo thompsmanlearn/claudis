@@ -390,18 +390,30 @@ This section tracks what the system as a whole can actually accomplish today. Th
 
 ### New in Chapter 1 (B-084–B-093)
 
-- **Annotation backbone (B-085):** agent_feedback is now the unified annotation table. annotate(), get_annotations(), mark_annotation_processed() uplink callables.
-- **Annotation classifier (B-086):** /classify_annotation endpoint (Haiku). Intent types: direction, correction, gap, question, screening, note, noise, uncertain. Confidence ≥ 0.8 threshold.
-- **Grader (B-087):** /grade_card endpoint (Sonnet). grader_reviews table. lean_runner calls grader before auto-cycle. Anvil Grader tab with Bill override.
-- **Authorization tiers (B-088):** agent_registry.authorization_tier. All current agents Tier 1.
-- **Capability index (B-089):** skills_registry populated. Three-registry model: agent_registry, skills_registry, capabilities.
-- **Skill resolution (B-090):** LEAN_BOOT step 6 calls /resolve_skills (Haiku). Replaces judgment-based CATALOG.md matching.
-- **Carry documents (B-091):** CARRY_QUESTIONS.md, CARRY_PROPOSALS.md, CARRY_HEALTH.md auto-generated at session close.
+- **Annotation backbone (B-085):** agent_feedback unified annotation table. annotate(), get_annotations(), mark_annotation_processed() uplink callables.
+- **Annotation classifier (B-086):** /classify_annotation (Haiku). 7 intent types, 0.8 threshold.
+- **Grader (B-087):** /grade_card (Sonnet). grader_reviews table. lean_runner integration. Anvil Grader tab.
+- **Authorization tiers (B-088):** agent_registry.authorization_tier. All agents Tier 1.
+- **Capability index (B-089):** Three-registry model: agent_registry, skills_registry, capabilities.
+- **Skill resolution (B-090):** LEAN_BOOT step 6 calls /resolve_skills (Haiku).
+- **Carry documents (B-091):** CARRY_*.md auto-generated at session close.
+
+### New in Chapter 2 (B-094–B-101)
+
+- **Web search (B-094):** /web_search (Brave, 2k/month free) + /web_fetch (robots.txt, 200KB). external_api_usage logging.
+- **Research charter (B-095):** entry_type='charter' in thread_entries. add_charter() callable. 8-section template. Desktop session guide.
+- **Orchestrator (B-096):** /run_research_cycle — 8-step pipeline (charter→memory→plan→search→fetch→synthesize→write→grade). Haiku planner, Sonnet synthesizer.
+- **Cycle grader (B-097):** /grade_research_cycle. Verdicts: continue/complete/pause/fail. Thread view shows cycle verdict badge.
+- **Watch state (B-098):** /run_watch_cycle (novelty filter). /check_watch_threads (hourly systemd timer). Thread watch toggle in Anvil.
+- **Memory consultation (B-099):** /consult_memory writes memory_consultation entry at charter creation.
+- **Sub-question spawning (B-100):** spawn_thread_from_sub_question(). parent_thread_id FK on threads. Child→parent writeback button.
+- **context_engineering_research:** Deprecated. n8n workflow deactivated.
 
 ### Not Yet Working or Unverified
 
 - Autonomous task decomposition
-- Protected agent indicator in dashboard UI (capabilities table now verified: 114 rows)
+- Protected agent indicator in dashboard UI
+- Auto-spawn sub-questions (system_config flag, defaulted off)
 
 ---
 

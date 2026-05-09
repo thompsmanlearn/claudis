@@ -1,7 +1,11 @@
 # CARRY_QUESTIONS.md
 # Auto-generated. Read at desktop session start.
-# Generated: 2026-05-09 03:10 UTC
+# Generated: 2026-05-09 04:28 UTC
 
+- **Thread question** [e0560a85]: What are the documented failure modes and limitations of autonomous AI agents in scientific research, such as hallucination in literature synthesis, flawed experiment design, or data misinterpretation
+- **Thread question** [e0560a85]: What specific agentic AI systems (e.g., ChemCrow, AI Scientist, BioAgent) have been deployed in real laboratory or literature review workflows, and what empirical performance results have been publish
+- **Thread question** [e0560a85]: How do multi-agent architectures specifically divide labor across literature review, hypothesis generation, and experiment execution phases, and what coordination protocols prevent cascading errors be
+- **Thread question** [e0560a85]: What are the specific quantitative performance benchmarks (accuracy, time savings, error rates vs. human baselines) for deployed systems like Coscientist, ChemCrow, or Recursion's platform in real exp
 - **Thread question** [946033c2]: What does the saturation signature look like when a source (HN Show HN) begins returning redundant product-category content, and how should source-weighting or filtering adjust in response?
 (prompted 
 - **Thread question** [946033c2]: Are company engineering blogs (e.g., Anthropic, OpenAI, Vercel, Modal, etc.) systematized in the current context_engineering_research fetch pipeline, and if so, how discoverable are agent-systems post
