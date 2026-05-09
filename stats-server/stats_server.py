@@ -3651,6 +3651,180 @@ def test_research_error_path(payload: dict = {}):
     return JSONResponse({"logged": False, "note": "page fetch unexpectedly succeeded"})
 
 
+# ── Web search + fetch (B-094) ───────────────────────────────────────────────
+_BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
+_USER_AGENT = "AADP-Research/1.0 (+https://github.com/thompsmanlearn/claudis)"
+
+
+def _log_external_api_usage(env, provider, endpoint, query, result_count, response_ms):
+    """Log external API call to external_api_usage table."""
+    try:
+        url = f"{env['SUPABASE_URL']}/rest/v1/external_api_usage"
+        data = _json.dumps({
+            "provider": provider,
+            "endpoint": endpoint,
+            "query": (query or "")[:500],
+            "result_count": result_count,
+            "response_ms": response_ms,
+        }).encode()
+        req = urllib.request.Request(url, data=data, method="POST", headers={
+            "apikey": env["SUPABASE_SERVICE_KEY"],
+            "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        })
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+    except Exception:
+        pass  # non-fatal
+
+
+def _brave_search(query: str, max_results: int, freshness: str, api_key: str) -> list:
+    """Call Brave Search API. Returns list of {url, title, snippet, source_domain, published_date}."""
+    params = {
+        "q": query,
+        "count": str(min(max_results, 20)),
+        "safesearch": "moderate",
+        "text_decorations": "false",
+    }
+    if freshness:
+        params["freshness"] = freshness  # pd (past day), pw (past week), pm (past month), py (past year)
+    url = _BRAVE_SEARCH_URL + "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": api_key,
+    })
+    with urllib.request.urlopen(req, timeout=15) as r:
+        raw = r.read()
+        # Brave may gzip even without explicit Accept-Encoding handling
+        try:
+            import gzip as _gzip
+            data = _json.loads(_gzip.decompress(raw))
+        except Exception:
+            data = _json.loads(raw)
+    results = []
+    for item in data.get("web", {}).get("results", []):
+        results.append({
+            "url": item.get("url", ""),
+            "title": item.get("title", ""),
+            "snippet": item.get("description", ""),
+            "source_domain": item.get("meta_url", {}).get("hostname", ""),
+            "published_date": item.get("page_age", ""),
+        })
+    return results
+
+
+@app.post("/web_search")
+def web_search(payload: dict = {}):
+    """Search the web via Brave Search API."""
+    query = payload.get("query", "").strip()
+    max_results = int(payload.get("max_results", 10))
+    freshness_window = payload.get("freshness_window")  # None, 'pd', 'pw', 'pm', 'py'
+
+    if not query:
+        return JSONResponse({"error": "query required"}, status_code=400)
+
+    env = _read_env_simple()
+    api_key = env.get("BRAVE_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "BRAVE_API_KEY not found in .env"}, status_code=500)
+
+    t0 = datetime.now(timezone.utc)
+    try:
+        results = _brave_search(query, max_results, freshness_window, api_key)
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            return JSONResponse({"error": "Brave rate limit hit", "retry_after": e.headers.get("Retry-After", "60")}, status_code=429)
+        return JSONResponse({"error": f"Brave HTTP {e.code}: {e.reason}"}, status_code=502)
+    except Exception as e:
+        return JSONResponse({"error": f"search failed: {e}"}, status_code=500)
+
+    elapsed_ms = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
+    _log_external_api_usage(env, "brave", "/web_search", query, len(results), elapsed_ms)
+
+    return JSONResponse({"results": results, "query": query, "count": len(results)})
+
+
+def _check_robots(url: str) -> bool:
+    """Return True if fetching url is allowed by robots.txt (best effort)."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+        robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+        req = urllib.request.Request(robots_url, headers={"User-Agent": _USER_AGENT})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            robots_text = r.read().decode("utf-8", errors="ignore")
+        # Simple check: if "Disallow: /" for our user agent or "*"
+        lines = robots_text.splitlines()
+        applies = False
+        for line in lines:
+            line = line.strip()
+            if line.lower().startswith("user-agent:"):
+                agent = line.split(":", 1)[1].strip()
+                applies = agent == "*" or "AADP" in agent
+            elif applies and line.lower().startswith("disallow:"):
+                path = line.split(":", 1)[1].strip()
+                if path == "/" or (path and parsed.path.startswith(path)):
+                    return False
+        return True
+    except Exception:
+        return True  # if robots.txt unreachable, allow (best effort)
+
+
+def _html_to_text(html: str, max_chars: int = 8000) -> str:
+    """Strip HTML tags and clean up whitespace."""
+    import re
+    # Remove script/style blocks
+    html = re.sub(r'<(script|style)[^>]*>.*?</(script|style)>', ' ', html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove tags
+    text = re.sub(r'<[^>]+>', ' ', html)
+    # Collapse whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text[:max_chars]
+
+
+@app.post("/web_fetch")
+def web_fetch(payload: dict = {}):
+    """Fetch a URL and return its text content. Respects robots.txt."""
+    url = payload.get("url", "").strip()
+    max_chars = int(payload.get("max_chars", 8000))
+
+    if not url:
+        return JSONResponse({"error": "url required"}, status_code=400)
+    if not url.startswith(("http://", "https://")):
+        return JSONResponse({"error": "url must be http(s)"}, status_code=400)
+
+    env = _read_env_simple()
+
+    if not _check_robots(url):
+        return JSONResponse({"error": "robots.txt disallows fetching this URL", "url": url}, status_code=403)
+
+    t0 = datetime.now(timezone.utc)
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": _USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,text/plain",
+        })
+        with urllib.request.urlopen(req, timeout=20) as r:
+            content_type = r.headers.get("Content-Type", "")
+            raw = r.read(200_000)  # read up to 200KB; trim to max_chars after HTML stripping
+    except urllib.error.HTTPError as e:
+        return JSONResponse({"error": f"HTTP {e.code}: {e.reason}", "url": url}, status_code=502)
+    except Exception as e:
+        return JSONResponse({"error": f"fetch failed: {e}", "url": url}, status_code=500)
+
+    elapsed_ms = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
+
+    if "html" in content_type.lower():
+        text = _html_to_text(raw.decode("utf-8", errors="ignore"), max_chars)
+    else:
+        text = raw.decode("utf-8", errors="ignore")[:max_chars]
+
+    _log_external_api_usage(env, "web", "/web_fetch", url, len(text), elapsed_ms)
+
+    return JSONResponse({"url": url, "content": text, "content_type": content_type, "length": len(text)})
+
+
 # ── Carry documents (B-091) ──────────────────────────────────────────────────
 _CARRY_DIR = REPO  # CARRY_*.md files live at repo root
 
