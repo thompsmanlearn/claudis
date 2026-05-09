@@ -41,6 +41,10 @@ Apply when executing work.
 - Never `pkill` or `systemctl restart` the MCP server. It runs as a Claude Code stdio subprocess, not a daemon.
 - To restart: exit Claude Code, re-enter.
 
+### Symlink pattern for dual-path files
+
+When a file needs to live at a runtime path (hardcoded in a service) and a version-controlled path (in claudis), replace the runtime copy with a symlink: `ln -s ~/aadp/claudis/path/to/file ~/aadp/runtime/path/file`. Edit only the claudis canonical; the runtime path follows automatically. Examples: `~/aadp/sentinel/lean_runner.sh`, `~/aadp/mcp-server/.claude/skills/*.md`.
+
 ### n8n workflow updates
 
 - After any `workflow_update` on a workflow with a webhook trigger, test the webhook with a known-good payload.

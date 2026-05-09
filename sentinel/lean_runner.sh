@@ -216,10 +216,11 @@ try:
     if not cfg or not cfg[0].get('value'):
         sys.exit(0)
 
-    projects = get('/rest/v1/aadp_projects?status=eq.active&select=id')
+    projects = get('/rest/v1/aadp_projects?status=eq.active&select=id,name')
     if not projects:
         sys.exit(0)
     proj_ids = {p['id'] for p in projects}
+    proj_names = {p['id']: p.get('name', p['id']) for p in projects}
 
     nodes = get('/rest/v1/aadp_project_nodes?select=id,name,status,dependencies,context,acceptance_criteria,project_id')
     nodes = [n for n in nodes if n['project_id'] in proj_ids]
@@ -231,18 +232,46 @@ try:
             print(json.dumps(node))
             sys.exit(0)
 
-    # No pending nodes — mark active projects complete
+    # No pending nodes — request Bill's confirmation before marking complete (B-107)
     if not any(n['status'] != 'done' for n in nodes) and nodes:
-        for pid in proj_ids:
-            req = urllib.request.Request(
-                url + f'/rest/v1/aadp_projects?id=eq.{pid}',
-                data=json.dumps({'status': 'complete'}).encode(),
-                headers={**headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
-                method='PATCH'
-            )
-            with urllib.request.urlopen(req, timeout=10):
-                pass
-        print('PROJECT_COMPLETE', file=sys.stderr)
+        try:
+            ac_cfg = get('/rest/v1/system_config?key=eq.auto_cycle_completion&select=value')
+            auto_complete = ac_cfg[0].get('value', False) if ac_cfg else False
+        except Exception:
+            auto_complete = False
+
+        if auto_complete:
+            # Explicit opt-in: auto-PATCH to complete (legacy behavior)
+            for pid in proj_ids:
+                req = urllib.request.Request(
+                    url + f'/rest/v1/aadp_projects?id=eq.{pid}',
+                    data=json.dumps({'status': 'complete'}).encode(),
+                    headers={**headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
+                    method='PATCH'
+                )
+                with urllib.request.urlopen(req, timeout=10):
+                    pass
+            print('PROJECT_COMPLETE', file=sys.stderr)
+        else:
+            # Safe default: write annotation and wait for Bill's confirmation
+            for pid in proj_ids:
+                proj_name = proj_names.get(pid, pid)
+                annotation = {
+                    'target_type': 'project_completion',
+                    'target_id': pid,
+                    'content': f"Project '{proj_name}' has no remaining unblocked pending nodes. Confirm completion or identify missing work.",
+                    'action_session': 'lean_runner_auto_cycle',
+                    'metadata': {'intent_type': 'question', 'project_name': proj_name},
+                }
+                req = urllib.request.Request(
+                    url + '/rest/v1/agent_feedback',
+                    data=json.dumps(annotation).encode(),
+                    headers={**headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
+                    method='POST'
+                )
+                with urllib.request.urlopen(req, timeout=10):
+                    pass
+            print('PROJECT_COMPLETION_PENDING', file=sys.stderr)
 
 except Exception as e:
     print(f'CYCLE_ERROR: {e}', file=sys.stderr)
