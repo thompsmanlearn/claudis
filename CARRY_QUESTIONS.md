@@ -1,6 +1,6 @@
 # CARRY_QUESTIONS.md
 # Auto-generated. Read at desktop session start.
-# Generated: 2026-05-09 03:06 UTC
+# Generated: 2026-05-09 03:10 UTC
 
 - **Thread question** [946033c2]: What does the saturation signature look like when a source (HN Show HN) begins returning redundant product-category content, and how should source-weighting or filtering adjust in response?
 (prompted 
