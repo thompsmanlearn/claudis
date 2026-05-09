@@ -3651,6 +3651,202 @@ def test_research_error_path(payload: dict = {}):
     return JSONResponse({"logged": False, "note": "page fetch unexpectedly succeeded"})
 
 
+# ── Grader (B-087) ───────────────────────────────────────────────────────────
+_BACKLOG_PATH = os.path.join(REPO, "BACKLOG.md")
+_SESSIONS_PATH = os.path.join(REPO, "sessions", "lean")
+_GRADER_SYSTEM = """You are a grader evaluating whether a completed task meets its specification.
+You have no context from the session that produced this work — you judge from artifacts only.
+Do not ask for clarification. Every criterion must be evaluated with evidence cited from the artifact.
+Be specific: quote or reference concrete lines/sections. A criterion is met only if there is positive
+evidence in the artifact; absence of evidence is not a pass."""
+
+
+def _parse_card_from_backlog(card_id: str) -> dict:
+    """Extract card spec from BACKLOG.md. Returns {title, done_when, full_text} or raises."""
+    try:
+        text = open(_BACKLOG_PATH).read()
+    except FileNotFoundError:
+        raise ValueError(f"BACKLOG.md not found at {_BACKLOG_PATH}")
+    # Find card section header: "B-NNN: title" or "## B-NNN: title"
+    import re
+    pattern = rf"(?:^##\s+)?{re.escape(card_id)}:\s+(.+?)$"
+    match = re.search(pattern, text, re.MULTILINE)
+    if not match:
+        raise ValueError(f"Card {card_id} not found in BACKLOG.md")
+    title = match.group(1).strip()
+    # Extract from match position to next card or end
+    start = match.start()
+    next_card = re.search(r"^(?:##\s+)?B-\d+:", text[start + 1:], re.MULTILINE)
+    end = (start + 1 + next_card.start()) if next_card else len(text)
+    card_text = text[start:end].strip()
+    # Extract Done when section
+    done_match = re.search(r"##\s+Done when\s*\n(.*?)(?=\n##\s|\Z)", card_text, re.DOTALL)
+    done_when = done_match.group(1).strip() if done_match else ""
+    return {"title": title, "card_id": card_id, "done_when": done_when, "full_text": card_text}
+
+
+def _read_session_artifact(artifact_path: str) -> str:
+    """Read session artifact. artifact_path may be filename or full path."""
+    if os.path.isabs(artifact_path) and os.path.exists(artifact_path):
+        return open(artifact_path).read()
+    # Try as filename under sessions/lean/
+    candidate = os.path.join(_SESSIONS_PATH, os.path.basename(artifact_path))
+    if os.path.exists(candidate):
+        return open(candidate).read()
+    raise FileNotFoundError(f"Session artifact not found: {artifact_path}")
+
+
+def _get_recent_git_diff(n_commits: int = 3) -> str:
+    """Get diff summary of recent commits."""
+    log_out, _ = _git("log", f"-{n_commits}", "--oneline")
+    diff_out, _ = _git("diff", f"HEAD~{n_commits}", "HEAD", "--stat")
+    return f"Recent commits:\n{log_out}\n\nChanged files:\n{diff_out}"
+
+
+def _call_sonnet_grader(card: dict, artifact_text: str, git_diff: str, api_key: str) -> dict:
+    """Call Sonnet to grade the artifact against the card's done-when criteria."""
+    done_when_lines = [l.strip("- ").strip() for l in card["done_when"].splitlines() if l.strip()]
+    criteria_json = _json.dumps(done_when_lines)
+
+    prompt = (
+        f"Grade this completed work against its specification.\n\n"
+        f"CARD: {card['card_id']} — {card['title']}\n\n"
+        f"DONE-WHEN CRITERIA (grade each one):\n{card['done_when']}\n\n"
+        f"SESSION ARTIFACT:\n{artifact_text[:6000]}\n\n"
+        f"RECENT GIT CHANGES:\n{git_diff[:2000]}\n\n"
+        f"For each criterion, determine: met or not_met. Cite specific evidence from the artifact.\n"
+        f"Then give an overall verdict: pass (all met), pause (most met but issues to review), "
+        f"or fail (significant criteria not met).\n\n"
+        f"Respond with JSON only:\n"
+        f'{{\n'
+        f'  "verdict": "pass|pause|fail",\n'
+        f'  "rationale": "1-3 sentence overall assessment",\n'
+        f'  "criteria_results": [\n'
+        f'    {{"criterion": "...", "met": true|false, "evidence": "specific quote or observation"}},\n'
+        f'    ...\n'
+        f'  ]\n'
+        f'}}'
+    )
+
+    payload = _json.dumps({
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 2048,
+        "system": _GRADER_SYSTEM,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+    )
+    with urllib.request.urlopen(req, timeout=60) as r:
+        resp = _json.loads(r.read())
+    text = resp["content"][0]["text"].strip()
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    return _json.loads(text[start:end])
+
+
+def _persist_grader_review(card_id, artifact_path, verdict, rationale, criteria_results,
+                            input_snapshot, env) -> str:
+    """INSERT grader review into Supabase. Returns the new row id."""
+    url = f"{env['SUPABASE_URL']}/rest/v1/grader_reviews"
+    payload = {
+        "card_id": card_id,
+        "session_artifact_path": artifact_path,
+        "verdict": verdict,
+        "rationale": rationale,
+        "criteria_results": criteria_results,
+        "input_snapshot": input_snapshot,
+    }
+    data = _json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=data, method="POST", headers={
+        "apikey": env["SUPABASE_SERVICE_KEY"],
+        "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    })
+    with urllib.request.urlopen(req, timeout=10) as r:
+        rows = _json.loads(r.read())
+    return rows[0]["id"] if rows else ""
+
+
+@app.post("/grade_card")
+def grade_card(payload: dict = {}):
+    """Grade a completed card against its done-when criteria. Returns structured verdict."""
+    card_id = payload.get("card_id", "").strip()
+    artifact_path = payload.get("session_artifact_path", "").strip()
+
+    if not card_id:
+        return JSONResponse({"error": "card_id required"}, status_code=400)
+
+    env = _read_env_simple()
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "ANTHROPIC_API_KEY not found"}, status_code=500)
+
+    # Parse card
+    try:
+        card = _parse_card_from_backlog(card_id)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+
+    # Read artifact
+    artifact_text = ""
+    if artifact_path:
+        try:
+            artifact_text = _read_session_artifact(artifact_path)
+        except FileNotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
+
+    # Git diff
+    git_diff = _get_recent_git_diff(3)
+
+    # Build input snapshot (what the grader saw)
+    input_snapshot = {
+        "card_id": card_id,
+        "card_title": card["title"],
+        "done_when": card["done_when"],
+        "artifact_path": artifact_path,
+        "artifact_length": len(artifact_text),
+        "git_diff_summary": git_diff[:500],
+        "graded_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Call grader
+    try:
+        result = _call_sonnet_grader(card, artifact_text, git_diff, api_key)
+    except Exception as e:
+        return JSONResponse({"error": f"grader call failed: {e}"}, status_code=500)
+
+    verdict = result.get("verdict", "pause")
+    rationale = result.get("rationale", "")
+    criteria_results = result.get("criteria_results", [])
+
+    # Persist
+    try:
+        review_id = _persist_grader_review(
+            card_id, artifact_path, verdict, rationale, criteria_results, input_snapshot, env
+        )
+    except Exception as e:
+        review_id = ""
+        rationale += f" [persist error: {e}]"
+
+    return JSONResponse({
+        "review_id": review_id,
+        "card_id": card_id,
+        "verdict": verdict,
+        "rationale": rationale,
+        "criteria_results": criteria_results,
+        "high_confidence": verdict == "pass",
+    })
+
+
 # ── Annotation classifier (B-086) ────────────────────────────────────────────
 # Intent types for the annotation classification system.
 _ANNOTATION_INTENT_TYPES = [

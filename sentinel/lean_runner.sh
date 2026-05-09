@@ -150,6 +150,49 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
 
     send_telegram "Lean session complete (${MINS}m ${SECS}s). Artifact in claudis/sessions/lean/"
 
+    # GRADER: grade the completed card if auto_cycle is enabled and CARD_ID is known (B-087)
+    # Only auto-cycle sessions get graded — manual single-card sessions skip this.
+    if [ -n "${CARD_ID}" ]; then
+        AUTO_CYCLE_ENABLED=$(curl -s \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            "${SUPABASE_URL}/rest/v1/system_config?key=eq.auto_cycle_enabled&select=value" \
+            2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0].get('value','false') if d else 'false')" 2>/dev/null || echo "false")
+
+        if [ "${AUTO_CYCLE_ENABLED}" = "true" ]; then
+            # Find most recent session artifact for this card
+            ARTIFACT=$(ls -t "${CLAUDIS_DIR}/sessions/lean/"*"${CARD_ID}"*.md 2>/dev/null | head -1)
+            ARTIFACT_NAME=$(basename "${ARTIFACT}" 2>/dev/null || echo "")
+            log "GRADER: grading ${CARD_ID} artifact=${ARTIFACT_NAME}"
+
+            GRADE_RESULT=$(curl -s --max-time 90 -X POST "http://localhost:9100/grade_card" \
+                -H "Content-Type: application/json" \
+                -d "{\"card_id\": \"${CARD_ID}\", \"session_artifact_path\": \"${ARTIFACT_NAME}\"}" \
+                2>/dev/null)
+            VERDICT=$(echo "${GRADE_RESULT}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('verdict','pause'))" 2>/dev/null || echo "pause")
+            log "GRADER: verdict=${VERDICT}"
+
+            if [ "${VERDICT}" = "pass" ]; then
+                log "GRADER: pass — auto-cycle may proceed"
+            else
+                # pause or fail: file annotation, stop chain
+                RATIONALE=$(echo "${GRADE_RESULT}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('rationale','')[:400])" 2>/dev/null || echo "")
+                curl -s -X POST "${SUPABASE_URL}/rest/v1/agent_feedback" \
+                    -H "apikey: ${SUPABASE_KEY}" \
+                    -H "Authorization: Bearer ${SUPABASE_KEY}" \
+                    -H "Content-Type: application/json" \
+                    -H "Prefer: return=minimal" \
+                    -d "{\"target_type\": \"card\", \"target_id\": \"${CARD_ID}\", \"content\": \"Grader verdict: ${VERDICT}. ${RATIONALE}\", \"action_session\": \"lean_runner_grader\"}" \
+                    >> "${LOG_FILE}" 2>&1
+                send_telegram "⚠️ Grader: ${CARD_ID} verdict=${VERDICT}. Auto-cycle stopped. Review grader_reviews in Anvil."
+                log "GRADER: chain stopped at ${CARD_ID} — ${VERDICT}"
+                exit 0
+            fi
+        else
+            log "GRADER: auto_cycle not enabled — skipping grader"
+        fi
+    fi
+
     # AUTO-CYCLE: if enabled and an unblocked project node exists, trigger the next session
     CYCLE_SCRIPT=$(mktemp /tmp/cycle_XXXXXX.py)
     cat > "${CYCLE_SCRIPT}" << 'PYEOF'

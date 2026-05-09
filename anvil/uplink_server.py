@@ -2493,6 +2493,48 @@ def resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, 
     return {'resolved': True, 'resolution': resolution}
 
 
+# ── Grader reviews (B-087) ───────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_grader_reviews(limit=20, unreviewed_only=False):
+    """Return recent grader reviews for dashboard display."""
+    params = {
+        'select': 'id,card_id,session_artifact_path,verdict,rationale,criteria_results,created_at,reviewed_by_bill,bill_override',
+        'order': 'created_at.desc',
+        'limit': str(limit),
+    }
+    if unreviewed_only:
+        params['reviewed_by_bill'] = 'eq.false'
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/grader_reviews',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    log.info('get_grader_reviews: returned %d rows', len(rows))
+    return rows
+
+
+@anvil.server.callable
+def bill_override_grader_review(review_id, override_verdict, override_reason):
+    """Bill overrides a grader verdict (pass a paused card or fail a passed one)."""
+    if override_verdict not in ('pass', 'pause', 'fail'):
+        raise Exception(f'Invalid override verdict "{override_verdict}".')
+    override_note = f'Bill override → {override_verdict}: {(override_reason or "").strip()[:300]}'
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/grader_reviews',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{review_id}'},
+        json={'reviewed_by_bill': True, 'bill_override': override_note},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('bill_override_grader_review: id=%s override=%s', review_id, override_verdict)
+    return {'overridden': True, 'verdict': override_verdict}
+
+
 # ── Annotation backbone (B-085) ─────────────────────────────────────────────
 # agent_feedback is the unified annotation table for the whole system.
 # See architecture/decisions/annotation-pattern.md for target_type vocabulary.
