@@ -153,11 +153,17 @@ If no new lessons were learned this session, note this explicitly and continue t
 
 ---
 
-## Step 8 — Update capabilities and increment counters
+## Step 8 — Update capabilities, registries, and increment counters
+
+**Registry check (B-089 discipline):** Did this session add or modify any capability, agent, or skill?
+- New capability → `INSERT INTO capabilities (name, description, category, status) VALUES (..., 'active')`
+- New agent → verify `agent_registry` row exists with `skills_used[]` and `capabilities_provided[]`
+- New skill → verify `skills_registry` row exists with `applies_when`, `provides`, `file_path`
+- Modified skill → update `skills_registry` row, update `CATALOG.md` to match
 
 For anything new you did this session:
 ```sql
-INSERT INTO capabilities (name, description, category) VALUES ('...', '...', '...');
+INSERT INTO capabilities (name, description, category, status) VALUES ('...', '...', '...', 'active');
 ```
 
 For every lesson applied this session — including any flagged "Applying lesson [id]: ..." during boot step 10 — increment the counter using the Supabase ID:

@@ -1,4 +1,6 @@
 # CATALOG.md — AADP Skill Catalog
+# Human-readable view. Authoritative source: skills_registry table in Supabase.
+# See architecture/decisions/capability-index.md for registry roles and build discipline.
 
 | Skill | Path | Applies when | Provides | Also triggers when |
 |-------|------|-------------|----------|--------------------|

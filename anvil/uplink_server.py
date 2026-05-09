@@ -2493,6 +2493,48 @@ def resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, 
     return {'resolved': True, 'resolution': resolution}
 
 
+# ── Capability index (B-089) ─────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_capabilities(status_filter=None, limit=200):
+    """Return the capabilities registry. status_filter: 'active'|'deprecated'|'retired'|None."""
+    params = {
+        'select': 'id,name,category,description,confidence,status,times_used,last_used,authorization_tier',
+        'order': 'category.asc,name.asc',
+        'limit': str(limit),
+    }
+    if status_filter:
+        params['status'] = f'eq.{status_filter}'
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/capabilities',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    log.info('get_capabilities: returned %d rows (filter=%s)', len(rows), status_filter)
+    return rows
+
+
+@anvil.server.callable
+def get_skills_registry():
+    """Return the skills registry — all skills with applies_when, provides, status."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/skills_registry',
+        headers=_HEADERS,
+        params={
+            'select': 'name,description,applies_when,also_triggers_when,provides,file_path,status,times_used,last_used',
+            'order': 'name.asc',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    log.info('get_skills_registry: returned %d rows', len(rows))
+    return rows
+
+
 # ── Grader reviews (B-087) ───────────────────────────────────────────────────
 
 @anvil.server.callable
