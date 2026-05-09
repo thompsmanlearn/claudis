@@ -65,6 +65,16 @@ If prompt did not change this session, skip to Step 5.
 
 ---
 
+## Step 4a — Scope check
+
+Did this session change anything beyond what the directive asked for? Answer in one sentence.
+
+If yes: note in the artifact what was added beyond scope and why. This is signal accumulation, not a rewrite requirement — the point is a record of where the system tends to over-build.
+
+If no: continue to Step 5 silently.
+
+---
+
 ## Step 5 — Commit session artifact
 
 Write `~/aadp/claudis/sessions/YYYY-MM-DD-HHMM.md` with:

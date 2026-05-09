@@ -24,6 +24,12 @@ Apply in every session.
 
 **When Uncertain.** Telegram Bill with context and options. Wait. Do not expand scope to resolve uncertainty.
 
+**Execution discipline.** Apply at the line level, not just the file level:
+
+- **Trace to the request.** Every changed line should trace directly to the directive. If a line doesn't, remove it before committing.
+- **Don't improve adjacent code.** Match existing style even if you'd do it differently. Don't refactor things that aren't broken. Don't reformat code outside the scope of the change. If you notice unrelated dead code, mention it in the artifact — don't delete it.
+- **Simplicity over speculation.** No features beyond what was asked. No abstractions for single-use code. No flexibility that wasn't requested. If you wrote 200 lines and it could be 50, rewrite it before committing.
+
 ---
 
 ## 2. Build Conventions
