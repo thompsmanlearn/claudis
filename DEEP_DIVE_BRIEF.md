@@ -697,12 +697,23 @@ A desktop session collaborates with Bill. It does not build directly. Its output
 - System reviews and audits (see Section 6)
 - Guided assistance with web-based setup tasks (see Section 2)
 
+### Carry Documents
+
+Three files are auto-generated at every lean session close and committed to the claudis repo:
+
+- **CARRY_QUESTIONS.md** — open questions from thread sub_question_candidates, grader pause/fail verdicts, and unanswered question annotations. These are things the system flagged that need Bill's judgment.
+- **CARRY_PROPOSALS.md** — patterns the system noticed that might be worth a card: targets with multiple annotations, recurring gaps.
+- **CARRY_HEALTH.md** — system health snapshot: lesson store integrity, agent fleet status, unresolved errors, recent grader verdicts.
+
+Read these at the start of every desktop session before reading this document. They reflect current state; DEEP_DIVE_BRIEF.md reflects architecture.
+
 ### Starting a Desktop Session
 
-1. Read this document.
-2. Check the "Last updated" dates on each section. Flag anything that seems stale.
-3. Be prepared to discuss current project state, write cards, think strategically, or help Bill with a guided task.
-4. Do not summarize the document back to Bill. He knows what's in it. Start from where he wants to start.
+1. Read CARRY_QUESTIONS.md, CARRY_PROPOSALS.md, CARRY_HEALTH.md (current state).
+2. Read this document.
+3. Check the "Last updated" dates on each section. Flag anything that seems stale.
+4. Be prepared to discuss current project state, write cards, think strategically, or help Bill with a guided task.
+5. Do not summarize the document back to Bill. He knows what's in it. Start from where he wants to start.
 
 ### Writing Good Cards
 

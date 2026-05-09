@@ -230,6 +230,16 @@ If nothing is missing: note "intent queue clear" and proceed.
 
 ## After all 10 steps are complete
 
+**Generate carry documents (B-091):**
+```
+POST http://localhost:9100/generate_carry_documents
+Body: {}
+```
+This writes CARRY_QUESTIONS.md, CARRY_PROPOSALS.md, CARRY_HEALTH.md to the claudis repo root. Commit them:
+```
+cd ~/aadp/claudis && git add CARRY_QUESTIONS.md CARRY_PROPOSALS.md CARRY_HEALTH.md && git commit -m "carry documents: session close $(date +%Y-%m-%d)" && git push
+```
+
 Update the heartbeat:
 ```
 config_set: claudis_current_task = 'idle', claudis_heartbeat_at = now

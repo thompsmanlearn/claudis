@@ -3651,6 +3651,187 @@ def test_research_error_path(payload: dict = {}):
     return JSONResponse({"logged": False, "note": "page fetch unexpectedly succeeded"})
 
 
+# ── Carry documents (B-091) ──────────────────────────────────────────────────
+_CARRY_DIR = REPO  # CARRY_*.md files live at repo root
+
+
+def _sb_query(env, path, params=None):
+    """GET from Supabase REST API with optional query params."""
+    url = f"{env['SUPABASE_URL']}/rest/v1/{path}"
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "apikey": env["SUPABASE_SERVICE_KEY"],
+        "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+    })
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return _json.loads(r.read())
+
+
+def _generate_carry_questions(env) -> str:
+    lines = ["# CARRY_QUESTIONS.md",
+             "# Auto-generated. Read at desktop session start.",
+             f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+             ""]
+
+    questions = []
+
+    # 1. Thread sub_question_candidates
+    try:
+        rows = _sb_query(env, "thread_entries",
+                         {"entry_type": "eq.sub_question_candidate",
+                          "select": "id,content,thread_id,created_at",
+                          "order": "created_at.desc", "limit": "20"})
+        for r in rows:
+            questions.append(f"- **Thread question** [{r.get('thread_id','?')[:8]}]: {r.get('content','')[:200]}")
+    except Exception as e:
+        questions.append(f"- [thread sub_questions unavailable: {e}]")
+
+    # 2. Grader pause/fail verdicts not yet reviewed by Bill
+    try:
+        rows = _sb_query(env, "grader_reviews",
+                         {"verdict": "in.(pause,fail)", "reviewed_by_bill": "eq.false",
+                          "select": "card_id,verdict,rationale,created_at",
+                          "order": "created_at.desc", "limit": "10"})
+        for r in rows:
+            questions.append(f"- **Grader {r.get('verdict','?').upper()}** [{r.get('card_id','?')}]: {(r.get('rationale') or '')[:200]}")
+    except Exception as e:
+        questions.append(f"- [grader verdicts unavailable: {e}]")
+
+    # 3. Unanswered question annotations
+    try:
+        rows = _sb_query(env, "agent_feedback",
+                         {"or": "(processed.is.null,processed.eq.false)",
+                          "select": "target_type,target_id,content,created_at",
+                          "order": "created_at.desc", "limit": "20"})
+        # Filter for question intent (metadata jsonb)
+        for r in rows:
+            meta = r.get("metadata") or {}
+            if isinstance(meta, str):
+                try:
+                    meta = _json.loads(meta)
+                except Exception:
+                    meta = {}
+            if meta.get("intent_type") == "question":
+                questions.append(f"- **Annotation question** [{r.get('target_type','?')}:{r.get('target_id','?')[:20]}]: {r.get('content','')[:200]}")
+    except Exception as e:
+        questions.append(f"- [annotation questions unavailable: {e}]")
+
+    if questions:
+        lines.extend(questions)
+    else:
+        lines.append("*No questions pending.*")
+
+    return "\n".join(lines)
+
+
+def _generate_carry_proposals(env) -> str:
+    lines = ["# CARRY_PROPOSALS.md",
+             "# Auto-generated. Read at desktop session start.",
+             f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+             ""]
+
+    proposals = []
+
+    # Look for direction-intent annotations (multiple against the same target)
+    try:
+        rows = _sb_query(env, "agent_feedback",
+                         {"or": "(processed.is.null,processed.eq.false)",
+                          "select": "target_type,target_id,content,created_at",
+                          "order": "target_type.asc,target_id.asc",
+                          "limit": "50"})
+        # Group by target
+        from collections import Counter
+        target_counts = Counter((r.get("target_type"), r.get("target_id")) for r in rows)
+        for (tt, tid), count in target_counts.most_common():
+            if count >= 2:
+                proposals.append(f"- **{count} annotations** on {tt}:{tid[:40]} — may warrant a card")
+    except Exception as e:
+        proposals.append(f"- [proposal scan unavailable: {e}]")
+
+    if proposals:
+        lines.extend(proposals)
+    else:
+        lines.append("*No proposals pending.*")
+
+    return "\n".join(lines)
+
+
+def _generate_carry_health(env) -> str:
+    lines = ["# CARRY_HEALTH.md",
+             "# Auto-generated. Read at desktop session start.",
+             f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+             ""]
+
+    # Lesson store health
+    try:
+        rows = _sb_query(env, "lessons_learned",
+                         {"select": "id", "chromadb_id": "is.null"})
+        broken = len(rows)
+        total_rows = _sb_query(env, "lessons_learned", {"select": "id"})
+        total = len(total_rows)
+        lines.append(f"**Lesson store:** {total} lessons, {broken} missing chromadb_id {'⚠️' if broken > 0 else '✅'}")
+    except Exception as e:
+        lines.append(f"**Lesson store:** unavailable ({e})")
+
+    # Agent fleet
+    try:
+        rows = _sb_query(env, "agent_registry",
+                         {"status": "eq.active", "select": "agent_name,workflow_id"})
+        no_workflow = [r["agent_name"] for r in rows if not r.get("workflow_id")]
+        lines.append(f"**Agent fleet:** {len(rows)} active, {len(no_workflow)} without workflow_id {'⚠️' if no_workflow else '✅'}")
+        if no_workflow:
+            lines.append(f"  No workflow: {', '.join(no_workflow)}")
+    except Exception as e:
+        lines.append(f"**Agent fleet:** unavailable ({e})")
+
+    # Unresolved errors
+    try:
+        rows = _sb_query(env, "error_logs",
+                         {"resolved": "eq.false", "select": "id"})
+        count = len(rows)
+        lines.append(f"**Unresolved errors:** {count} {'⚠️' if count > 5 else '✅'}")
+    except Exception as e:
+        lines.append(f"**Unresolved errors:** unavailable ({e})")
+
+    # Recent grader reviews
+    try:
+        rows = _sb_query(env, "grader_reviews",
+                         {"select": "verdict,created_at", "order": "created_at.desc", "limit": "5"})
+        if rows:
+            summary = ", ".join(f"{r['verdict']}" for r in rows)
+            lines.append(f"**Recent grader verdicts (last 5):** {summary}")
+        else:
+            lines.append("**Recent grader verdicts:** none yet")
+    except Exception as e:
+        lines.append(f"**Grader reviews:** unavailable ({e})")
+
+    return "\n".join(lines)
+
+
+@app.post("/generate_carry_documents")
+def generate_carry_documents(payload: dict = {}):
+    """Generate CARRY_QUESTIONS.md, CARRY_PROPOSALS.md, CARRY_HEALTH.md at repo root."""
+    env = _read_env_simple()
+    results = {}
+
+    for fname, generator in [
+        ("CARRY_QUESTIONS.md", _generate_carry_questions),
+        ("CARRY_PROPOSALS.md", _generate_carry_proposals),
+        ("CARRY_HEALTH.md", _generate_carry_health),
+    ]:
+        try:
+            content = generator(env)
+            path = os.path.join(_CARRY_DIR, fname)
+            with open(path, "w") as f:
+                f.write(content)
+            results[fname] = "ok"
+        except Exception as e:
+            results[fname] = f"error: {e}"
+
+    return JSONResponse({"generated": results})
+
+
 # ── Skill resolver (B-090) ───────────────────────────────────────────────────
 _SKILL_CONFIDENCE_THRESHOLD = 0.6
 
