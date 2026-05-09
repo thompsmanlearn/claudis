@@ -1,6 +1,6 @@
 # CARRY_QUESTIONS.md
 # Auto-generated. Read at desktop session start.
-# Generated: 2026-05-09 05:15 UTC
+# Generated: 2026-05-09 06:01 UTC
 
 - **Thread question** [e0560a85]: What are the documented failure modes and limitations of autonomous AI agents in scientific research, such as hallucination in literature synthesis, flawed experiment design, or data misinterpretation
 - **Thread question** [e0560a85]: What specific agentic AI systems (e.g., ChemCrow, AI Scientist, BioAgent) have been deployed in real laboratory or literature review workflows, and what empirical performance results have been publish
@@ -20,4 +20,13 @@
 (prompted by: Understanding wh
 - **Thread question** [1b3a5cd9]: What no-code agent builders are non-technical users actually using, and what specific tasks do they build with them?
 (prompted by: Gap between architectural feasibility (Mahilo) and consumer accessibi
-- **Grader PAUSE** [B-084]: The session artifact describes all the required changes being made, but the git diff does not include LEAN_BOOT.md, CONVENTIONS.md, or TRAJECTORY.md among the changed files — only later cards (B-085, 
+- **Grader PAUSE** [B-071]: The session artifact describes successful completion of all substantive work (trigger, six callables, smoke test, restart, cleanup), but the git commit evidence only shows the session artifact markdow
+- **Grader PAUSE** [B-080]: The core implementation appears complete and functionally verified in components, but the commit only contains the session artifact markdown file — no uplink_server.py changes are committed to claudis
+- **Grader PAUSE** [B-073]: The session artifact describes completing all major implementation tasks (callables, UI affordances, branch/merge), but the artifact available for grading is only the session markdown log — no actual 
+- **Grader PAUSE** [B-079]: The session artifact describes the work comprehensively and the logic is sound, but the git commit evidence is critically weak: the only committed file is the session artifact markdown itself. There i
+- **Grader FAIL** [B-078]: The session artifact describes work that was done, but the git evidence shows only a single commit adding the session markdown file itself — no commits to Form1/__init__.py, uplink_server.py, or anvil
+- **Grader PAUSE** [B-082]: The core implementation work (fetcher function, configuration constant, wiring, smoke test, documentation, deployment) is well-evidenced in the session artifact, but the git commit cited in the artifa
+- **Grader FAIL** [B-083]: The session artifact describes the correct implementation approach, but the git evidence shows only a session artifact markdown file was committed — no changes to Form1/__init__.py were pushed. The co
+- **Grader PAUSE** [B-084]: The work is substantively correct and all structural goals were achieved, but two criteria are definitively not met: LEAN_BOOT.md is 96 lines (not under 60), and the pointer line format does not exact
+- **Grader PAUSE** [B-080]: The core implementation is substantive and well-documented, with DDL, uplink callable, HTTP endpoint, n8n workflow update, and idempotency all confirmed in the artifact. However, the git commit contai
+- **Grader PAUSE** [B-058]: No explicit DONE-WHEN criteria were provided in the specification, making a definitive pass/fail impossible. The artifact is thorough and internally consistent, documenting the addition of agent_feedb
