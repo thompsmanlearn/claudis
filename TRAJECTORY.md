@@ -10,17 +10,24 @@
 
 **Where we are:**
 - Lean mode: sentinel timer disabled, `autonomous_growth_scheduler` deactivated. Desktop scopes cards; Claude Code executes.
-- Thread architecture complete (B-070–B-083): schema, callables, read view, action panel, extraction passback, thread-aware gather with output wiring, standing summary at top — all live
-- context_engineering_research: 8 sources, neutral summaries, thread-aware query derivation; articles tagged with thread_id; gather entries written back to originating thread automatically
-- Fleet: 10 active agents, unchanged
-- Redesign chapter complete; system in use-period — no card pending; Bill scopes next direction
+- **Chapter 1 complete (B-084–B-093):** Foundation patterns established — boot consolidation, annotation backbone + classifier, grader, authorization tiers, capability index, skill resolution, carry documents. All committed and pushed.
+- Thread architecture complete (B-070–B-083): all live
+- context_engineering_research: 8 sources, neutral summaries, thread-aware
+- Fleet: 10 active agents, all Tier 1
 - Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
 
-**Project arc next:** Bill smoke-tests extraction: paste desktop analysis into a thread, verify four-bucket output; test uncertain-item resolution buttons. Then: Gap A (automated agent→thread wiring) or ChromaDB leverage card.
+**Project arc next:** Chapter 2 — research orchestrator. Bill decides when to start. Carry documents (CARRY_QUESTIONS.md, CARRY_PROPOSALS.md, CARRY_HEALTH.md) are available at repo root for desktop session orientation.
 
 ---
 
 ## Handoff (pick up here)
+
+**2026-05-08 (Chapter 1: B-084–B-093):**
+- **What I was doing:** Executed all 10 Chapter 1 foundation cards in a single session. B-084 (boot consolidation), B-085 (annotation backbone), B-086 (classifier), B-087 (grader + dashboard tab), B-088 (auth tiers), B-089 (capability index), B-090 (skill resolver), B-091 (carry docs), B-092 (retire INQUIRIES), B-093 (chapter wrap).
+- **What I learned:** LEAN_BOOT was already 104 lines (not 168 as card assumed) — prior cleanup had already removed the duplicated sections. skills_registry pre-existed. The grader correctly issues "pause" when the graded card's commit is outside the HEAD~3 diff window — expected behavior for manual smoke tests on old cards.
+- **Continue:** Chapter 2 when Bill is ready. Read CARRY_QUESTIONS.md, CARRY_PROPOSALS.md, CARRY_HEALTH.md at session start for orientation.
+- **Left better:** Annotation backbone live, classifier live, grader live (Anvil tab), auth tiers defined, carry docs auto-generated, skill resolution deterministic.
+- **Usage:** session ~%, weekly ~%
 
 **2026-05-03 (cleanup + B-083):**
 - **What I was doing:** Cleanup pass — updated DEEP_DIVE_BRIEF.md sections 4/5/7/8/12, anvil-redesign-principles-and-plan.md, TRAJECTORY.md. Verified all 6 recent lessons exist in both ChromaDB and Supabase (confirmed). Classified 19 unresolved errors: all fetch_error from context_engineering_research (Medium/URL empty-fetch or SSL timeout — expected behavior, all resolved). Also shipped B-083: standing summary at top of thread page.

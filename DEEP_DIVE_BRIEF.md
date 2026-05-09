@@ -75,7 +75,7 @@ A regular part of the workload involves Bill navigating web interfaces — creat
 ---
 
 ## 3. How We Operate
-*Last updated: 2026-04-19*
+*Last updated: 2026-05-08*
 
 ### Roles
 
@@ -83,7 +83,25 @@ A regular part of the workload involves Bill navigating web interfaces — creat
 
 **Desktop AI sessions (Opus or equivalent)** — Collaborate with Bill on strategy and direction. Research technical topics. Write backlog cards. Prepare resources for Claude Code (documentation, skills). Review session artifacts and system state. Do not build directly — produce cards and knowledge that Claude Code consumes.
 
-**Claude Code** — Executes backlog cards. Reads LEAN_BOOT.md at startup, which triggers the full boot sequence (PROTECTED.md → DIRECTIVES.md → CATALOG.md → CONTEXT.md → TRAJECTORY.md). Writes code, commits, pushes. Writes session artifacts. Writes lessons to dual store (ChromaDB + Supabase). Operates within the scope boundaries defined in each card.
+**Claude Code** — Executes backlog cards. Reads LEAN_BOOT.md at startup, which triggers the full boot sequence: git pull → PROTECTED.md → CONVENTIONS.md → DIRECTIVES.md → skill resolution via /resolve_skills → CONTEXT.md → TRAJECTORY.md → live-state ping → pending feedback → lesson retrieval. Writes code, commits, pushes. Writes session artifacts. Writes lessons to dual store (ChromaDB + Supabase). Operates within the scope boundaries defined in each card.
+
+### Boot File Roles (B-084)
+
+Each file has a single role. Do not add content to the wrong file:
+- **LEAN_BOOT.md** — trigger sequence only. Reading it starts the session.
+- **CONVENTIONS.md** — rules and behavioral principles.
+- **CONTEXT.md** — system facts (hardware, services, credentials).
+- **TRAJECTORY.md** — current project state and handoff.
+- **skills/PROTECTED.md** — do-not-touch list.
+
+### Authorization Tiers (B-088)
+
+Every agent has a tier assignment in agent_registry.authorization_tier:
+- **Tier 1** — act then notify (all current agents)
+- **Tier 2** — ask first with 24h/72h timeout escalation
+- **Tier 3** — no act without in-session confirmation
+
+See `architecture/decisions/authorization-tiers.md`.
 
 ### The Card System
 
@@ -370,30 +388,44 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Auto-cycle (auto_cycle_enabled) chains sessions across nodes without human intervention
 - Completed project "Document AADP on the Site" — 8 nodes executed across sessions (B-042)
 
+### New in Chapter 1 (B-084–B-093)
+
+- **Annotation backbone (B-085):** agent_feedback is now the unified annotation table. annotate(), get_annotations(), mark_annotation_processed() uplink callables.
+- **Annotation classifier (B-086):** /classify_annotation endpoint (Haiku). Intent types: direction, correction, gap, question, screening, note, noise, uncertain. Confidence ≥ 0.8 threshold.
+- **Grader (B-087):** /grade_card endpoint (Sonnet). grader_reviews table. lean_runner calls grader before auto-cycle. Anvil Grader tab with Bill override.
+- **Authorization tiers (B-088):** agent_registry.authorization_tier. All current agents Tier 1.
+- **Capability index (B-089):** skills_registry populated. Three-registry model: agent_registry, skills_registry, capabilities.
+- **Skill resolution (B-090):** LEAN_BOOT step 6 calls /resolve_skills (Haiku). Replaces judgment-based CATALOG.md matching.
+- **Carry documents (B-091):** CARRY_QUESTIONS.md, CARRY_PROPOSALS.md, CARRY_HEALTH.md auto-generated at session close.
+
 ### Not Yet Working or Unverified
 
 - Autonomous task decomposition
-- Capabilities table in Supabase (may be partially populated)
-- Protected agent indicator in dashboard UI
+- Protected agent indicator in dashboard UI (capabilities table now verified: 114 rows)
 
 ---
 
 ## 6. System Health and Review
-*Last updated: 2026-04-26*
+*Last updated: 2026-05-08*
 
-### The Governance Gap — Partially Closed
+### Governance Surface
 
-The Anvil dashboard now provides the review surface that was previously missing. Bill can see the full agent fleet with descriptions, status, and controls. The first governance action was taken on 2026-04-18: 10 non-critical agents paused, 7 agents flagged as protected.
+The Anvil dashboard provides fleet review, feedback capture, grader reviews, and Bill override actions. CARRY_HEALTH.md (auto-generated at session close) provides a quick health snapshot for desktop sessions.
 
-**What the dashboard enables now:**
-- Visual fleet review without terminal access
-- Immediate activate/pause action on any active/paused agent
-- Feedback capture (thumbs up/down + comments) per agent
+**Current health (2026-05-08):**
+- 250 lessons, 0 missing chromadb_id ✅
+- 10 active agents, all Tier 1 ✅
+- 0 unresolved errors ✅
+- Grader: 1 review (B-084, pause — git window issue, expected)
+
+**What the dashboard enables:**
+- Visual fleet review, activate/pause, feedback capture
+- Grader reviews tab with verdict cards and Bill override
+- Annotation submission against any target
 
 **Remaining governance gaps:**
-- **Capabilities table still unverified.** May be partially populated.
-- **Lesson quality decay.** Lessons accumulate but there's no curation.
-- **Sandbox blockage partially resolved.** Agent approval now possible via Anvil inbox, but the flow hasn't been tested end-to-end with a real sandbox agent.
+- **Lesson quality decay.** Lessons accumulate but there's no curation. /wisdom-review addresses this.
+- **Sandbox blockage partially resolved.** Agent approval flow not tested end-to-end with a real sandbox agent.
 
 ### What Review Looks Like
 
