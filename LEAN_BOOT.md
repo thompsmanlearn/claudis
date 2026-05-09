@@ -24,7 +24,13 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 
    If the card is not complete (or completion cannot be determined quickly), continue normally.
 
-6. Read `~/aadp/claudis/skills/CATALOG.md`. Match the directive against the "Applies when" columns. Read matching `SKILL.md` files. Do not auto-load `references/*.md` — pull those on demand. Confirm: `Loading: [skills]. Proceeding.` or `No skills matched. Proceeding.`
+6. Resolve skills via stats server:
+   ```
+   POST http://localhost:9100/resolve_skills
+   Body: {"directive_text": "<directive text>", "increment_on_load": true}
+   ```
+   For each returned skill with confidence ≥ 0.6: read its `SKILL.md` (path from `file_path` field). Do not auto-load `references/*.md` — pull those on demand. Confirm: `Loading: [skills]. Proceeding.` or `No skills matched. Proceeding.`
+   **Fallback** if stats server unreachable: read `~/aadp/claudis/skills/CATALOG.md` and match the directive against the "Applies when" columns using judgment.
 7. Read `~/aadp/claudis/CONTEXT.md`.
 8. Read `~/aadp/claudis/TRAJECTORY.md`.
 9. **Live-state ping** — Run both checks and include results in the boot summary:

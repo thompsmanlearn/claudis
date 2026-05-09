@@ -3651,6 +3651,130 @@ def test_research_error_path(payload: dict = {}):
     return JSONResponse({"logged": False, "note": "page fetch unexpectedly succeeded"})
 
 
+# ── Skill resolver (B-090) ───────────────────────────────────────────────────
+_SKILL_CONFIDENCE_THRESHOLD = 0.6
+
+
+def _get_skills_registry(env):
+    """Fetch all active skills from skills_registry."""
+    url = (f"{env['SUPABASE_URL']}/rest/v1/skills_registry"
+           f"?status=eq.active&select=name,applies_when,also_triggers_when,provides")
+    req = urllib.request.Request(url, headers={
+        "apikey": env["SUPABASE_SERVICE_KEY"],
+        "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+    })
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return _json.loads(r.read())
+
+
+def _resolve_skills_haiku(directive_text: str, skills: list, api_key: str) -> list:
+    """Use Haiku to match directive against skills. Returns [{name, confidence, reasoning}]."""
+    skills_desc = "\n".join(
+        f"- {s['name']}: applies_when={s.get('applies_when','')[:200]} | "
+        f"also_triggers={s.get('also_triggers_when','')[:100]}"
+        for s in skills
+    )
+    prompt = (
+        f"Match this directive against the available skills.\n\n"
+        f"DIRECTIVE: {directive_text[:500]}\n\n"
+        f"AVAILABLE SKILLS:\n{skills_desc}\n\n"
+        f"For each skill that applies to this directive, return it with a confidence score.\n"
+        f"Only include skills with genuine relevance. Confidence: 1.0=certain, 0.7=likely, 0.5=possible.\n"
+        f"Respond with JSON only:\n"
+        f'{{"matches": [{{"name": "<skill_name>", "confidence": <0.0-1.0>, "reasoning": "<one sentence>"}}]}}'
+    )
+    payload = _json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 512,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+    )
+    with urllib.request.urlopen(req, timeout=20) as r:
+        resp = _json.loads(r.read())
+    text = resp["content"][0]["text"].strip()
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    result = _json.loads(text[start:end])
+    return result.get("matches", [])
+
+
+def _increment_skill_times_used(names: list, env):
+    """Increment times_used for loaded skills in skills_registry."""
+    for name in names:
+        try:
+            url = f"{env['SUPABASE_URL']}/rest/v1/skills_registry?name=eq.{urllib.parse.quote(name)}"
+            # Read current times_used
+            req = urllib.request.Request(url + "&select=times_used,times_loaded", headers={
+                "apikey": env["SUPABASE_SERVICE_KEY"],
+                "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+            })
+            with urllib.request.urlopen(req, timeout=5) as r:
+                rows = _json.loads(r.read())
+            if not rows:
+                continue
+            current = rows[0].get("times_used", 0) or 0
+            now_iso = datetime.now(timezone.utc).isoformat()
+            data = _json.dumps({"times_used": current + 1, "last_used": now_iso}).encode()
+            patch_req = urllib.request.Request(url, data=data, method="PATCH", headers={
+                "apikey": env["SUPABASE_SERVICE_KEY"],
+                "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            })
+            with urllib.request.urlopen(patch_req, timeout=5):
+                pass
+        except Exception:
+            pass  # non-fatal
+
+
+@app.post("/resolve_skills")
+def resolve_skills(payload: dict = {}):
+    """Match directive text against skills_registry. Returns skills to load."""
+    directive_text = payload.get("directive_text", "").strip()
+    increment = payload.get("increment_on_load", False)
+
+    if not directive_text:
+        return JSONResponse({"error": "directive_text required"}, status_code=400)
+
+    env = _read_env_simple()
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "ANTHROPIC_API_KEY not found"}, status_code=500)
+
+    try:
+        skills = _get_skills_registry(env)
+    except Exception as e:
+        return JSONResponse({"error": f"skills_registry fetch failed: {e}"}, status_code=500)
+
+    if not skills:
+        return JSONResponse({"skills": [], "confidence_threshold": _SKILL_CONFIDENCE_THRESHOLD})
+
+    try:
+        matches = _resolve_skills_haiku(directive_text, skills, api_key)
+    except Exception as e:
+        return JSONResponse({"error": f"haiku resolution failed: {e}"}, status_code=500)
+
+    # Filter by threshold
+    confident = [m for m in matches if m.get("confidence", 0) >= _SKILL_CONFIDENCE_THRESHOLD]
+
+    if increment and confident:
+        _increment_skill_times_used([m["name"] for m in confident], env)
+
+    return JSONResponse({
+        "skills": confident,
+        "confidence_threshold": _SKILL_CONFIDENCE_THRESHOLD,
+        "all_matches": matches,
+    })
+
+
 # ── Grader (B-087) ───────────────────────────────────────────────────────────
 _BACKLOG_PATH = os.path.join(REPO, "BACKLOG.md")
 _SESSIONS_PATH = os.path.join(REPO, "sessions", "lean")
