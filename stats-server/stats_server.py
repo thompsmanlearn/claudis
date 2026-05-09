@@ -5591,5 +5591,101 @@ def classify_annotation(payload: dict = {}):
     })
 
 
+@app.post("/run_capability_curation_scan")
+def run_capability_curation_scan(payload: dict = {}):
+    """Capability curation pass (B-109, 2026-05-08).
+    Scans agent_registry and skills_registry for retirement/review candidates.
+    Writes each candidate as an agent_feedback annotation (Tier 2, intent_type=question).
+    Returns candidate list and annotation IDs.
+    """
+    env = _read_env_simple()
+    sb_url = env.get("SUPABASE_URL", "")
+    sb_key = env.get("SUPABASE_SERVICE_KEY", "")
+    if not sb_url or not sb_key:
+        return JSONResponse({"error": "Supabase credentials not found"}, status_code=500)
+
+    headers = {
+        "apikey": sb_key,
+        "Authorization": f"Bearer {sb_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+
+    def _sb_get(path):
+        req = urllib.request.Request(sb_url + path, headers={k: v for k, v in headers.items() if k != "Prefer"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return _json.loads(r.read())
+
+    def _write_annotation(target_type, target_id, content, recommended_action):
+        data = _json.dumps({
+            "target_type": target_type,
+            "target_id": target_id,
+            "content": content,
+            "action_session": "capability_curator",
+            "metadata": {
+                "intent_type": "question",
+                "recommended_action": recommended_action,
+                "source": "run_capability_curation_scan",
+                "scan_date": "2026-05-08",
+            },
+        }).encode()
+        req = urllib.request.Request(
+            sb_url + "/rest/v1/agent_feedback",
+            data=data,
+            headers={**headers, "Prefer": "return=representation"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return _json.loads(r.read())[0]["id"]
+
+    candidates = []
+
+    # Signal 1: Paused agents with no workflow_id (never built or workflow deleted)
+    agents = _sb_get(
+        "/rest/v1/agent_registry"
+        "?status=eq.paused"
+        "&workflow_id=is.null"
+        "&select=agent_name,status,updated_at,description"
+    )
+    for agent in agents:
+        name = agent["agent_name"]
+        if name == "autonomous_growth_scheduler":
+            continue  # Intentionally paused by Bill, memory: never reactivate autonomously
+        ann_id = _write_annotation(
+            "agent", name,
+            f"Curation flag: '{name}' is paused with no workflow_id — never built or workflow deleted. "
+            f"Paused since {str(agent.get('updated_at','?'))[:10]}. "
+            f"Recommended action: retire (no workflow exists to restore) or build missing workflow.",
+            "retire",
+        )
+        candidates.append({"type": "agent", "name": name, "signal": "paused_no_workflow", "annotation_id": ann_id})
+
+    # Signal 2: Skills with times_used = 0
+    skills = _sb_get(
+        "/rest/v1/skills_registry"
+        "?times_used=eq.0"
+        "&status=eq.active"
+        "&select=name,applies_when,created_at"
+    )
+    for skill in skills:
+        name = skill["name"]
+        ann_id = _write_annotation(
+            "skill", name,
+            f"Curation flag: skill '{name}' has times_used=0 since registration "
+            f"({str(skill.get('created_at','?'))[:10]}). "
+            f"Applies when: {str(skill.get('applies_when','?'))[:200]}. "
+            "Recommended action: monitor (plausible but untriggered) or revise applies_when.",
+            "monitor",
+        )
+        candidates.append({"type": "skill", "name": name, "signal": "never_used", "annotation_id": ann_id})
+
+    return JSONResponse({
+        "status": "ok",
+        "candidates": candidates,
+        "agent_retire_candidates": sum(1 for c in candidates if c["type"] == "agent"),
+        "skill_monitor_candidates": sum(1 for c in candidates if c["type"] == "skill"),
+    })
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=9100, log_level="warning", access_log=False)
