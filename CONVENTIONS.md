@@ -68,6 +68,10 @@ Apply when executing work.
 - **ADR** (`architecture/decisions/`): decision with consequences beyond one fix.
 - When between lesson and artifact, write both.
 
+### Annotations
+
+`agent_feedback` is the unified annotation table for the whole system — agents, lessons, skills, sessions, cards, capabilities, threads. File observations here; the classifier (B-086) determines intent. See `architecture/decisions/annotation-pattern.md` for target_type vocabulary and uplink callables.
+
 ### Naming
 
 - Agents: `snake_case`. `agent_name` column is canonical.

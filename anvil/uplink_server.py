@@ -2493,6 +2493,85 @@ def resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, 
     return {'resolved': True, 'resolution': resolution}
 
 
+# ── Annotation backbone (B-085) ─────────────────────────────────────────────
+# agent_feedback is the unified annotation table for the whole system.
+# See architecture/decisions/annotation-pattern.md for target_type vocabulary.
+
+@anvil.server.callable
+def annotate(target_type, target_id, content, source='bill'):
+    """File an annotation against any target. Classifier (B-086) enriches async."""
+    VALID_TYPES = {'agent', 'anvil_view', 'lesson', 'skill', 'session', 'card',
+                   'capability', 'thread', 'approval_request'}
+    if target_type not in VALID_TYPES:
+        raise Exception(f'Invalid target_type "{target_type}". Valid: {sorted(VALID_TYPES)}')
+    content = (content or '').strip()
+    if not content:
+        raise Exception('Annotation content cannot be empty.')
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json={
+            'target_type': target_type,
+            'target_id': str(target_id),
+            'content': content[:2000],
+            'action_session': source,
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    row = r.json()[0] if r.json() else {}
+    log.info('annotate: type=%s id=%s source=%s', target_type, target_id, source)
+    return {'id': row.get('id'), 'created': True}
+
+
+@anvil.server.callable
+def get_annotations(target_type, target_id, processed=None):
+    """Retrieve annotations for a target. processed=None returns all."""
+    params = {
+        'select': 'id,target_type,target_id,content,created_at,processed,action_summary,action_session,action_result_url',
+        'target_type': f'eq.{target_type}',
+        'target_id': f'eq.{target_id}',
+        'order': 'created_at.asc',
+    }
+    if processed is True:
+        params['processed'] = 'eq.true'
+    elif processed is False:
+        params['or'] = '(processed.is.null,processed.eq.false)'
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers=_HEADERS,
+        params=params,
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    log.info('get_annotations: type=%s id=%s → %d rows', target_type, target_id, len(rows))
+    return rows
+
+
+@anvil.server.callable
+def mark_annotation_processed(feedback_id, action_summary, action_session, action_result_url=None):
+    """Mark an annotation as processed with action notes."""
+    payload = {
+        'processed': True,
+        'processed_at': datetime.now(timezone.utc).isoformat(),
+        'action_summary': (action_summary or '').strip()[:500],
+        'action_session': (action_session or '').strip()[:200],
+    }
+    if action_result_url:
+        payload['action_result_url'] = action_result_url.strip()[:500]
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{feedback_id}'},
+        json=payload,
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('mark_annotation_processed: id=%s session=%s', feedback_id, action_session)
+    return {'processed': True}
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
