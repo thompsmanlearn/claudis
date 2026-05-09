@@ -5687,5 +5687,242 @@ def run_capability_curation_scan(payload: dict = {}):
     })
 
 
+def _next_card_number():
+    """Determine next B-NNN by scanning sessions/lean/ and BACKLOG.md."""
+    import re as _re, os as _os
+    seen = set()
+    sessions_dir = "/home/thompsman/aadp/claudis/sessions/lean"
+    if _os.path.isdir(sessions_dir):
+        for fname in _os.listdir(sessions_dir):
+            for m in _re.findall(r"b(\d+)", fname, _re.I):
+                seen.add(int(m))
+    backlog = "/home/thompsman/aadp/claudis/BACKLOG.md"
+    if _os.path.isfile(backlog):
+        with open(backlog) as f:
+            for m in _re.findall(r"## B-(\d+):", f.read()):
+                seen.add(int(m))
+    return max(seen, default=114) + 1
+
+
+@app.post("/generate_card_from_comment")
+def generate_card_from_comment(payload: dict = {}):
+    """Generate a backlog card from a classified annotation (B-114).
+    Called by annotate() when intent_type in (correction, gap), confidence>=0.8,
+    target_type in (agent, skill, capability).
+    Body: {feedback_id: str}
+    Returns: {card_id, card_text}
+    """
+    feedback_id = payload.get("feedback_id", "").strip()
+    if not feedback_id:
+        return JSONResponse({"error": "feedback_id required"}, status_code=400)
+
+    env = _read_env_simple()
+    sb_url = env.get("SUPABASE_URL", "")
+    sb_key = env.get("SUPABASE_SERVICE_KEY", "")
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "ANTHROPIC_API_KEY not found"}, status_code=500)
+
+    sb_headers = {
+        "apikey": sb_key,
+        "Authorization": f"Bearer {sb_key}",
+        "Content-Type": "application/json",
+    }
+
+    def _sb_get(path):
+        req = urllib.request.Request(sb_url + path, headers={k: v for k, v in sb_headers.items() if k != "Content-Type"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return _json.loads(r.read())
+
+    # Read the feedback row
+    rows = _sb_get(f"/rest/v1/agent_feedback?id=eq.{feedback_id}&select=*")
+    if not rows:
+        return JSONResponse({"error": "feedback_id not found"}, status_code=404)
+    fb = rows[0]
+    target_type = fb.get("target_type", "")
+    target_id = fb.get("target_id", "")
+    content = fb.get("content", "")
+    metadata = fb.get("metadata") or {}
+    if isinstance(metadata, str):
+        try:
+            metadata = _json.loads(metadata)
+        except Exception:
+            metadata = {}
+    intent_type = metadata.get("intent_type", "unknown")
+    confidence = float(metadata.get("confidence", 0.0))
+
+    # Fetch target context
+    target_context = ""
+    if target_type == "agent":
+        agents = _sb_get(f"/rest/v1/agent_registry?agent_name=eq.{target_id}&select=description,status,schedule")
+        if agents:
+            a = agents[0]
+            target_context = f"Agent: {target_id}\nDescription: {a.get('description','')}\nStatus: {a.get('status','')}\nSchedule: {a.get('schedule','')}"
+    elif target_type == "skill":
+        skills = _sb_get(f"/rest/v1/skills_registry?name=eq.{target_id}&select=description,applies_when,provides")
+        if skills:
+            s = skills[0]
+            target_context = f"Skill: {target_id}\nApplies when: {s.get('applies_when','')}\nProvides: {s.get('provides','')}"
+    elif target_type == "capability":
+        caps = _sb_get(f"/rest/v1/capabilities?name=eq.{target_id}&select=description,category")
+        if caps:
+            c = caps[0]
+            target_context = f"Capability: {target_id}\nDescription: {c.get('description','')}"
+
+    card_num = _next_card_number()
+    card_id = f"B-{card_num}-cmt"
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Generate card via Sonnet
+    prompt = (
+        f"You are generating a backlog card for a system called AADP (an AI agent development platform).\n\n"
+        f"A comment was filed against a system target and classified as '{intent_type}' (confidence {confidence:.2f}).\n\n"
+        f"Original comment:\n{content}\n\n"
+        f"Target context:\n{target_context or '(none available)'}\n\n"
+        f"Generate a backlog card in this exact format:\n\n"
+        f"## {card_id}: [short descriptive title — what to fix]\n"
+        f"Status: ready Depends on: none\n"
+        f"Goal\n[One paragraph: what to accomplish and why. Reference the original comment.]\n"
+        f"Context\n[What Claude Code needs to know: current state, the gap, what not to touch.]\n"
+        f"Done when\n[3-5 specific verifiable criteria. No 'works correctly' — use checkable facts.]\n"
+        f"Scope\nTouch: [specific files or tables]\nDo not touch: [explicit exclusions]\n\n"
+        f"Rules:\n"
+        f"- Goal: what and why, not how\n"
+        f"- Done when: every item checkable by curl, SQL, or file check\n"
+        f"- Scope: name exact files — no directories\n"
+        f"- Two-hour ceiling: if too large, scope it down\n"
+        f"- Output the card text only, no preamble"
+    )
+
+    api_payload = _json.dumps({
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=api_payload,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            resp = _json.loads(r.read())
+        card_text = resp["content"][0]["text"].strip()
+    except Exception as e:
+        return JSONResponse({"error": f"card generation failed: {e}"}, status_code=500)
+
+    # Append to BACKLOG.md with origin marker
+    backlog_path = "/home/thompsman/aadp/claudis/BACKLOG.md"
+    marker = f"\n> Generated from agent_feedback {feedback_id} on {today} (intent={intent_type}, confidence={confidence:.2f})\n"
+    with open(str(backlog_path), "a") as f:
+        f.write(f"\n{card_text}\n{marker}")
+
+    # Update agent_feedback metadata with generated card_id
+    new_meta = {**metadata, "generated_card_id": card_id, "card_generated_at": today}
+    patch_data = _json.dumps({"metadata": _json.dumps(new_meta)}).encode()
+    patch_req = urllib.request.Request(
+        f"{sb_url}/rest/v1/agent_feedback?id=eq.{feedback_id}",
+        data=patch_data,
+        method="PATCH",
+        headers={**sb_headers, "Prefer": "return=minimal"},
+    )
+    try:
+        with urllib.request.urlopen(patch_req, timeout=8):
+            pass
+    except Exception:
+        pass  # non-fatal
+
+    return JSONResponse({"card_id": card_id, "card_text": card_text})
+
+
+@app.post("/export_comment_driven_results")
+def export_comment_driven_results(payload: dict = {}):
+    """Bundle comment-driven card results for desktop review (B-114).
+    Body: {since_date: 'YYYY-MM-DD' (optional), agent_name: str (optional)}
+    Returns: {markdown: str, count: int}
+    """
+    since_date = payload.get("since_date", "")
+    agent_name = payload.get("agent_name", "")
+
+    env = _read_env_simple()
+    sb_url = env.get("SUPABASE_URL", "")
+    sb_key = env.get("SUPABASE_SERVICE_KEY", "")
+    sb_headers = {
+        "apikey": sb_key,
+        "Authorization": f"Bearer {sb_key}",
+    }
+
+    def _sb_get(path):
+        req = urllib.request.Request(sb_url + path, headers=sb_headers)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return _json.loads(r.read())
+
+    # Fetch agent_feedback rows with generated_card_id in metadata
+    params = "select=id,target_type,target_id,content,created_at,metadata"
+    if agent_name:
+        params += f"&target_id=eq.{agent_name}"
+    if since_date:
+        params += f"&created_at=gte.{since_date}"
+    params += "&order=created_at.desc&limit=50"
+
+    all_rows = _sb_get(f"/rest/v1/agent_feedback?{params}")
+    driven = []
+    for row in all_rows:
+        meta = row.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = _json.loads(meta)
+            except Exception:
+                meta = {}
+        if meta.get("generated_card_id"):
+            row["_meta"] = meta
+            driven.append(row)
+
+    if not driven:
+        return JSONResponse({"markdown": "No comment-driven results found.", "count": 0})
+
+    # Fetch grader_reviews for generated card IDs
+    card_ids = [r["_meta"]["generated_card_id"] for r in driven]
+    verdicts = {}
+    for cid in card_ids:
+        reviews = _sb_get(f"/rest/v1/grader_reviews?card_id=eq.{cid}&select=verdict,rationale,created_at&order=created_at.desc&limit=1")
+        if reviews:
+            verdicts[cid] = reviews[0]
+
+    # Read BACKLOG.md for card text
+    import os as _os2
+    _backlog_path = "/home/thompsman/aadp/claudis/BACKLOG.md"
+    backlog_text = open(_backlog_path).read() if _os2.path.isfile(_backlog_path) else ""
+
+    sections = []
+    for row in driven:
+        meta = row["_meta"]
+        card_id = meta.get("generated_card_id", "?")
+        created = (row.get("created_at") or "")[:10]
+        verdict_info = verdicts.get(card_id)
+        verdict_str = f"{verdict_info['verdict']} — {verdict_info['rationale'][:200]}" if verdict_info else "not yet graded"
+
+        # Extract card text from BACKLOG.md
+        import re as _re2
+        m = _re2.search(rf"(## {_re2.escape(card_id)}:.*?)(?=\n## B-|\Z)", backlog_text, _re2.S)
+        card_excerpt = m.group(1)[:800] + "..." if m else "(card text not found in BACKLOG.md)"
+
+        sections.append(
+            f"---\n"
+            f"**Comment** ({created}) on `{row['target_type']}:{row['target_id']}`:\n"
+            f"> {row['content'][:300]}\n\n"
+            f"**Generated card:** {card_id}\n"
+            f"```\n{card_excerpt}\n```\n\n"
+            f"**Grader verdict:** {verdict_str}\n"
+        )
+
+    header = f"# Comment-Driven Work Export — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n\n{len(driven)} item(s)\n\n"
+    return JSONResponse({"markdown": header + "\n".join(sections), "count": len(driven)})
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=9100, log_level="warning", access_log=False)

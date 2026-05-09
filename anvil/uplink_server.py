@@ -3097,10 +3097,11 @@ def annotate(target_type, target_id, content, source='bill'):
     feedback_id = row.get('id', '')
     log.info('annotate: type=%s id=%s source=%s feedback_id=%s', target_type, target_id, source, feedback_id)
 
-    # Async classification — fire and forget; don't block the caller
+    # Classification — synchronous so we can read intent before card-generation decision
+    classification = {}
     if feedback_id:
         try:
-            requests.post(
+            cr = requests.post(
                 f'{_STATS_URL}/classify_annotation',
                 json={
                     'feedback_id': feedback_id,
@@ -3108,12 +3109,36 @@ def annotate(target_type, target_id, content, source='bill'):
                     'target_id': str(target_id),
                     'content': content[:2000],
                 },
-                timeout=25,
+                timeout=30,
             )
+            if cr.ok:
+                classification = cr.json()
         except Exception as e:
             log.warning('classify_annotation failed (non-fatal): %s', e)
 
-    return {'id': feedback_id, 'created': True}
+    # Card generation trigger (B-114): correction/gap + high confidence + scoped target type
+    _CARD_GEN_INTENTS = {'correction', 'gap'}
+    _CARD_GEN_TARGET_TYPES = {'agent', 'skill', 'capability'}
+    intent = classification.get('intent_type', '')
+    conf = float(classification.get('confidence', 0.0))
+    if (intent in _CARD_GEN_INTENTS and conf >= 0.8
+            and target_type in _CARD_GEN_TARGET_TYPES and feedback_id):
+        def _fire_card_gen(fid):
+            try:
+                requests.post(
+                    f'{_STATS_URL}/generate_card_from_comment',
+                    json={'feedback_id': fid},
+                    timeout=90,
+                )
+            except Exception as ge:
+                log.warning('generate_card_from_comment failed (non-fatal): %s', ge)
+        import threading as _threading
+        _threading.Thread(target=_fire_card_gen, args=(feedback_id,), daemon=True).start()
+        log.info('card generation triggered for feedback_id=%s intent=%s conf=%.2f', feedback_id, intent, conf)
+
+    return {'id': feedback_id, 'created': True, 'intent': intent, 'card_gen_triggered': (
+        intent in _CARD_GEN_INTENTS and conf >= 0.8 and target_type in _CARD_GEN_TARGET_TYPES
+    )}
 
 
 @anvil.server.callable
@@ -3162,6 +3187,51 @@ def mark_annotation_processed(feedback_id, action_summary, action_session, actio
     r.raise_for_status()
     log.info('mark_annotation_processed: id=%s session=%s', feedback_id, action_session)
     return {'processed': True}
+
+
+@anvil.server.callable
+def export_comment_driven_results(since_date='', agent_name=''):
+    """Bundle comment-driven card results for desktop review (B-114)."""
+    r = requests.post(
+        f'{_STATS_URL}/export_comment_driven_results',
+        json={'since_date': since_date, 'agent_name': agent_name},
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def get_comment_driven_activity():
+    """Return {agent_name: {card_id, date}} for agents with recent comment-driven cards."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers=_HEADERS,
+        params={
+            'select': 'target_id,metadata,created_at',
+            'target_type': 'eq.agent',
+            'order': 'created_at.desc',
+            'limit': '200',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    result = {}
+    for row in r.json():
+        meta = row.get('metadata') or {}
+        if isinstance(meta, str):
+            import json as _j
+            try:
+                meta = _j.loads(meta)
+            except Exception:
+                meta = {}
+        card_id = meta.get('generated_card_id', '')
+        if card_id and row.get('target_id') not in result:
+            result[row['target_id']] = {
+                'card_id': card_id,
+                'date': (row.get('created_at') or '')[:10],
+            }
+    return result
 
 
 log.info('Connecting to Anvil uplink...')

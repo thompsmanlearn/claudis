@@ -24,6 +24,8 @@ Apply in every session.
 
 **When Uncertain.** Telegram Bill with context and options. Wait. Do not expand scope to resolve uncertainty.
 
+**Comment-driven cards.** Comments classified as `correction` or `gap` against agents, skills, or capabilities (confidence ≥ 0.8) automatically generate a backlog card and queue it for execution. The grader is the safety mechanism; no approval gate. To leave an observational note that doesn't produce a card, use framing like "noticed that..." or "worth watching..." — this routes to `note` intent. See `architecture/decisions/comment-driven-cards.md`.
+
 **Execution discipline.** Apply at the line level, not just the file level:
 
 - **Trace to the request.** Every changed line should trace directly to the directive. If a line doesn't, remove it before committing.
