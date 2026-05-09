@@ -347,7 +347,7 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Serendipity engine (Wikipedia On This Day synthesis — paused)
 
 **Research:**
-- On-demand research runs via Anvil "Run research" button (`context_engineering_research` agent) — fetches from 8 sources: HN, arXiv, dev.to, GitHub, lobste.rs, Medium, openai (RSS), deepmind (RSS); per-source cap=5, global cap=20, skip-on-empty-fetch. Anthropic blog deferred — no public RSS feed (lesson: anthropic_no_rss_2026-05-03).
+- On-demand research runs via research orchestrator (replaced `context_engineering_research` agent, retired B-106 2026-05-08). Thread-triggered research cycles via `/run_research_cycle`.
 - Article review: rate (👍/👎), comment, and status-track articles in Anvil Research tab (58 articles as of 2026-04-26)
 - Bundle export: one-click markdown export of a run (articles + ratings + pending feedback) for desktop analysis
 - Boot-time feedback pickup: both LEAN_BOOT and bootstrap surface unprocessed `agent_feedback` rows at session start
@@ -407,7 +407,7 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - **Watch state (B-098):** /run_watch_cycle (novelty filter). /check_watch_threads (hourly systemd timer). Thread watch toggle in Anvil.
 - **Memory consultation (B-099):** /consult_memory writes memory_consultation entry at charter creation.
 - **Sub-question spawning (B-100):** spawn_thread_from_sub_question(). parent_thread_id FK on threads. Child→parent writeback button.
-- **context_engineering_research:** Deprecated. n8n workflow deactivated.
+- **context_engineering_research:** ✅ Retired B-106 (2026-05-08). n8n workflow deleted. agent_registry status=retired, workflow_id=null. /run_context_research endpoint kept (deprecated comment) to avoid 500s from stale callers; no n8n webhook routes to it. Replaced by research orchestrator (B-096).
 
 ### Not Yet Working or Unverified
 
@@ -666,7 +666,7 @@ All paused agents can be reactivated from the Anvil dashboard.
 | research_synthesis_agent | JUBCbXJe3TwwpB2T | Sunday 14:00 UTC | Weekly synthesis of research corpus. **PROTECTED.** |
 | arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | Mon/Wed/Fri 15:00 UTC | arXiv preprints → research_findings + research_papers. **PROTECTED.** |
 | architecture_review | 7mVc61pDCIObJFos | Biweekly Sunday 16:00 UTC | Research findings → design decisions → work_queue items. |
-| context_engineering_research | gzCSocUFNxTGIzSD | On-demand webhook | 8 sources (HN, arXiv, dev.to, GitHub, lobste.rs, Medium, openai RSS, deepmind RSS) → Haiku neutral summarize → research_articles. Per-source cap=5, global cap=20. Empty-fetch skips item. Company blogs freshness-driven (30-day window, 3/feed). Anthropic deferred — no RSS. dev.to tags: agents, n8n, llmops, rag, claude. Thread-aware: when payload includes thread_id, Haiku derives 3-5 queries from thread question + recent entries; articles tagged with thread_id; Code node writes gather entries back to originating thread. |
+| ~~context_engineering_research~~ | ~~gzCSocUFNxTGIzSD~~ | **RETIRED** (B-106, 2026-05-08) | n8n workflow deleted. Replaced by research orchestrator (B-096). /run_context_research endpoint deprecated but present. research_articles history preserved. |
 
 ### Platform Infrastructure Agents
 
