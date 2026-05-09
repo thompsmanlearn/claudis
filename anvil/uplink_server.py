@@ -240,6 +240,8 @@ def invoke_agent(agent_name):
 
 @anvil.server.callable
 def submit_agent_feedback(agent_name, rating, comment=None):
+    # LEGACY — thumbs-up/down buttons removed from Fleet tab 2026-05-09 (B-114).
+    # No callers remain. Kept to avoid breaking any stale client versions.
     if rating not in (1, -1):
         raise Exception('Rating must be 1 (thumbs up) or -1 (thumbs down).')
     payload = {'agent_name': agent_name, 'rating': rating}
