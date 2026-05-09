@@ -354,6 +354,7 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Unified annotation backbone — agent_feedback as the single annotation table; Haiku classifier (B-086) routes by intent_type
 - Auto-cycle project completion requires Bill's explicit confirmation (B-107)
 - Lesson utilization visibility: /lesson_stats shows total, never-applied %, mean times_applied, top categories (B-111)
+- Comment-driven card generation (B-114): correction/gap comments on agents/skills/capabilities (classifier confidence ≥ 0.8) auto-generate a B-NNN-cmt backlog card and queue it for execution. Grader is the safety gate. Export via Fleet tab "✏️ Comment work" button or export_comment_driven_results() callable. See architecture/decisions/comment-driven-cards.md.
 
 **Communication:**
 - Telegram command routing (deprioritized but functional when Telegram is working)
