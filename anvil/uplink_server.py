@@ -2493,6 +2493,169 @@ def resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, 
     return {'resolved': True, 'resolution': resolution}
 
 
+# ── Sub-question spawning (B-100) ────────────────────────────────────────────
+
+@anvil.server.callable
+def spawn_thread_from_sub_question(parent_thread_id, sub_question_entry_id, inherit_charter_sections=None):
+    """Create a child thread from a sub_question_candidate entry. Returns new thread id."""
+    # Read the sub-question entry
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers=_HEADERS,
+        params={'id': f'eq.{sub_question_entry_id}', 'select': 'content,thread_id'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    entries = r.json()
+    if not entries:
+        raise Exception(f'Sub-question entry {sub_question_entry_id} not found.')
+    sub_q_content = entries[0].get('content', '')
+
+    # Build child charter from parent if sections requested
+    child_charter = ''
+    if inherit_charter_sections:
+        try:
+            parent_charter_r = requests.get(
+                f'{_SUPABASE_URL}/rest/v1/thread_entries',
+                headers=_HEADERS,
+                params={'thread_id': f'eq.{parent_thread_id}', 'entry_type': 'eq.charter',
+                        'order': 'created_at.desc', 'limit': '1', 'select': 'content'},
+                timeout=10,
+            )
+            parent_charter_r.raise_for_status()
+            parent_charters = parent_charter_r.json()
+            if parent_charters:
+                import re as _re
+                parent_content = parent_charters[0].get('content', '')
+                lines = []
+                for section in inherit_charter_sections:
+                    match = _re.search(
+                        rf'##\s*{re.escape(section)}\s*\n(.*?)(?=\n##|\Z)',
+                        parent_content, _re.DOTALL | _re.IGNORECASE
+                    )
+                    if match:
+                        lines.append(f'## {section}\n{match.group(1).strip()}')
+                if lines:
+                    child_charter = f'## Question\n{sub_q_content}\n\n' + '\n\n'.join(lines)
+        except Exception as e:
+            log.warning('spawn_thread: charter inheritance failed: %s', e)
+
+    # Create child thread
+    new_thread = {
+        'title': sub_q_content[:100],
+        'question': sub_q_content,
+        'state': 'active',
+        'parent_thread_id': parent_thread_id,
+    }
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json=new_thread,
+        timeout=10,
+    )
+    r.raise_for_status()
+    child_thread_id = r.json()[0]['id']
+
+    # Mark sub-question entry as spawned in metadata
+    requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{sub_question_entry_id}'},
+        json={'metadata': {'spawned': True, 'child_thread_id': child_thread_id}},
+        timeout=10,
+    ).raise_for_status()
+
+    # Write inherited charter to child thread if available
+    if child_charter:
+        requests.post(
+            f'{_SUPABASE_URL}/rest/v1/thread_entries',
+            headers={**_HEADERS, 'Prefer': 'return=minimal'},
+            json={'thread_id': child_thread_id, 'entry_type': 'charter',
+                  'content': child_charter, 'source': 'inherited'},
+            timeout=10,
+        ).raise_for_status()
+
+    log.info('spawn_thread: parent=%s child=%s sub_q=%s', parent_thread_id, child_thread_id, sub_question_entry_id)
+    return {'child_thread_id': child_thread_id, 'title': sub_q_content[:80]}
+
+
+@anvil.server.callable
+def write_child_findings_to_parent(child_thread_id):
+    """Write child thread's standing summary as an analysis entry on the parent thread."""
+    # Get child thread's parent and summary
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers=_HEADERS,
+        params={'id': f'eq.{child_thread_id}', 'select': 'parent_thread_id,title'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    child_rows = r.json()
+    if not child_rows or not child_rows[0].get('parent_thread_id'):
+        raise Exception('Child thread has no parent.')
+    parent_thread_id = child_rows[0]['parent_thread_id']
+    child_title = child_rows[0].get('title', child_thread_id[:20])
+
+    # Get child's most recent summary
+    sum_r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers=_HEADERS,
+        params={'thread_id': f'eq.{child_thread_id}', 'entry_type': 'eq.summary',
+                'order': 'created_at.desc', 'limit': '1', 'select': 'content'},
+        timeout=10,
+    )
+    sum_r.raise_for_status()
+    summaries = sum_r.json()
+    child_summary = summaries[0]['content'] if summaries else '(no summary available)'
+
+    # Write analysis entry to parent
+    writeback_content = (
+        f'## Findings from child thread: {child_title}\n\n'
+        f'{child_summary}\n\n'
+        f'*Source thread: {child_thread_id}*'
+    )
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json={'thread_id': parent_thread_id, 'entry_type': 'analysis',
+              'content': writeback_content, 'source': f'child:{child_thread_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    entry_id = r.json()[0].get('id', '') if r.json() else ''
+    log.info('write_child_findings_to_parent: child=%s parent=%s entry=%s',
+             child_thread_id, parent_thread_id, entry_id)
+    return {'parent_thread_id': parent_thread_id, 'entry_id': entry_id}
+
+
+@anvil.server.callable
+def get_thread_family(thread_id):
+    """Return parent thread and child threads for a thread."""
+    # Current thread
+    r = requests.get(f'{_SUPABASE_URL}/rest/v1/threads', headers=_HEADERS,
+                     params={'id': f'eq.{thread_id}', 'select': 'parent_thread_id,title'}, timeout=10)
+    r.raise_for_status()
+    current = r.json()[0] if r.json() else {}
+    parent_id = current.get('parent_thread_id')
+
+    # Children
+    children_r = requests.get(f'{_SUPABASE_URL}/rest/v1/threads', headers=_HEADERS,
+                               params={'parent_thread_id': f'eq.{thread_id}',
+                                       'select': 'id,title,state,created_at'}, timeout=10)
+    children_r.raise_for_status()
+    children = children_r.json()
+
+    # Parent info
+    parent = None
+    if parent_id:
+        pr = requests.get(f'{_SUPABASE_URL}/rest/v1/threads', headers=_HEADERS,
+                          params={'id': f'eq.{parent_id}', 'select': 'id,title,state'}, timeout=10)
+        pr.raise_for_status()
+        parent = pr.json()[0] if pr.json() else None
+
+    return {'parent': parent, 'children': children}
+
+
 # ── Watch state (B-098) ──────────────────────────────────────────────────────
 
 @anvil.server.callable
