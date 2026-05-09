@@ -1,6 +1,6 @@
 # CARRY_HEALTH.md
 # Auto-generated. Read at desktop session start.
-# Generated: 2026-05-09 06:01 UTC
+# Generated: 2026-05-09 06:46 UTC
 
 **Lesson store:** 255 lessons, 0 missing chromadb_id ✅
 **Agent fleet:** 9 active, 1 without workflow_id ⚠️

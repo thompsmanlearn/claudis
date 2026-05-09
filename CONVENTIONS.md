@@ -72,6 +72,10 @@ When a file needs to live at a runtime path (hardcoded in a service) and a versi
 - **ADR** (`architecture/decisions/`): decision with consequences beyond one fix.
 - When between lesson and artifact, write both.
 
+### Session artifacts must ride with the code they document
+
+Commit session artifacts and code changes **together in the same commit** when possible. If code was committed earlier in the session, reference those commit SHAs explicitly in the artifact header (e.g. `Code commit: abc1234`). A reviewer (human or grader) should be able to find the code by reading the artifact. Artifact-only commits that don't reference code SHAs fail the grader. (B-111, 2026-05-08)
+
 ### Annotations
 
 `agent_feedback` is the unified annotation table for the whole system — agents, lessons, skills, sessions, cards, capabilities, threads. File observations here; the classifier (B-086) determines intent. See `architecture/decisions/annotation-pattern.md` for target_type vocabulary and uplink callables.

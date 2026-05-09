@@ -12,22 +12,22 @@
 - Lean mode: sentinel timer disabled, `autonomous_growth_scheduler` deactivated. Desktop scopes cards; Claude Code executes.
 - **Chapter 1 complete (B-084–B-093):** Foundation patterns — boot consolidation, annotation backbone + classifier, grader, auth tiers, capability index, skill resolution, carry documents.
 - **Chapter 2 complete (B-094–B-101):** Research orchestrator — web search (Brave), charter format, cycle orchestrator, cycle grader, watch state, memory consultation, sub-question spawning. context_engineering_research deprecated.
-- Thread architecture complete (B-070–B-083): all live
-- Fleet: 9 active agents + 1 deprecated (context_engineering_research). Hourly watch timer enabled.
-- Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits
+- **Chapter 3 complete (B-106–B-112):** Cleanup + ChromaDB leverage — context_engineering_research retired, auto-cycle approval gate, lean_runner.sh symlink, boot episodic memory verified + backfilled, lesson utilization visibility (/lesson_stats), capability curation pass (greeter_bot retired, 9 candidates in Anvil queue), doc consolidation.
+- Thread architecture complete (B-070–B-083): all live.
+- Fleet: 9 active agents. lean_runner.sh is now a symlink — edit canonical only. Hourly watch timer enabled.
+- Note: stats-server deploys from ~/aadp/stats-server/ — must cp from claudis/stats-server/ after edits.
 
-**Project arc next:** Chapter 3 when Bill decides. Candidates: Life OS integration, automated agent→thread wiring (Gap A), ChromaDB leverage, or system self-repair. Carry documents at repo root for desktop session orientation.
+**Project arc next:** Chapter 4 when Bill decides. Destinations: Life OS integration, automated agent→thread wiring (Gap A), system self-repair. 9 curation candidates pending Bill's Anvil review (retire_agent/retire_skill callables ready).
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-05-08 (Chapter 2: B-094–B-101):**
-- **What I was doing:** Executed all 8 Chapter 2 cards in a single session. B-094 (Brave Search API), B-095 (charter format), B-096 (orchestrator), B-097 (cycle grader), B-098 (watch state + systemd timer), B-099 (memory consultation), B-100 (sub-question spawning), B-101 (wrap + deprecation).
-- **What I learned:** stats_server uses urllib throughout — not the `requests` library. Internal endpoint calls within stats_server must use urllib.request. grader_reviews verdict CHECK constraint blocked 'continue'/'complete' — extended the constraint. agent_registry status CHECK doesn't include 'deprecated' — extended that too.
-- **Continue:** Chapter 3 when Bill decides. Smoke test thread (e0560a85) has 2 cycles, 1 child thread (a64b48e1), grader verdict=continue. System fully functional — run /run_research_cycle on any thread with a charter to test the full loop.
-- **Left better:** Charter-driven research, web search, cycle grader, watch state, memory consultation, recursive sub-question spawning all live.
-- **Usage:** session ~%, weekly ~%
+**2026-05-08 (Chapter 3: B-106–B-112):**
+- **What I was doing:** Desktop session scoped Chapter 3 (dropped B-110 grader formatting, folded B-111 convention into B-112, added C-1/C-2 as ChromaDB cards). Executed B-106 (retire context_engineering_research — n8n workflow deleted, webhook 404 confirmed), B-107 (auto-cycle approval gate — annotation instead of auto-PATCH, 2 new callables), B-108 (lean_runner.sh symlink), B-110 (boot episodic memory — verified inject_context_v3 already queries session_memory; backfilled Chapter 1+2 narratives; close-session step 9 updated with Do Not Skip warning), B-111 (/lesson_stats: 255 lessons, 83 never-applied/32.5%; work_queue compression item closed), B-109 (capability curation: 10 candidates surfaced, greeter_bot retired, 9 in queue), B-112 (this wrap).
+- **What I learned:** inject_context_v3 already queries session_memory — the April/May gap was missing close-session step 9 writes, not missing queries. agent_registry has no last_used column — curation uses updated_at + workflow_id presence. system_config value column is JSONB — must cast booleans. live uplink_server.py runs directly from claudis (no separate copy).
+- **Continue:** Chapter 4 when Bill decides. 9 curation candidates in Anvil queue for retirement decisions. "Document AADP on the Site" project has project_completion annotation (all 8 nodes done).
+- **Left better:** Annotation queue has real items; grader calibrated; session_memory episodic tier populated; lesson utilization visible; curation infrastructure live; all sediment retired.
 
 **2026-05-08 (Chapter 1: B-084–B-093):**
 - **What I was doing:** Executed all 10 Chapter 1 foundation cards in a single session. B-084 (boot consolidation), B-085 (annotation backbone), B-086 (classifier), B-087 (grader + dashboard tab), B-088 (auth tiers), B-089 (capability index), B-090 (skill resolver), B-091 (carry docs), B-092 (retire INQUIRIES), B-093 (chapter wrap).
