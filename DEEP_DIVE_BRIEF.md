@@ -156,7 +156,7 @@ Cards can be written in dependency chains: B-026 enables B-027 which enables B-0
 
 ### Auto-Cycle (B-043)
 
-When `auto_cycle_enabled = true` in system_config, lean_runner.sh chains sessions automatically after success. After a card completes and the site regenerates, lean_runner.sh queries `aadp_project_nodes` for the next unblocked pending node in any active project. If found, it writes the node's goal and context to DIRECTIVES.md, commits and pushes, releases the session lock, and calls `/trigger_lean` to start the next session immediately. If all nodes are complete, the project is marked `complete` in `aadp_projects`. `auto_cycle_enabled` defaults to false and is toggled from the Anvil dashboard or site control panel.
+When `auto_cycle_enabled = true` in system_config, lean_runner.sh chains sessions automatically after success. After a card completes and the site regenerates, lean_runner.sh queries `aadp_project_nodes` for the next unblocked pending node in any active project. If found, it writes the node's goal and context to DIRECTIVES.md, commits and pushes, releases the session lock, and calls `/trigger_lean` to start the next session immediately. If all nodes are complete, lean_runner.sh writes an annotation to `agent_feedback` (`target_type='project_completion'`) requesting Bill's confirmation — the project is NOT auto-marked complete. Bill confirms via `confirm_project_complete(project_id)` or rejects via `reject_project_completion(project_id, reason)` in Anvil. The old auto-PATCH behavior is available if `auto_cycle_completion=true` in system_config (default false). `auto_cycle_enabled` defaults to false and is toggled from the Anvil dashboard or site control panel. (B-107, 2026-05-08)
 
 ### Desktop Session Workflow
 
@@ -503,7 +503,7 @@ The MCP server (`~/aadp/mcp-server/server.py`) exposes tools across these catego
 
 **Composite:** developer_context_load (concurrent pull of registry + queue + errors + notes + config + system status)
 
-**lean_runner.sh** — `~/aadp/sentinel/lean_runner.sh` (live) and `~/aadp/claudis/sentinel/lean_runner.sh` (version-controlled). Stats server hardcodes the sentinel path; claudis copy is canonical source. After successful session: regenerates GitHub Pages site, then runs auto-cycle check if `auto_cycle_enabled=true`.
+**lean_runner.sh** — `~/aadp/sentinel/lean_runner.sh` is a symlink to `~/aadp/claudis/sentinel/lean_runner.sh` (version-controlled canonical). Stats server hardcodes the sentinel path; edits to the canonical are immediately reflected at the live path via symlink. After successful session: regenerates GitHub Pages site, then runs auto-cycle check if `auto_cycle_enabled=true`. (B-108, 2026-05-08)
 
 Key implementation details:
 - n8n API key re-read from .env on every call — key rotations need no restart
@@ -819,9 +819,9 @@ Before ending a desktop session:
 
 **Capabilities table partially populated.** At least some rows exist (boot_feedback_pickup added 2026-04-26); full reconciliation against actual system capabilities not yet done.
 
-**Project auto-complete has no approval gate.** When lean_runner.sh finds no unblocked pending nodes, it marks the project `complete` in `aadp_projects` automatically — Bill does not review or approve first.
+**Project auto-complete has an approval gate.** ✅ Resolved B-107 (2026-05-08). lean_runner.sh now writes a `project_completion` annotation to `agent_feedback` instead of auto-patching. Bill confirms via Anvil callables. Auto-PATCH preserved if `auto_cycle_completion=true` (default false).
 
-**lean_runner.sh dual-location.** Live copy at `~/aadp/sentinel/lean_runner.sh`; version-controlled copy at `claudis/sentinel/lean_runner.sh`. Changes must be made to both manually — no sync mechanism.
+**lean_runner.sh dual-location resolved.** ✅ Resolved B-108 (2026-05-08). Live copy is now a symlink to the claudis canonical — no manual sync needed. Symlink pattern: when a file needs to live at a runtime path and a version-controlled path, use a symlink at the runtime path pointing to the claudis canonical.
 
 **close-session.md and bootstrap.md are version-controlled in claudis.** Authoritative copies live at `~/aadp/claudis/skills/close-session.md` and `~/aadp/claudis/skills/bootstrap.md`. The `.claude/skills/` paths are symlinks into claudis — no manual sync needed. Edit in claudis, commit, done. Resolved B-061a 2026-04-26.
 

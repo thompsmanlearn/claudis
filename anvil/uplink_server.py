@@ -431,6 +431,52 @@ def set_autonomous_mode(enabled):
     return {'enabled': enabled, 'errors': errors}
 
 
+@anvil.server.callable
+def confirm_project_complete(project_id, notes=''):
+    """Mark a project complete after Bill's explicit confirmation."""
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/aadp_projects',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{project_id}'},
+        json={'status': 'complete'},
+        timeout=5,
+    )
+    r.raise_for_status()
+    requests.post(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        json={
+            'target_type': 'project_completion',
+            'target_id': project_id,
+            'content': f'Project marked complete by Bill. Notes: {notes}' if notes else 'Project marked complete by Bill.',
+            'action_session': 'uplink_confirm_project_complete',
+            'metadata': {'intent_type': 'state_change', 'new_status': 'complete'},
+        },
+        timeout=5,
+    )
+    log.info('Project %s confirmed complete', project_id)
+    return {'status': 'complete', 'project_id': project_id}
+
+
+@anvil.server.callable
+def reject_project_completion(project_id, reason=''):
+    """Reject an auto-cycle completion request — project stays active."""
+    requests.post(
+        f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        json={
+            'target_type': 'project_completion',
+            'target_id': project_id,
+            'content': f'Project completion rejected. Reason: {reason}' if reason else 'Project completion rejected.',
+            'action_session': 'uplink_reject_project_completion',
+            'metadata': {'intent_type': 'state_change', 'action': 'rejected', 'reason': reason},
+        },
+        timeout=5,
+    )
+    log.info('Project %s completion rejected: %s', project_id, reason)
+    return {'status': 'rejected', 'project_id': project_id, 'reason': reason}
+
+
 # ── Lesson callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
