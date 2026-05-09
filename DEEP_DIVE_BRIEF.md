@@ -466,7 +466,7 @@ Periodically (cadence TBD — every few sessions or weekly), a desktop session s
 ---
 
 ## 7. Technical Architecture
-*Last updated: 2026-05-03*
+*Last updated: 2026-05-08*
 
 ### Services Map
 
@@ -528,7 +528,7 @@ Key implementation details:
 
 ### Stats Server Endpoints
 
-The stats server (`~/aadp/stats-server/stats_server.py`, 3205 lines, port 9100) is now in git (commit 56ba358, 2026-04-17).
+The stats server (`~/aadp/stats-server/stats_server.py`, ~5700 lines, 40 endpoints, port 9100). Canonical at `~/aadp/claudis/stats-server/stats_server.py` — copy to `~/aadp/stats-server/` after edits, then `sudo systemctl restart aadp-stats`.
 
 **Core:** /system_status, /healthz
 
@@ -538,28 +538,46 @@ The stats server (`~/aadp/stats-server/stats_server.py`, 3205 lines, port 9100) 
 
 **Data:** /append_experiment, /write_experiment, /get_outputs, /get_audit
 
-**Research:** /run_daily_research, /run_research_synthesis, /get_research_window
+**Research (legacy):** /run_daily_research, /run_research_synthesis, /get_research_window
+
+**Research (orchestrator — B-094–B-100):** /web_search, /web_fetch, /run_research_cycle, /grade_research_cycle, /run_watch_cycle, /check_watch_threads (GET), /consult_memory, /backfill_articles_to_chromadb, /embed_article
 
 **Memory:** /memory_query (ChromaDB proxy via subprocess)
 
-**Lesson injection:** /inject_context_v2, /inject_context_v3 (current — v3.1 with task-type routing, confidence signal, zero_applied wildcards), /lessons_applied
+**Lesson injection:** /inject_context_v2, /inject_context_v3 (current — v3.1 with task-type routing, confidence signal, zero_applied wildcards), /lessons_applied, /lesson_stats (B-111 — utilization summary)
+
+**Grader:** /grade_card (B-087 — Sonnet grades session artifacts against done-when criteria)
+
+**Skill resolution:** /resolve_skills (B-090 — matches directive text to skills_registry, returns confidence-ranked list)
+
+**Annotation classifier:** /classify_annotation (B-086 — Haiku classifies agent_feedback by intent_type)
+
+**Capability curation:** /run_capability_curation_scan (B-109 — scans registries, writes Tier 2 annotations)
+
+**Carry documents:** /generate_carry_documents (B-091 — writes CARRY_QUESTIONS/PROPOSALS/HEALTH.md to claudis)
+
+**Deprecated (endpoint kept, no caller):** /run_context_research (B-106 — n8n workflow deleted)
 
 ### inject_context_v3 Task-Type Routing
 
 ```python
 _V3_TASK_ROUTING = {
-    "agent_build":      [lessons, error_patterns, reference_material, session_memory, research_findings],
-    "research_cycle":   [research_findings, lessons, reference_material, session_memory],
-    "explore":          [lessons, session_memory, research_findings],
-    "self_diagnostic":  [self_diagnostics, error_patterns, lessons],
-    "directive":        [lessons, error_patterns, reference_material, session_memory],
+    # session_memory at position 2 in all lists that include it —
+    # survives token-trim (which pops from bottom); reference_material
+    # and research_findings trimmed first.
+    "agent_build":      [lessons_learned, session_memory, error_patterns, reference_material, research_findings],
+    "research_cycle":   [research_findings, lessons_learned, session_memory, reference_material],
+    "explore":          [lessons_learned, session_memory, research_findings],
+    "self_diagnostic":  [self_diagnostics, error_patterns, lessons_learned],
+    "directive":        [lessons_learned, session_memory, error_patterns, reference_material],
     "gh_weekly_search": [research_findings],
-    "gh_report":        [session_memory, lessons],
-    "gh_task":          [lessons, reference_material],
-    "agent_control":    [lessons, error_patterns],
-    "agent_test":       [lessons, error_patterns, reference_material],
-    # unknown → all 5 tiers
+    "gh_report":        [session_memory, lessons_learned],
+    "gh_task":          [lessons_learned, reference_material],
+    "agent_control":    [lessons_learned, error_patterns],
+    "agent_test":       [lessons_learned, error_patterns, reference_material],
+    # unknown → _V3_DEFAULT_COLLECTIONS (all 5 tiers)
 }
+_V3_DEFAULT_COLLECTIONS = [lessons_learned, session_memory, error_patterns, reference_material, research_findings]
 ```
 
 Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → low; no results → none.
@@ -568,7 +586,7 @@ Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → l
 
 **work_queue** — id (uuid), task_type, status (pending/claimed/processing/complete/failed), priority (integer 1-3, 1=normal 3=critical), assigned_agent, input_data (jsonb), output_data (jsonb), created_by, created_at, claimed_at, completed_at, error_message
 
-**agent_registry** — id (uuid), agent_name (unique), display_name, agent_type, description, status (active/paused/retired/building/broken/sandbox), input_types/output_types/data_sources (text[]), schedule, workflow_id, performance_metrics (jsonb), protected (bool), telegram_command, created_at, updated_at
+**agent_registry** — id (uuid), agent_name (unique), display_name, agent_type, description, status (active/paused/retired/building/broken/sandbox/deprecated), input_types/output_types/data_sources (text[]), schedule, workflow_id, performance_metrics (jsonb), protected (bool), telegram_command, webhook_url, authorization_tier (int: 1/2/3), skills_used (text[]), capabilities_provided (text[]), created_at, updated_at
 
 **research_articles** — id (uuid), agent_run_id (uuid, groups articles from one run), title (text), url (text), source (text, domain), summary (text), query_used (text), retrieved_at (timestamptz), rating (smallint, default 0: -1/0/1), comment (text), status (text, default 'new': new/reviewed/archived), provenance (text, default 'context_engineering_research_agent'), thread_id (uuid, nullable — set when article was gathered via a thread-triggered run). Index on agent_run_id and status.
 
@@ -600,7 +618,13 @@ Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → l
 
 **aadp_project_nodes** — id (uuid), project_id (uuid FK), parent_id (uuid nullable), name (text), type (text), status (text: pending/in_progress/done), dependencies (uuid[]), acceptance_criteria (text), context (text), session_budget (int), output (text nullable), created_at, updated_at
 
-**system_config** — key (text PK), value (jsonb), updated_at. Notable keys: `auto_cycle_enabled` (bool, default false — controls lean session chaining), `global_pause` (bool), `wake_interval_hours` (int)
+**system_config** — key (text PK), value (jsonb), updated_at. Notable keys: `auto_cycle_enabled` (bool, default false — controls lean session chaining), `auto_cycle_completion` (bool, default false — if false, project completion writes annotation instead of auto-PATCH; B-107), `global_pause` (bool), `wake_interval_hours` (int)
+
+**grader_reviews** — id (uuid), card_id (text), session_artifact_path (text), verdict (text: pass/pause/fail/continue/complete/cannot_grade), rationale (text), criteria_results (jsonb — per-criterion met/not-met + evidence), input_snapshot (jsonb — done_when, artifact, git diff, commit_sha), review_type (text), target_id (text), reviewed_by_bill (bool), bill_override (text), created_at
+
+**skills_registry** — id (uuid), name (text unique), description, trigger_keywords (text[]), file_path (text — path to SKILL.md), applies_when (text), also_triggers_when (text), provides (text), status (text: active/retired), times_used (int, default 0), times_loaded (int, default 0), last_used, last_loaded, created_at, updated_at
+
+**session_status** — id (uuid), session_id (text), card_id (text nullable), phase (text: started/executing/complete/timeout/error), current_action (text), started_at, updated_at. Written by lean_runner.sh to track active session state.
 
 **inbox** — id, from_agent, message_type (help_request/approval_request/recommendation/observation/question/alert), subject, body, context (jsonb), status (pending/approved/denied/deferred/replied), bill_reply, priority, created_at, responded_at
 
@@ -612,14 +636,17 @@ All collections use `all-MiniLM-L6-v2` embeddings. ChromaDB v0.5.20 at localhost
 
 | Collection | Count (approx) | Purpose | Boot retrieval |
 |---|---|---|---|
-| `lessons_learned` | 224+ | Technical lessons from sessions | ✓ default |
+| `lessons_learned` | 255 | Technical lessons from sessions | ✓ default |
 | `reference_material` | 173 | Architecture patterns, runbooks | ✓ default |
-| `research_findings` | 141 | arXiv/HN research items | ✓ default |
-| `session_memory` | 71+ | Episodic session context | ✓ default |
+| `research_findings` | 315 | arXiv/HN/article items (B-103 embedded 170 research_articles) | ✓ default |
+| `session_memory` | 98 | Episodic session context | ✓ default |
 | `error_patterns` | 15 | Known failure modes | ✓ default |
 | `self_diagnostics` | 11 | Diagnostic procedures | ✓ default |
 | `agent_templates` | 4 | Agent scaffolding templates | ✓ default |
+| `ag_research_data` | — | Research data (purpose unclear — do not add to routing without investigation) | excluded |
 | `thread_entries` | — | Thread entry embeddings (B-070+) | **excluded by design** |
+
+*Counts as of 2026-05-08. Run `memory_list_collections` for current counts.*
 
 **thread_entries is excluded from default boot retrieval.** LEAN_BOOT step 11 and bootstrap step 3 query specific named collections; they do not query `thread_entries`. This is enforced by absence — there is no explicit blocklist to maintain. Future cards that add in-thread semantic search will query this collection explicitly. Do not add it to default routing without a deliberate decision.
 
@@ -644,11 +671,11 @@ Store sync check (run at close-session step 7a): `SELECT COUNT(*) FROM lessons_l
 ---
 
 ## 8. Agent Fleet
-*Last updated: 2026-05-03*
+*Last updated: 2026-05-08*
 
 **Lifecycle:** `building` → `sandbox` → (behavioral_health_check + 4-Pillars evaluation) → `active` OR `retired/paused`
 
-32 agents total. Full source at `~/aadp/claudis/agents/`.
+33 agents total: 9 active, 20 paused, 4 retired. Full source at `~/aadp/claudis/agents/`.
 
 ### Protected Agents — source of truth: agent_registry
 
@@ -668,7 +695,13 @@ ai_frontier_scout, coast_intelligence, cosmos_report, daily_briefing_agent, dail
 Paused 2026-04-22 (aspirations not attained — pruned to load-bearing core):
 agent_evaluator_4pillars, behavioral_health_check, feedback_agent, github_issue_tracker, processed_content_agent, resource_scout_reddit, usage_stats, weather_agent
 
-All paused agents can be reactivated from the Anvil dashboard.
+Also paused: autonomous_growth_scheduler (intentionally — Bill reactivates manually only), research_agent (never built — no workflow_id).
+
+**Curation candidates (B-109, 2026-05-08):** 5 paused agents flagged for retirement (no workflow_id, never built): research_agent, macro_pulse, ai_frontier_scout, coast_intelligence, heritage_watch. Annotations in Anvil attention queue. Use retire_agent() callable to act.
+
+Retired: serendipity_engine, haiku_self_critic, context_engineering_research (B-106), greeter_bot (B-109).
+
+All non-retired paused agents can be reactivated from the Anvil dashboard.
 
 ### Active Production Agents
 
