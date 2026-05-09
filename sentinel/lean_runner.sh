@@ -163,11 +163,13 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
             # Find most recent session artifact for this card
             ARTIFACT=$(ls -t "${CLAUDIS_DIR}/sessions/lean/"*"${CARD_ID}"*.md 2>/dev/null | head -1)
             ARTIFACT_NAME=$(basename "${ARTIFACT}" 2>/dev/null || echo "")
-            log "GRADER: grading ${CARD_ID} artifact=${ARTIFACT_NAME}"
+            # Capture HEAD SHA immediately after card commit (B-104)
+            CARD_COMMIT_SHA=$(git -C "${CLAUDIS_DIR}" rev-parse HEAD 2>/dev/null || echo "")
+            log "GRADER: grading ${CARD_ID} artifact=${ARTIFACT_NAME} sha=${CARD_COMMIT_SHA:0:8}"
 
             GRADE_RESULT=$(curl -s --max-time 90 -X POST "http://localhost:9100/grade_card" \
                 -H "Content-Type: application/json" \
-                -d "{\"card_id\": \"${CARD_ID}\", \"session_artifact_path\": \"${ARTIFACT_NAME}\"}" \
+                -d "{\"card_id\": \"${CARD_ID}\", \"session_artifact_path\": \"${ARTIFACT_NAME}\", \"commit_sha\": \"${CARD_COMMIT_SHA}\"}" \
                 2>/dev/null)
             VERDICT=$(echo "${GRADE_RESULT}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('verdict','pause'))" 2>/dev/null || echo "pause")
             log "GRADER: verdict=${VERDICT}"

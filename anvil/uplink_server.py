@@ -2821,6 +2821,16 @@ def export_grader_review(review_id):
                      'CONTINUE': '🔄', 'COMPLETE': '✅'}
     icon = verdict_icons.get(verdict, '❓')
 
+    # Extract commit_sha from input_snapshot if available
+    snapshot = rv.get('input_snapshot') or {}
+    if isinstance(snapshot, str):
+        try:
+            import json as _jsn
+            snapshot = _jsn.loads(snapshot)
+        except Exception:
+            snapshot = {}
+    commit_sha = snapshot.get('commit_sha', 'HEAD~3 fallback (no SHA recorded)')
+
     lines = [
         f'# Grader Review Export',
         f'',
@@ -2829,6 +2839,7 @@ def export_grader_review(review_id):
         f'- **Target:** {target} ({review_type})',
         f'- **Verdict:** {icon} {verdict}',
         f'- **Graded at:** {ts} UTC',
+        f'- **Commit SHA used:** {commit_sha}',
         f'- **Reviewed by Bill:** {rv.get("reviewed_by_bill", False)}',
         f'',
         f'## Verdict',

@@ -5218,8 +5218,11 @@ def _parse_card_from_backlog(card_id: str) -> dict:
     next_card = re.search(r"^(?:##\s+)?B-\d+:", text[start + 1:], re.MULTILINE)
     end = (start + 1 + next_card.start()) if next_card else len(text)
     card_text = text[start:end].strip()
-    # Extract Done when section
-    done_match = re.search(r"##\s+Done when\s*\n(.*?)(?=\n##\s|\Z)", card_text, re.DOTALL)
+    # Extract Done when section — handles ##, ###, or no-hash variants (B-105 fix)
+    done_match = re.search(
+        r"(?:^|\n)#{0,4}\s*Done when\s*\n(.*?)(?=\n#{1,4}\s|\Z)",
+        card_text, re.DOTALL
+    )
     done_when = done_match.group(1).strip() if done_match else ""
     return {"title": title, "card_id": card_id, "done_when": done_when, "full_text": card_text}
 
@@ -5235,11 +5238,17 @@ def _read_session_artifact(artifact_path: str) -> str:
     raise FileNotFoundError(f"Session artifact not found: {artifact_path}")
 
 
-def _get_recent_git_diff(n_commits: int = 3) -> str:
-    """Get diff summary of recent commits."""
-    log_out, _ = _git("log", f"-{n_commits}", "--oneline")
-    diff_out, _ = _git("diff", f"HEAD~{n_commits}", "HEAD", "--stat")
-    return f"Recent commits:\n{log_out}\n\nChanged files:\n{diff_out}"
+def _get_git_diff_for_card(commit_sha: str = "") -> str:
+    """Get diff context for a card. Uses explicit SHA when provided, else HEAD~3."""
+    if commit_sha:
+        # Show the specific commit and one parent commit for context
+        log_out, _ = _git("log", "-1", "--oneline", commit_sha)
+        diff_out, _ = _git("diff", f"{commit_sha}^", commit_sha, "--stat")
+        return f"Card commit: {commit_sha}\n{log_out}\n\nChanged files in that commit:\n{diff_out}"
+    else:
+        log_out, _ = _git("log", "-3", "--oneline")
+        diff_out, _ = _git("diff", "HEAD~3", "HEAD", "--stat")
+        return f"Recent commits (HEAD~3..HEAD — no commit_sha provided):\n{log_out}\n\nChanged files:\n{diff_out}"
 
 
 def _call_sonnet_grader(card: dict, artifact_text: str, git_diff: str, api_key: str) -> dict:
@@ -5320,6 +5329,7 @@ def grade_card(payload: dict = {}):
     """Grade a completed card against its done-when criteria. Returns structured verdict."""
     card_id = payload.get("card_id", "").strip()
     artifact_path = payload.get("session_artifact_path", "").strip()
+    commit_sha = payload.get("commit_sha", "").strip()  # B-104: explicit SHA
 
     if not card_id:
         return JSONResponse({"error": "card_id required"}, status_code=400)
@@ -5335,6 +5345,16 @@ def grade_card(payload: dict = {}):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
 
+    # B-105: guard against empty done_when — refuse to grade without a rubric
+    if not card.get("done_when", "").strip():
+        return JSONResponse({
+            "error": "cannot_grade",
+            "verdict": "cannot_grade",
+            "rationale": (f"Card {card_id} has no parseable Done when section in BACKLOG.md. "
+                          f"Cannot grade without a rubric. "
+                          f"Check that the card uses '## Done when', '### Done when', or 'Done when' as a section header."),
+        }, status_code=400)
+
     # Read artifact
     artifact_text = ""
     if artifact_path:
@@ -5343,8 +5363,8 @@ def grade_card(payload: dict = {}):
         except FileNotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
 
-    # Git diff
-    git_diff = _get_recent_git_diff(3)
+    # Git diff — use explicit SHA if provided (B-104), else HEAD~3 fallback
+    git_diff = _get_git_diff_for_card(commit_sha)
 
     # Build input snapshot (what the grader saw)
     input_snapshot = {
@@ -5353,6 +5373,7 @@ def grade_card(payload: dict = {}):
         "done_when": card["done_when"],
         "artifact_path": artifact_path,
         "artifact_length": len(artifact_text),
+        "commit_sha": commit_sha or "HEAD~3 fallback",
         "git_diff_summary": git_diff[:500],
         "graded_at": datetime.now(timezone.utc).isoformat(),
     }
