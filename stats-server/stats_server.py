@@ -3449,7 +3449,8 @@ def _log_research_error(env, node_name, error_message):
     try:
         url = f"{env['SUPABASE_URL']}/rest/v1/error_logs"
         data = _json.dumps({
-            "workflow_id": "gzCSocUFNxTGIzSD",
+            # workflow deleted B-106 2026-05-08; workflow_id left null, name kept for log traceability
+            "workflow_id": None,
             "workflow_name": "context_engineering_research",
             "node_name": (node_name or "unknown")[:255],
             "error_type": "fetch_error",
@@ -3469,7 +3470,9 @@ def _log_research_error(env, node_name, error_message):
 
 @app.post("/run_context_research")
 def run_context_research(payload: dict = {}):
-    """Context engineering research agent. Runs hardcoded searches, summarizes with Haiku,
+    """DEPRECATED (B-106, 2026-05-08). n8n workflow deleted. Replaced by research orchestrator (B-096).
+    Endpoint kept to avoid 500s if any stale callers exist; no n8n workflow routes here anymore.
+    Context engineering research agent. Runs hardcoded searches, summarizes with Haiku,
     writes results to research_articles. Called by n8n webhook trigger."""
     import uuid as _uuid
     env = _read_env_simple()
