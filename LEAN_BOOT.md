@@ -4,6 +4,8 @@
 
 You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you execute. Lean Mode: autonomous loop suspended. Bill states the session goal in his first prompt.
 
+*System facts: CONTEXT.md. Rules: CONVENTIONS.md. State: TRAJECTORY.md. Constraints: skills/PROTECTED.md.*
+
 ---
 
 ## Startup Sequence
@@ -25,11 +27,11 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 6. Read `~/aadp/claudis/skills/CATALOG.md`. Match the directive against the "Applies when" columns. Read matching `SKILL.md` files. Do not auto-load `references/*.md` — pull those on demand. Confirm: `Loading: [skills]. Proceeding.` or `No skills matched. Proceeding.`
 7. Read `~/aadp/claudis/CONTEXT.md`.
 8. Read `~/aadp/claudis/TRAJECTORY.md`.
-9. **Live-state ping** — Run both checks and include the results in the boot summary before proceeding:
+9. **Live-state ping** — Run both checks and include results in the boot summary:
 
    **Hardware** (`mcp__aadp__system_status`): report CPU%, memory%, disk%, temp, uptime.
 
-   **System state** — one read-only `mcp__aadp__supabase_exec_sql` query:
+   **System state** (`mcp__aadp__supabase_exec_sql`, read-only):
    ```sql
    WITH
      agents AS (
@@ -47,44 +49,36 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
               string_agg(task_type, ', ' ORDER BY priority) AS types
        FROM work_queue WHERE status = 'pending'
      )
-   SELECT a.count  AS active_agents,  a.list AS agents,
+   SELECT a.count AS active_agents, a.list AS agents,
           e.unresolved AS unresolved_errors,
-          q.pending    AS pending_tasks, q.types AS pending_task_types
+          q.pending AS pending_tasks, q.types AS pending_task_types
    FROM agents a, errs e, queue q;
    ```
    Flag any agent where `flag = 'no_workflow_id'`. No writes.
 
-10. **Pending feedback** — Query `agent_feedback` for unprocessed rows (read-only):
+10. **Pending feedback** (`mcp__aadp__supabase_exec_sql`, read-only):
 
-   ```sql
-   SELECT id, target_type, target_id, content, created_at
-   FROM agent_feedback
-   WHERE processed = false OR processed IS NULL
-   ORDER BY created_at ASC;
-   ```
+    ```sql
+    SELECT id, target_type, target_id, content, created_at
+    FROM agent_feedback
+    WHERE processed = false OR processed IS NULL
+    ORDER BY created_at ASC;
+    ```
 
-   - If rows exist: include them in the boot summary as a `## Pending Feedback` section. List each as `- [target_type: target_id, created_at] content`.
-   - If any row has `target_type = 'agent'` or `target_type = 'anvil_view'`, surface it again after step 5 as "Feedback to consider during execution:" — do not auto-act, present as input.
-   - When a piece of feedback is acted on during the session, mark it immediately (not at close):
-     ```sql
-     UPDATE agent_feedback SET processed = true, processed_at = now(), processed_in_session = '<session artifact filename or card ID>' WHERE id = '<id>';
-     ```
-   - If no pending feedback, skip silently — no placeholder.
+    If rows exist: include in boot summary as `## Pending Feedback`. Surface `target_type = 'agent'` or `'anvil_view'` rows again after step 5 as "Feedback to consider during execution:" — do not auto-act. When feedback is acted on, mark immediately:
+    ```sql
+    UPDATE agent_feedback SET processed = true, processed_at = now(), processed_in_session = '<artifact or card ID>' WHERE id = '<id>';
+    ```
+    If no pending feedback, skip silently.
 
-11. **Lesson retrieval** — Before executing, surface relevant lessons from prior sessions:
+11. **Lesson retrieval** — POST to the stats server:
+    ```
+    POST http://localhost:9100/inject_context_v3
+    Body: {"task_type": "design_and_build", "description": "<directive text + card goal summary>"}
+    ```
+    For each ID in `lesson_ids`: state "Applying lesson [id]:" and honour it. Keep a running list — close-session step 8 references it. inject_context_v3 increments `times_applied` server-side; close-session step 8 should skip these IDs.
 
-   POST to the stats server with the directive text and card goal:
-
-   ```
-   POST http://localhost:9100/inject_context_v3
-   Body: {"task_type": "design_and_build", "description": "<directive text + card goal summary>"}
-   ```
-
-   For each ID in the returned `lesson_ids`: state "Applying lesson [id]:" and honour it during execution. Keep a running list of applied IDs — close-session step 8 references this list. Note: inject_context_v3 increments `times_applied` server-side; close-session step 8 should skip the UPDATE for these IDs.
-
-   **Fallback** if stats server unreachable: run three `mcp__aadp__memory_search` calls with `collection=lessons_learned, n_results=5`: (1) raw directive keywords, (2) `"how to improve [domain]"`, (3) `"common failures in [domain]"`. For each result with distance < 1.4 that touches the task domain, apply and list. Close-session step 8 must increment these.
-
-   If no results apply, continue without comment.
+    **Fallback** if stats server unreachable: three `mcp__aadp__memory_search` calls (`collection=lessons_learned, n_results=5`): (1) directive keywords, (2) `"how to improve [domain]"`, (3) `"common failures in [domain]"`. Apply results with distance < 1.4. Close-session step 8 must increment these.
 
 12. Execute the directive. Do not pause for confirmation.
 
@@ -94,10 +88,9 @@ If LEAN_BOOT.md is corrupted, restore from `~/aadp/prompts/LEAN_BOOT_stable.md`.
 
 ## Session Close
 
-Run the close-session skill at session end. Procedure: `~/aadp/mcp-server/.claude/skills/close-session.md`.
+Run the close-session skill: `~/aadp/mcp-server/.claude/skills/close-session.md`.
 
 Regenerate the site before ending:
-
 ```
 cd ~/aadp/mcp-server && source venv/bin/activate && python3 ~/aadp/thompsmanlearn.github.io/generate_site.py
 ```

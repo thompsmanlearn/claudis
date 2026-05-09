@@ -9,6 +9,7 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
+- Lean mode: sentinel timer disabled, `autonomous_growth_scheduler` deactivated. Desktop scopes cards; Claude Code executes.
 - Thread architecture complete (B-070–B-083): schema, callables, read view, action panel, extraction passback, thread-aware gather with output wiring, standing summary at top — all live
 - context_engineering_research: 8 sources, neutral summaries, thread-aware query derivation; articles tagged with thread_id; gather entries written back to originating thread automatically
 - Fleet: 10 active agents, unchanged

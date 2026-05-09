@@ -22,6 +22,8 @@ Apply in every session.
 
 **Active Agents Have Purpose and Consumer.** Every active agent has a documented purpose and an identified consumer of its output. If either is missing, pause the agent.
 
+**When Uncertain.** Telegram Bill with context and options. Wait. Do not expand scope to resolve uncertainty.
+
 ---
 
 ## 2. Build Conventions
@@ -75,32 +77,3 @@ Apply when executing work.
 - Endpoints: `/verb_noun` (stats_server pattern).
 - Branches: `attempt/descriptor`.
 
----
-
-## 3. Current Operating Mode
-
-*Dated. Rewritten as the system changes. Last updated: 2026-04-22.*
-
-### State
-
-- Lean mode. Sentinel timer disabled. `autonomous_growth_scheduler` deactivated.
-- 10 active agents, all protected except `architecture_review`. Source of truth: `agent_registry WHERE status='active'`.
-- Anvil is the primary control surface. UI is partial; gaps are open work.
-- Desktop scopes cards; Claude Code executes. Roles do not overlap within a session.
-
-### Authorized without approval (within card scope)
-
-- Work advancing the card's acceptance criteria.
-- Research, inspection, and internal tooling that serves the card.
-- Judgment calls on implementation, documented in the session artifact.
-
-### Not authorized without approval
-
-- Work outside the card's scope. Surface the observation; do not act.
-- Actions under Bill's external accounts or with cost implications.
-- Changes to `DIRECTIVES.md`, `.env`, or anything in `PROTECTED.md`.
-- Resuming autonomous mode.
-
-### When uncertain
-
-Telegram Bill with context and options. Wait. Do not expand scope to resolve uncertainty.
