@@ -4061,6 +4061,196 @@ def run_research_cycle(payload: dict = {}):
     })
 
 
+# ── Research cycle grader (B-097) ────────────────────────────────────────────
+_CYCLE_GRADER_SYSTEM = """You are grading a research cycle against a charter. You have no context
+from the team that ran the cycle — judge from artifacts only. Do not ask for clarification.
+Cite specific evidence from the cycle entries for each criterion assessment.
+Research cycle verdicts: continue | complete | pause | fail
+- continue: cycle made progress; more cycles warranted
+- complete: success criteria are met; thread can close
+- pause: cycle drifted, hit ambiguity, or surfaced something Bill should see
+- fail: no usable output (search failures, all disqualified, no content)"""
+
+
+def _get_cycle_entries(thread_id: str, cycle_n: int, env) -> list:
+    """Fetch entries written by the specified cycle (most recent N entries of each type)."""
+    rows = _sb_query(env, "thread_entries",
+                     {"thread_id": f"eq.{thread_id}",
+                      "select": "id,entry_type,content,created_at,metadata",
+                      "order": "created_at.desc", "limit": "20"})
+    # The most recent cycle's entries are the newest rows
+    # Return the first occurrence of each key type
+    seen_types = set()
+    cycle_entries = []
+    for r in rows:
+        et = r.get("entry_type", "")
+        if et in ("charter", "state_change"):
+            continue
+        if et not in seen_types or et == "sub_question_candidate":
+            seen_types.add(et)
+            cycle_entries.append(r)
+    return cycle_entries
+
+
+def _call_sonnet_cycle_grader(charter: dict, cycle_entries: list, api_key: str) -> dict:
+    """Call Sonnet to grade the research cycle."""
+    success_criteria = charter.get("success_criteria", "No criteria specified")
+    disqualify = charter.get("disqualifying_criteria", "")
+    question = charter.get("question", "")
+
+    entries_text = ""
+    for e in cycle_entries:
+        entries_text += f"\n[{e.get('entry_type','?')}]\n{(e.get('content') or '')[:1000]}\n"
+
+    prompt = (
+        f"Grade this research cycle.\n\n"
+        f"RESEARCH QUESTION: {question}\n\n"
+        f"SUCCESS CRITERIA:\n{success_criteria}\n\n"
+        f"DISQUALIFYING CRITERIA:\n{disqualify}\n\n"
+        f"CYCLE ENTRIES:\n{entries_text[:5000]}\n\n"
+        f"For each success criterion, assess: met | partial | unmet. Cite evidence.\n"
+        f"Then give an overall verdict: continue | complete | pause | fail\n\n"
+        f"Respond with JSON only:\n"
+        f'{{"verdict": "continue|complete|pause|fail", '
+        f'"rationale": "2-3 sentences", '
+        f'"criteria_results": [{{"criterion": "...", "met": true|false, "evidence": "..."}}]}}'
+    )
+
+    payload = _json.dumps({
+        "model": _ORCHESTRATOR_MODEL,
+        "max_tokens": 1024,
+        "system": _CYCLE_GRADER_SYSTEM,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode()
+    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload, headers={
+        "x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"
+    })
+    with urllib.request.urlopen(req, timeout=60) as r:
+        resp = _json.loads(r.read())
+    text = resp["content"][0]["text"].strip()
+    start, end = text.find("{"), text.rfind("}") + 1
+    return _json.loads(text[start:end])
+
+
+def _persist_cycle_grader_review(thread_id, cycle_n, verdict, rationale, criteria_results, env) -> str:
+    """Write grader_reviews row for a research cycle."""
+    url = f"{env['SUPABASE_URL']}/rest/v1/grader_reviews"
+    payload = {
+        "card_id": f"cycle:{thread_id}:{cycle_n}",
+        "target_id": thread_id,
+        "review_type": "research_cycle",
+        "verdict": verdict,
+        "rationale": rationale,
+        "criteria_results": criteria_results,
+        "input_snapshot": {"thread_id": thread_id, "cycle_number": cycle_n},
+    }
+    data = _json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=data, method="POST", headers={
+        "apikey": env["SUPABASE_SERVICE_KEY"],
+        "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    })
+    with urllib.request.urlopen(req, timeout=10) as r:
+        rows = _json.loads(r.read())
+    return rows[0].get("id", "") if rows else ""
+
+
+def _handle_cycle_verdict(thread_id, cycle_n, verdict, rationale, env):
+    """Act on grader verdict: update thread state or file annotation."""
+    if verdict == "complete":
+        # Close the thread
+        url = f"{env['SUPABASE_URL']}/rest/v1/threads?id=eq.{thread_id}"
+        data = _json.dumps({"state": "closed"}).encode()
+        req = urllib.request.Request(url, data=data, method="PATCH", headers={
+            "apikey": env["SUPABASE_SERVICE_KEY"],
+            "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        })
+        with urllib.request.urlopen(req, timeout=8):
+            pass
+    elif verdict in ("pause", "fail"):
+        # File annotation
+        intent = "question" if verdict == "pause" else "correction"
+        note = f"Grader verdict: {verdict} (cycle {cycle_n}). {rationale}"
+        _sb_post_entry(env, {
+            "thread_id": thread_id,
+            "entry_type": "annotation",
+            "content": note,
+            "source": "grader",
+        })
+        # Also write to agent_feedback
+        url = f"{env['SUPABASE_URL']}/rest/v1/agent_feedback"
+        fb_payload = {
+            "target_type": "thread",
+            "target_id": thread_id,
+            "content": note,
+            "action_session": f"cycle_grader_{cycle_n}",
+            "metadata": _json.dumps({"intent_type": intent, "cycle_number": cycle_n}),
+        }
+        data = _json.dumps(fb_payload).encode()
+        req = urllib.request.Request(url, data=data, method="POST", headers={
+            "apikey": env["SUPABASE_SERVICE_KEY"],
+            "Authorization": f"Bearer {env['SUPABASE_SERVICE_KEY']}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        })
+        with urllib.request.urlopen(req, timeout=8):
+            pass
+
+
+@app.post("/grade_research_cycle")
+def grade_research_cycle(payload: dict = {}):
+    """Grade a research cycle against its charter. Called by /run_research_cycle."""
+    thread_id = payload.get("thread_id", "").strip()
+    cycle_n = int(payload.get("cycle_number", 1))
+
+    if not thread_id:
+        return JSONResponse({"error": "thread_id required"}, status_code=400)
+
+    env = _read_env_simple()
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "ANTHROPIC_API_KEY not found"}, status_code=500)
+
+    charter = _get_thread_charter(thread_id, env)
+    if not charter:
+        return JSONResponse({"error": "No charter found for thread"}, status_code=404)
+
+    cycle_entries = _get_cycle_entries(thread_id, cycle_n, env)
+    if not cycle_entries:
+        return JSONResponse({"verdict": "fail", "rationale": "No cycle entries found."})
+
+    try:
+        result = _call_sonnet_cycle_grader(charter, cycle_entries, api_key)
+    except Exception as e:
+        return JSONResponse({"error": f"grader call failed: {e}"}, status_code=500)
+
+    verdict = result.get("verdict", "pause")
+    rationale = result.get("rationale", "")
+    criteria_results = result.get("criteria_results", [])
+
+    try:
+        review_id = _persist_cycle_grader_review(thread_id, cycle_n, verdict, rationale, criteria_results, env)
+    except Exception as e:
+        review_id = ""
+
+    try:
+        _handle_cycle_verdict(thread_id, cycle_n, verdict, rationale, env)
+    except Exception:
+        pass
+
+    return JSONResponse({
+        "review_id": review_id,
+        "thread_id": thread_id,
+        "cycle_number": cycle_n,
+        "verdict": verdict,
+        "rationale": rationale,
+        "criteria_results": criteria_results,
+    })
+
+
 # ── Web search + fetch (B-094) ───────────────────────────────────────────────
 _BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 _USER_AGENT = "AADP-Research/1.0 (+https://github.com/thompsmanlearn/claudis)"

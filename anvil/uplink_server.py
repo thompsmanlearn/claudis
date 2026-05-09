@@ -2493,6 +2493,46 @@ def resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, 
     return {'resolved': True, 'resolution': resolution}
 
 
+# ── Cycle grader (B-097) ─────────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_grader_reviews_by_type(review_type='card', limit=20):
+    """Return grader reviews filtered by type: 'card' or 'research_cycle'."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/grader_reviews',
+        headers=_HEADERS,
+        params={
+            'select': 'id,card_id,target_id,review_type,verdict,rationale,criteria_results,created_at,reviewed_by_bill,bill_override',
+            'review_type': f'eq.{review_type}',
+            'order': 'created_at.desc',
+            'limit': str(limit),
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def get_latest_cycle_verdict(thread_id):
+    """Return the most recent grader verdict for a thread's research cycles."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/grader_reviews',
+        headers=_HEADERS,
+        params={
+            'select': 'verdict,rationale,created_at,reviewed_by_bill,bill_override',
+            'target_id': f'eq.{thread_id}',
+            'review_type': 'eq.research_cycle',
+            'order': 'created_at.desc',
+            'limit': '1',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    return rows[0] if rows else {}
+
+
 # ── Research charter (B-095) ─────────────────────────────────────────────────
 
 @anvil.server.callable
