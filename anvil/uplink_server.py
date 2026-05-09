@@ -480,6 +480,14 @@ def reject_project_completion(project_id, reason=''):
 # ── Lesson callables ─────────────────────────────────────────────────────────
 
 @anvil.server.callable
+def get_lesson_stats():
+    """Lesson utilization summary — total, never-applied, mean times_applied, top categories."""
+    r = requests.get(f'{_STATS_URL}/lesson_stats', timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
 def get_lessons(filter='recent', limit=25, age_threshold_days=7):
     params = {
         'select': 'id,title,category,times_applied,confidence,chromadb_id,created_at',

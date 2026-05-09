@@ -183,13 +183,17 @@ UPDATE capabilities SET times_used = times_used + 1 WHERE name = '...';
 
 ## Step 9 — Write session narrative to ChromaDB session_memory
 
-Written LAST among the memory steps, after all artifacts exist so it can reference them.
+**Do not skip.** session_memory is the episodic tier queried at boot by inject_context_v3.
+April/May 2026 sessions are missing from it because lean sessions skipped this step.
 
 Use memory_add:
 - collection: `session_memory`
 - doc_id: `session_{YYYY-MM-DD}_{HHMM}`
 - content: What was attempted, what worked, what failed, what was learned, what comes next
 - metadata: `{date, sentinel_version, tasks_completed, lessons_written}`
+
+Verify the write succeeded (memory_add returns `{"status": "added"}`).
+If memory_add is unavailable, note the failure in the session artifact so it can be backfilled.
 
 ---
 
