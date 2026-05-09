@@ -4061,6 +4061,64 @@ def run_research_cycle(payload: dict = {}):
     })
 
 
+# ── Memory consultation (B-099) ──────────────────────────────────────────────
+
+@app.post("/consult_memory")
+def consult_memory(payload: dict = {}):
+    """Query memory stores for prior coverage of a question. Writes memory_consultation entry if thread_id provided."""
+    question = payload.get("question", "").strip()
+    charter_summary = payload.get("charter_summary", "").strip()
+    thread_id = payload.get("thread_id", "").strip()
+
+    if not question and not charter_summary:
+        return JSONResponse({"error": "question or charter_summary required"}, status_code=400)
+
+    query_text = question or charter_summary
+    env = _read_env_simple()
+
+    # Build consultation results from the same 4 sources as the orchestrator memory pass
+    mock_charter = {"question": query_text}
+    memory = _memory_pass(mock_charter, [], env)
+
+    results = memory.get("results", [])
+    high_count = memory.get("high_relevance_count", 0)
+
+    # Format output as readable content
+    lines = [f"## Memory Consultation", f"Query: {query_text[:200]}", ""]
+    if not results:
+        lines.append("No prior coverage found in memory stores.")
+    else:
+        lines.append(f"Found {len(results)} relevant items ({high_count} high-relevance, distance < 0.8):")
+        lines.append("")
+        for i, r in enumerate(results[:8]):
+            src = r.get("source", "?")
+            dist = r.get("distance", 0)
+            content_preview = r.get("content", "")[:200].replace("\n", " ")
+            confidence = "high" if dist < 0.8 else ("medium" if dist < 1.2 else "low")
+            lines.append(f"**[{i+1}]** ({src}, {confidence}) {content_preview}")
+
+    consultation_content = "\n".join(lines)
+
+    # Write memory_consultation entry to thread if thread_id provided
+    if thread_id:
+        try:
+            _sb_post_entry(env, {
+                "thread_id": thread_id,
+                "entry_type": "memory_consultation",
+                "content": consultation_content,
+                "source": "system",
+            })
+        except Exception as e:
+            pass  # non-fatal
+
+    return JSONResponse({
+        "result_count": len(results),
+        "high_relevance_count": high_count,
+        "summary": memory.get("summary", ""),
+        "content": consultation_content,
+    })
+
+
 # ── Watch state (B-098) ──────────────────────────────────────────────────────
 _WATCH_INTERVALS = {
     "daily": timedelta(days=1),

@@ -2582,16 +2582,18 @@ def add_charter(thread_id, charter_content):
     entry_id = row.get('id', '')
     log.info('add_charter: thread=%s entry=%s', thread_id, entry_id)
 
-    # Trigger memory consultation (B-099 will wire this fully; placeholder call)
+    # Trigger memory consultation — writes memory_consultation entry to thread (B-099)
     try:
         import re as _re
         question_match = _re.search(r'(?:^|\n)##?\s*Question\s*\n(.*?)(?=\n##|\Z)', charter_content, _re.DOTALL)
         question_text = question_match.group(1).strip()[:500] if question_match else charter_content[:200]
         requests.post(
             f'{_STATS_URL}/consult_memory',
-            json={'thread_id': thread_id, 'question': question_text, 'charter_summary': charter_content[:300]},
-            timeout=30,
+            json={'thread_id': thread_id, 'question': question_text,
+                  'charter_summary': charter_content[:300]},
+            timeout=35,
         )
+        log.info('add_charter: memory consultation triggered for thread=%s', thread_id)
     except Exception as e:
         log.warning('add_charter: memory consultation failed (non-fatal): %s', e)
 
