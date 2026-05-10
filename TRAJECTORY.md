@@ -14,10 +14,11 @@
 - **Chapter 2 complete (B-094–B-101):** Research orchestrator.
 - **Chapter 3 complete (B-106–B-112):** Cleanup + ChromaDB leverage.
 - **Post-chapter additions (B-113–B-114):** Execution disciplines in CONVENTIONS. Comment-driven card loop live — B-115-cmt executed (first comment-generated card complete).
-- **System review complete (2026-05-09):** B-115-cmt executed, pipeline verified end-to-end, 5 agents retired, "Document AADP on the Site" project closed, 11 pending feedback cleared. Two revision findings queued as annotations: grader blind spot for data-only cards, card generator missing schema context.
+- **System review complete (2026-05-09):** B-115-cmt executed, pipeline verified end-to-end, 5 agents retired, "Document AADP on the Site" project closed. Two revision findings queued as annotations: grader blind spot for data-only cards, card generator missing schema context.
 - Thread architecture complete (B-070–B-083): all live.
-- Fleet: 9 active agents.
-- **Next:** Chapter 4 when Bill decides.
+- **B-117 complete (2026-05-10):** Thread research agent with Brave live in sandbox. /web_search first wired. 14 findings + 3 cycle_summaries written to test thread. B-116 (charter UI) was already complete.
+- Fleet: 9 active + 1 sandbox (thread_research_agent).
+- **Next:** B-118 (Gather trigger), B-119 (auto-wiring), then Chapter 4 when Bill decides.
 
 **Project arc next:** System review, then Chapter 4 when Bill decides.
 
@@ -25,11 +26,11 @@
 
 ## Handoff (pick up here)
 
-**2026-05-09 (system review):**
-- **What I was doing:** System review. B-115-cmt executed (architecture_review description/schedule corrected). Comment-driven export verified end-to-end. 5 agents retired (ai_frontier_scout, coast_intelligence, heritage_watch, macro_pulse, research_agent — all paused, no workflow). "Document AADP on the Site" confirmed complete (all 8 nodes done, all 6 HTML pages present). 11 pending feedback items cleared.
-- **What I learned:** Grader reads git diff only — data-only cards (Supabase row updates, no file changes) will always grade fail. generate_card_from_comment Sonnet prompt lacks DB schema context; B-115-cmt used wrong table name in card text. Both surfaced as capability annotations for Bill.
-- **Continue:** Chapter 4 when Bill decides. Two revision findings queued as unprocessed annotations (grader blind spot, card generator schema gap). Pending agent_build work_queue item (SpecOps GUI testing, 2026-05-03) needs a build card or explicit discard.
-- **Left better:** B-115-cmt executed. Curation queue cleared. Project closed. Pending feedback queue at zero.
+**2026-05-10 (B-117):**
+- **What I was doing:** B-117 — thread research agent with Brave. Built `/run_thread_research` in stats_server.py; wired n8n sandbox workflow; registered thread_research_agent; reclassified /web_search partial in consumer_manifest.json. B-116 (charter UI) was already complete — dependency pre-satisfied. Expanded thread_entries.entry_type CHECK constraint to include `finding` and `cycle_summary`. Added Form1 rendering for both types.
+- **What I learned:** thread_entries.entry_type has a DB CHECK constraint — not just a code-level validation set. Adding new entry types requires both DDL and uplink_server._THREAD_ENTRY_TYPES update. stats_server.py has no logger — remove all `log.` calls, failures are silent. Haiku screener works correctly but charter success criteria need to match what web searches actually return — broad academic criteria screen out most web results.
+- **Continue:** B-118 (Gather trigger in Anvil UI). B-119 (auto-wiring). Two unprocessed annotations in agent_feedback (grader blind spot, card generator schema). Pending agent_build work_queue item (SpecOps GUI testing, 2026-05-03) needs build card or discard.
+- **Left better:** Brave Search wired for first time. Thread research agent functional in sandbox with real charter + real findings.
 
 **2026-05-09 (B-113–B-114 + system review prep):**
 - **What I was doing:** B-113 (Karpathy execution disciplines → CONVENTIONS + close-session scope check). B-114 (comment-driven card loop — /generate_card_from_comment Sonnet endpoint, annotate() trigger, /export_comment_driven_results, Fleet tab "✏️ Comment work" button + per-agent indicator, USERS_MANUAL.md). Also: DEEP_DIVE_BRIEF Section 7/8 accuracy pass, removed Fleet thumbs-up/down.
