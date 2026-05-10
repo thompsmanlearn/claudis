@@ -22,6 +22,7 @@
 - Fleet: 9 active + 1 sandbox (thread_research_agent).
 - **B-120/B-121/B-122 complete (2026-05-10):** Workspace tab live. Bill's notes capture, working bundle, and audit bundle all functional. Export buttons in Workspace tab.
 - **B-123 complete (2026-05-10):** inject_context_v3 restored — 6 missing module-level constants reconstructed. Lesson retrieval and times_applied tracking working again.
+- **B-124 complete (2026-05-10):** stats_server now under git version control. Own repo at ~/aadp/stats-server/ (commit d28f88c). Two-repo sync pattern; symlink ruled out (venv constraint).
 - **Next:** B-118 (Gather trigger in Anvil UI), then Chapter 4 when Bill decides.
 
 **Project arc next:** System review, then Chapter 4 when Bill decides.
@@ -30,11 +31,11 @@
 
 ## Handoff (pick up here)
 
-**2026-05-10 (B-123 inject_context_v3 restore):**
-- **What I was doing:** B-123 — restored 6 missing module-level constants in `stats_server.py` (`_V3_TASK_ROUTING`, `_V3_DEFAULT_COLLECTIONS`, `_V3_DEFAULT_DESCRIPTIONS`, `_V3_COLLECTION_PARAMS`, `_V3_SECTION_LABELS`, `_V3_CONTENT_TRUNC`). Endpoint was 500-ing since 2026-05-09.
-- **What I learned:** Card said 3 constants missing; code referenced 6. Always audit all NameError sites in a function before reconstructing — the card count was an undercount.
-- **Continue:** B-118 (Gather trigger in Anvil UI). 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03). Call `mark_audit_taken()` manually after first audit export.
-- **Left better:** Lesson retrieval restored. `lesson_injector` agent will resume successful runs.
+**2026-05-10 (B-124 stats-server version control):**
+- **What I was doing:** B-124 — git init ~/aadp/stats-server/ as own repo. Committed stats_server.py (post-B-123, d28f88c). Symlink ruled out: venv at hardcoded systemd path can't survive directory symlink; file-level symlinks can't satisfy `git log` from deploy dir. Updated lesson_stats_server_deploy_path_2026-04-26 to reflect two-repo sync pattern.
+- **What I learned:** Lesson recommends symlink by default, but always verify the done-when criterion for `git log` from the deploy dir — it forces an own-repo if the dir can't be symlinked wholesale.
+- **Continue:** B-118 (Gather trigger in Anvil UI). 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03).
+- **Left better:** stats_server.py now recoverable via git revert instead of constant reconstruction.
 
 **2026-05-10 (B-122 audit bundle):**
 - **What I was doing:** B-122 — audit bundle. Added `get_audit_bundle()` and `mark_audit_taken()` to uplink_server.py. Added "Export audit bundle" button to Workspace tab. Discovered `research_articles` uses `retrieved_at` not `created_at` — fixed by parameterizing timestamp column per store as `(table, ts_col)` tuples.
