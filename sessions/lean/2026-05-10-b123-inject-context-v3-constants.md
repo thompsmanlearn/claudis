@@ -2,7 +2,7 @@
 Date: 2026-05-10
 Type: lean
 Card: B-123
-Code commit: (see below)
+Code commit: 78fd201
 
 ## Tasks Completed
 - Reconstructed 6 missing module-level constants in `stats_server.py` above `inject_context_v3`: `_V3_TASK_ROUTING`, `_V3_DEFAULT_COLLECTIONS`, `_V3_DEFAULT_DESCRIPTIONS`, `_V3_COLLECTION_PARAMS`, `_V3_SECTION_LABELS`, `_V3_CONTENT_TRUNC`
