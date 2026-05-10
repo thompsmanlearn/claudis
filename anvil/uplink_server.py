@@ -3434,6 +3434,119 @@ def run_consumer_audit():
     return r.json()
 
 
+# ── Bill's mind / working bundle (B-120) ────────────────────────────────────
+
+@anvil.server.callable
+def get_bill_notes():
+    """Return all unaddressed bill_notes rows, newest first."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/bill_notes',
+        headers=_HEADERS,
+        params={'select': 'id,content,created_at', 'addressed': 'eq.false', 'order': 'created_at.desc'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def add_bill_note(content):
+    """Write a new unaddressed note to bill_notes."""
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/bill_notes',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json={'content': content.strip()},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    return rows[0] if rows else {}
+
+
+@anvil.server.callable
+def get_working_bundle():
+    """Return markdown with Bill's unaddressed notes, flagged session artifacts, and recent activity."""
+    import glob
+    import os as _os
+
+    # Section 1: What's on Bill's mind
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/bill_notes',
+        headers=_HEADERS,
+        params={'select': 'id,content,created_at', 'addressed': 'eq.false', 'order': 'created_at.desc'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    notes = r.json()
+    lines = ["## What's on Bill's mind\n"]
+    if notes:
+        for n in notes:
+            ts = (n.get('created_at') or '')[:10]
+            lines.append(f"- [{ts}] {n['content']}")
+    else:
+        lines.append("_Nothing pending._")
+
+    # Sections 2 & 3: session artifacts
+    sessions_dir = _os.path.expanduser('~/aadp/claudis/sessions/lean')
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).date()
+    FLAG_WORDS = ('failed', 'stuck', 'blocked', 'unresolved')
+    all_artifacts = []  # (date, title, after_line, flagged)
+
+    for path in sorted(glob.glob(f'{sessions_dir}/*.md'), reverse=True):
+        name = _os.path.basename(path)
+        try:
+            file_date = datetime.strptime(name[:10], '%Y-%m-%d').date()
+        except ValueError:
+            continue
+        try:
+            with open(path) as f:
+                text = f.read()
+        except Exception:
+            continue
+        title = name[:-3]
+        for line in text.splitlines():
+            if line.startswith('# '):
+                title = line[2:].strip()
+                break
+        after_line = ''
+        for line in text.splitlines():
+            if line.startswith('**After:**'):
+                after_line = line.replace('**After:**', '').strip()
+                break
+        flagged = file_date >= cutoff and any(w in text.lower() for w in FLAG_WORDS)
+        all_artifacts.append((file_date, title, after_line, flagged))
+
+    lines.append('\n## What Claude Code flagged\n')
+    flagged_arts = [(d, t, a) for d, t, a, f in all_artifacts if f]
+    if flagged_arts:
+        for d, t, a in flagged_arts:
+            summary = a[:100] if a else '(no delta)'
+            lines.append(f"- [{d}] {t}: {summary}")
+    else:
+        lines.append("_Nothing flagged in the last 14 days._")
+
+    lines.append('\n## Recent activity\n')
+    for d, t, a, _ in all_artifacts[:5]:
+        summary = a[:80] if a else '(no delta)'
+        lines.append(f"- [{d}] {t}: {summary}")
+
+    return '\n'.join(lines)
+
+
+@anvil.server.callable
+def mark_bill_note_addressed(note_id):
+    """Flip addressed=true on a bill_notes row."""
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/bill_notes',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{note_id}'},
+        json={'addressed': True, 'addressed_at': datetime.now(timezone.utc).isoformat()},
+        timeout=10,
+    )
+    r.raise_for_status()
+    return {'addressed': True}
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
