@@ -56,3 +56,50 @@ This card is establishing a convention that affects how you work. You're the one
 - If you want to change things structurally — different heuristic for which cards need review, different flow, different number of passes, you think we're solving the wrong problem, or anything else that changes the shape of the convention — stop and send Bill an output message describing what you'd change and why. Bill will paste it to Opus and we'll work through it before you build.
 
 The distinction: scoped changes happen quietly and get noted. Structural pushback comes back to the loop before code lands.
+## B-126: Reader-writer discipline in two-pass review
+Status: ready
+Depends on: B-125
+Supersedes: previous B-126 draft (VALIDATION.md approach — abandoned)
+
+### Goal
+Add reader-writer discipline as a standard concern in the two-pass review convention. Any card that creates a writer (a thumbs-up button, a new table, a logging hook, a new artifact format) should name its reader — what consumes the output and acts on it. If the reader doesn't exist yet, that's allowed, but it must be named as a follow-on card or explicitly deferred.
+
+The point is to catch dead-end writers during design, not after they've accumulated. This is a refinement of the two-pass review, not a new file or tracking system.
+
+### Context
+Decided in design conversation 2026-05-10 between Bill, Opus, and Claude Code, replacing an earlier draft of B-126 that proposed a VALIDATION.md file. Bill pointed out that the real discipline isn't a tracking file after the fact — it's designing the reader alongside the writer in the first place. A thumbs-up that writes to a Supabase table is useless without something that reads the table and uses the signal. Both ends or it doesn't ship.
+
+This is being written through the two-pass convention from B-125, refining that same convention.
+
+The mechanism: reader-writer is a standard question Claude Code asks during design review. Not a hard rule — sometimes building the writer first is deliberate. But if the reader is missing, the review names it, and we either add a follow-on card, defer it explicitly, or rethink whether the writer should ship.
+
+### Done when
+
+1. CONVENTIONS.md §3 (the two-pass review section from B-125) updated with:
+   - A new standard question for Claude Code's review: "Where's the reader? What consumes this output and acts on it?"
+   - Acceptable answers: a named reader that exists, a named follow-on card that will build it, or an explicit deferral with reasoning. "We'll figure it out later" is not acceptable.
+   - One-line note that the design sketch format should name the writer and the reader together when possible.
+
+2. The design sketch format documented in CONVENTIONS.md updated to include a "Reader" field alongside the existing fields. Format something like:
+   - Problem
+   - Proposed shape
+   - Writer (what this card produces)
+   - Reader (what consumes it, or follow-on card, or deferred-with-reason)
+   - Open questions
+
+3. Commit and push.
+
+### Scope
+Touch: ~/aadp/claudis/CONVENTIONS.md only
+Do not touch: any code, any other doc, no new files
+
+### Invitation to Claude Code
+
+Same two paths as B-125:
+
+- Scoped changes (better wording, better placement within CONVENTIONS.md, refining the standard question) — make them and proceed.
+
+- Structural changes (you think reader-writer should be a hard rule not a question, the design sketch format should look different, the convention update belongs somewhere else entirely, or you disagree with this approach) — stop and send Bill an output message.
+
+One specific thing: if you think the standard question should be phrased differently to be more useful at review time, change it. You're the one who'll be asking it.
+
