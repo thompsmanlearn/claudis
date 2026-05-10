@@ -1,6 +1,7 @@
 {
-  "_schema_version": "1.0",
+  "_schema_version": "1.1",
   "_generated": "2026-05-09",
+  "_last_updated": "2026-05-09 (orphan cleanup pass — removed 3 endpoints, dropped 4 tables)",
   "_classification_rules": {
     "wired": "Full loop confirmed: automated writer, automated reader, automated action. No manual step required.",
     "partial": "Consumer exists and reads, but a human must close the loop — or the consumer exists but is currently suspended/paused.",
@@ -30,13 +31,6 @@
       "caller_ids": ["lean_boot_step_11"],
       "classification": "wired",
       "notes": "Called by LEAN_BOOT step 11 at every session start."
-    },
-    {
-      "path": "/inject_context_v2",
-      "caller_type": null,
-      "caller_ids": [],
-      "classification": "orphaned",
-      "notes": "Superseded by inject_context_v3. No active callers found."
     },
     {
       "path": "/resolve_skills",
@@ -156,20 +150,6 @@
       "caller_ids": [],
       "classification": "partial",
       "notes": "Maintenance/one-time endpoint. No scheduled caller; manual use only."
-    },
-    {
-      "path": "/run_context_research",
-      "caller_type": null,
-      "caller_ids": [],
-      "classification": "orphaned",
-      "notes": "context_engineering_research agent is retired. No active caller."
-    },
-    {
-      "path": "/test_research_error_path",
-      "caller_type": null,
-      "caller_ids": [],
-      "classification": "orphaned",
-      "notes": "Test/debug endpoint. Should not be in production stats server."
     },
     {
       "path": "/web_search",
@@ -466,41 +446,6 @@
       "row_count": 2,
       "last_write": "2026-04-01",
       "notes": "MCP tools read/write. No Anvil surface confirmed. Not clear whether Bill can see ideas without running idea_list in a Claude Code session."
-    },
-    {
-      "name": "daily_digests",
-      "writers": [],
-      "readers": [],
-      "classification": "orphaned",
-      "row_count": 0,
-      "last_write": null,
-      "notes": "Zero rows. No writer found in any active agent or endpoint."
-    },
-    {
-      "name": "agent_outputs",
-      "writers": [],
-      "readers": [],
-      "classification": "orphaned",
-      "row_count": 0,
-      "last_write": null,
-      "notes": "Zero rows. Likely superseded by experimental_outputs. No writer or reader found."
-    },
-    {
-      "name": "directives",
-      "writers": [],
-      "readers": [],
-      "classification": "orphaned",
-      "row_count": 7,
-      "last_write": "2026-03-22",
-      "notes": "Superseded by DIRECTIVES.md file. write_directive Anvil callable writes to the file, not this table. Stale rows only."
-    },
-    {
-      "name": "_deprecated_session_notes",
-      "writers": [],
-      "readers": [],
-      "classification": "orphaned",
-      "last_write": null,
-      "notes": "Explicitly deprecated 2026-04-25. Archived."
     }
   ],
 
