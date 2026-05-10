@@ -5009,7 +5009,8 @@ def _parse_card_from_backlog(card_id: str) -> dict:
         card_text, re.DOTALL
     )
     done_when = done_match.group(1).strip() if done_match else ""
-    return {"title": title, "card_id": card_id, "done_when": done_when, "full_text": card_text}
+    data_only = bool(re.search(r"(?:^|\n)data_only:\s*true\b", card_text, re.IGNORECASE))
+    return {"title": title, "card_id": card_id, "done_when": done_when, "full_text": card_text, "data_only": data_only}
 
 
 def _read_session_artifact(artifact_path: str) -> str:
@@ -5148,8 +5149,14 @@ def grade_card(payload: dict = {}):
         except FileNotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
 
-    # Git diff — use explicit SHA if provided (B-104), else HEAD~3 fallback
-    git_diff = _get_git_diff_for_card(commit_sha)
+    # Git diff — skip for data_only cards; use explicit SHA if provided (B-104), else HEAD~3 fallback
+    data_only = card.get("data_only", False)
+    if data_only:
+        git_diff = ("data_only: true — no file changes expected for this card. "
+                    "Evaluate done-when criteria against the session artifact and any "
+                    "Supabase query output recorded in it. Do not penalize the absence of a git diff.")
+    else:
+        git_diff = _get_git_diff_for_card(commit_sha)
 
     # Build input snapshot (what the grader saw)
     input_snapshot = {
@@ -5160,6 +5167,7 @@ def grade_card(payload: dict = {}):
         "artifact_length": len(artifact_text),
         "commit_sha": commit_sha or "HEAD~3 fallback",
         "git_diff_summary": git_diff[:500],
+        "data_only": data_only,
         "graded_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -5494,11 +5502,28 @@ def generate_card_from_comment(payload: dict = {}):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     # Generate card via Sonnet
+    _SCHEMA_SUMMARY = (
+        "SUPABASE TABLES (use exact names when referencing tables in the Scope section):\n"
+        "- agent_registry: agent_name, status, schedule, webhook_url, description, protected\n"
+        "- capabilities: name, description, category, confidence_score\n"
+        "- agent_feedback: target_type, target_id, content, processed, metadata\n"
+        "- work_queue: task_type, status, priority, payload\n"
+        "- error_logs: resolved, workflow_id, node_name\n"
+        "- thread_entries: thread_id, entry_type, content, source, created_at\n"
+        "- grader_reviews: card_id, verdict, rationale, criteria_results\n"
+        "- lessons_learned: id, content, metadata (also in ChromaDB)\n"
+        "Common files touched in this project:\n"
+        "- ~/aadp/claudis/stats-server/stats_server.py\n"
+        "- ~/aadp/claudis/anvil/uplink_server.py\n"
+        "- ~/aadp/claude-dashboard/client_code/Form1/__init__.py\n"
+        "- ~/aadp/claudis/BACKLOG.md\n"
+    )
     prompt = (
         f"You are generating a backlog card for a system called AADP (an AI agent development platform).\n\n"
         f"A comment was filed against a system target and classified as '{intent_type}' (confidence {confidence:.2f}).\n\n"
         f"Original comment:\n{content}\n\n"
         f"Target context:\n{target_context or '(none available)'}\n\n"
+        f"{_SCHEMA_SUMMARY}\n"
         f"Generate a backlog card in this exact format:\n\n"
         f"## {card_id}: [short descriptive title — what to fix]\n"
         f"Status: ready Depends on: none\n"
