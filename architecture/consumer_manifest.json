@@ -1,0 +1,600 @@
+{
+  "_schema_version": "1.0",
+  "_generated": "2026-05-09",
+  "_classification_rules": {
+    "wired": "Full loop confirmed: automated writer, automated reader, automated action. No manual step required.",
+    "partial": "Consumer exists and reads, but a human must close the loop — or the consumer exists but is currently suspended/paused.",
+    "orphaned": "No active consumer. Data is written or capability exists but nothing reads or calls it.",
+    "consumer_unknown": "Intended consumer not confirmed from code review. Surfaces for Bill's decision."
+  },
+
+  "endpoints": [
+
+    {
+      "path": "/system_status",
+      "caller_type": "anvil_callable",
+      "caller_ids": ["get_system_status"],
+      "classification": "wired",
+      "notes": "Called by Anvil dashboard on load."
+    },
+    {
+      "path": "/lesson_stats",
+      "caller_type": "anvil_callable",
+      "caller_ids": ["get_lesson_stats"],
+      "classification": "wired",
+      "notes": "Called by Anvil Lessons tab."
+    },
+    {
+      "path": "/inject_context_v3",
+      "caller_type": "session",
+      "caller_ids": ["lean_boot_step_11"],
+      "classification": "wired",
+      "notes": "Called by LEAN_BOOT step 11 at every session start."
+    },
+    {
+      "path": "/inject_context_v2",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "orphaned",
+      "notes": "Superseded by inject_context_v3. No active callers found."
+    },
+    {
+      "path": "/resolve_skills",
+      "caller_type": "session",
+      "caller_ids": ["lean_boot_step_6"],
+      "classification": "wired",
+      "notes": "Called by LEAN_BOOT step 6."
+    },
+    {
+      "path": "/lessons_applied",
+      "caller_type": "session",
+      "caller_ids": ["close_session_step_8"],
+      "classification": "wired",
+      "notes": "Called by close-session to increment times_applied on lessons used."
+    },
+    {
+      "path": "/run_arxiv_aadp",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["bZ35VinkRjRT7gYi"],
+      "classification": "wired",
+      "notes": "Active workflow, Mon/Wed/Fri 15:00 UTC schedule."
+    },
+    {
+      "path": "/run_research_synthesis",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["JUBCbXJe3TwwpB2T"],
+      "classification": "wired",
+      "notes": "Active workflow, Sunday 14:00 UTC schedule."
+    },
+    {
+      "path": "/get_research_window",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["JUBCbXJe3TwwpB2T"],
+      "classification": "wired",
+      "notes": "Called by research_synthesis_agent to window corpus before synthesis."
+    },
+    {
+      "path": "/get_outputs",
+      "caller_type": "anvil_callable",
+      "caller_ids": ["get_artifacts"],
+      "classification": "wired",
+      "notes": "Called by Anvil Artifacts tab."
+    },
+    {
+      "path": "/embed_article",
+      "caller_type": "anvil_callable",
+      "caller_ids": ["_insert_thread_entry"],
+      "classification": "wired",
+      "notes": "Called when thread entries are added with embed=True."
+    },
+    {
+      "path": "/grade_card",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["auto_cycle"],
+      "classification": "wired",
+      "notes": "Called by auto_cycle grader path during card execution."
+    },
+    {
+      "path": "/classify_annotation",
+      "caller_type": "anvil_callable",
+      "caller_ids": ["annotate"],
+      "classification": "wired",
+      "notes": "Called synchronously by annotate() when an annotation is filed."
+    },
+    {
+      "path": "/generate_card_from_comment",
+      "caller_type": "anvil_callable",
+      "caller_ids": ["annotate"],
+      "classification": "wired",
+      "notes": "Triggered by classify_annotation result when intent=correction|gap, confidence >= 0.8."
+    },
+    {
+      "path": "/export_comment_driven_results",
+      "caller_type": "anvil_callable",
+      "caller_ids": ["export_comment_driven_results"],
+      "classification": "wired",
+      "notes": "Called by Fleet tab Comment work button."
+    },
+    {
+      "path": "/run_architecture_review",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["7mVc61pDCIObJFos"],
+      "classification": "partial",
+      "notes": "Active workflow but has run only once (2026-04-05). Biweekly cadence unconfirmed."
+    },
+    {
+      "path": "/run_daily_research",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["xNbmcFrNvqbmhlJW"],
+      "classification": "partial",
+      "notes": "daily_research_scout workflow is paused."
+    },
+    {
+      "path": "/run_behavioral_test",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["kdzJPyZtchNA3Seq"],
+      "classification": "partial",
+      "notes": "behavioral_health_check is paused/sandbox; never activated in production."
+    },
+    {
+      "path": "/score_reddit_resources",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["exEfZ76ZeJLrYP5V"],
+      "classification": "partial",
+      "notes": "resource_scout_reddit workflow is paused."
+    },
+    {
+      "path": "/memory_query",
+      "caller_type": "n8n_workflow",
+      "caller_ids": ["1vF4gn7GnqgNkebM"],
+      "classification": "partial",
+      "notes": "session_report_agent workflow is paused."
+    },
+    {
+      "path": "/backfill_articles_to_chromadb",
+      "caller_type": "manual",
+      "caller_ids": [],
+      "classification": "partial",
+      "notes": "Maintenance/one-time endpoint. No scheduled caller; manual use only."
+    },
+    {
+      "path": "/run_context_research",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "orphaned",
+      "notes": "context_engineering_research agent is retired. No active caller."
+    },
+    {
+      "path": "/test_research_error_path",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "orphaned",
+      "notes": "Test/debug endpoint. Should not be in production stats server."
+    },
+    {
+      "path": "/web_search",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "orphaned",
+      "notes": "Brave Search API key provisioned, endpoint live and tested. Zero active callers. Intended for research agents and thread search — not yet wired."
+    },
+    {
+      "path": "/web_fetch",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Fetches and extracts text from a URL. No confirmed active n8n workflow or callable caller found."
+    },
+    {
+      "path": "/healthz",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Health check endpoint. No confirmed active caller identified — may be used by systemd or monitoring."
+    },
+    {
+      "path": "/trigger_sentinel",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Sentinel trigger. systemd timer is suspended in lean mode. Direct caller not confirmed from code review."
+    },
+    {
+      "path": "/trigger_lean",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Lean session trigger. Caller not confirmed from code review."
+    },
+    {
+      "path": "/gh",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "GitHub API proxy. No confirmed active caller found."
+    },
+    {
+      "path": "/consult_memory",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Memory consultation endpoint. No confirmed active n8n workflow or callable caller found."
+    },
+    {
+      "path": "/run_watch_cycle",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Thread watch cycle runner. Caller not confirmed — may be triggered by check_watch_threads."
+    },
+    {
+      "path": "/check_watch_threads",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Checks which threads are due for a watch cycle. No confirmed scheduled caller found."
+    },
+    {
+      "path": "/grade_research_cycle",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Grades a research cycle run. Caller not confirmed from code review."
+    },
+    {
+      "path": "/run_research_cycle",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Research cycle orchestrator. No confirmed active caller found."
+    },
+    {
+      "path": "/run_capability_curation_scan",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Capability curation scan. No confirmed active caller found. May be manually triggered."
+    },
+    {
+      "path": "/fetch_youtube_videos",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "YouTube video fetcher. No confirmed active workflow caller found."
+    },
+    {
+      "path": "/scout_youtube",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "YouTube scouting endpoint. No confirmed active workflow caller found."
+    },
+    {
+      "path": "/generate_carry_documents",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Carry document generation. Purpose and caller not confirmed from code review."
+    },
+    {
+      "path": "/get_audit",
+      "caller_type": null,
+      "caller_ids": [],
+      "classification": "consumer_unknown",
+      "notes": "Audit log reader. No Anvil callable confirmed to call this path directly."
+    }
+  ],
+
+  "tables": [
+
+    {
+      "name": "lessons_learned",
+      "writers": ["close_session_skill", "mcp__aadp__memory_add"],
+      "readers": ["inject_context_v3", "mcp__aadp__memory_search"],
+      "classification": "wired",
+      "row_count": 257,
+      "last_write": "2026-05-09",
+      "notes": "Core memory store. Full loop confirmed: written at session close, read at session start."
+    },
+    {
+      "name": "thread_entries",
+      "writers": ["add_thread_entry", "extract_analysis", "write_thread_gather_entries"],
+      "readers": ["get_thread_entries", "get_thread_bundle"],
+      "classification": "wired",
+      "row_count": 115,
+      "last_write": "2026-05-09",
+      "notes": "Anvil Threads tab reads and displays. Full loop within the thread research workflow."
+    },
+    {
+      "name": "inquiry_threads",
+      "writers": ["create_thread", "update_thread_state", "wire_thread_agent"],
+      "readers": ["get_threads", "get_thread_bundle"],
+      "classification": "wired",
+      "row_count": 1,
+      "last_write": "2026-04-16",
+      "notes": "Thread container. Anvil Threads tab is primary consumer."
+    },
+    {
+      "name": "boot_briefings",
+      "writers": ["post_boot_briefing"],
+      "readers": ["get_boot_briefings"],
+      "classification": "wired",
+      "row_count": 3,
+      "last_write": "2026-05-09",
+      "notes": "Anvil Sessions tab reads via get_boot_briefings callable. Read path confirmed."
+    },
+    {
+      "name": "agent_artifacts",
+      "writers": ["session_health_reporter"],
+      "readers": ["get_artifacts", "anvil_artifacts_tab"],
+      "classification": "wired",
+      "row_count": 18,
+      "last_write": "2026-05-08",
+      "notes": "Session health reporter writes after each Sentinel session. Anvil Artifacts tab reads."
+    },
+    {
+      "name": "agent_feedback",
+      "writers": ["annotate_callable", "submit_agent_feedback_v2"],
+      "readers": ["classify_annotation", "get_annotations", "attention_queue_anvil"],
+      "classification": "partial",
+      "row_count": 31,
+      "last_write": "2026-05-09",
+      "notes": "Classification fires automatically. But the attention queue requires Bill to manually review and close the loop. Items accumulated to 11 before the last manual clear."
+    },
+    {
+      "name": "audit_log",
+      "writers": ["multiple_agents", "n8n_workflows"],
+      "readers": ["anvil_errors_bundle"],
+      "classification": "partial",
+      "row_count": 2669,
+      "last_write": "2026-05-10",
+      "notes": "Written constantly. Surfaced in Anvil but no automated action fires on audit entries."
+    },
+    {
+      "name": "experimental_outputs",
+      "writers": ["architecture_review", "research_synthesis_agent", "agent_health_monitor", "behavioral_health_check"],
+      "readers": ["get_outputs_endpoint", "anvil_artifacts_tab"],
+      "classification": "partial",
+      "row_count": 171,
+      "last_write": "2026-05-09",
+      "notes": "Surfaced in Anvil Artifacts tab. Requires manual review to act on. No automated downstream consumer."
+    },
+    {
+      "name": "grader_reviews",
+      "writers": ["grade_card"],
+      "readers": ["get_grader_reviews", "anvil_sessions_bundle"],
+      "classification": "partial",
+      "row_count": 22,
+      "last_write": "2026-05-09",
+      "notes": "Grader writes; Anvil surfaces for Bill review. Grader pause/fail requires a manual session to address — no automated retry or escalation."
+    },
+    {
+      "name": "work_queue",
+      "writers": ["telegram_command_agent", "architecture_review", "autonomous_growth_scheduler"],
+      "readers": ["sentinel_lean_runner"],
+      "classification": "partial",
+      "row_count": 55,
+      "last_write": "2026-05-03",
+      "notes": "Reader (sentinel) exists but is suspended in lean mode. 1 agent_build task has been pending since 2026-05-03 — unclaimed."
+    },
+    {
+      "name": "capabilities",
+      "writers": ["run_capability_curation_scan"],
+      "readers": ["get_capabilities", "anvil_fleet_tab"],
+      "classification": "partial",
+      "row_count": 127,
+      "last_write": "2026-05-09",
+      "notes": "Anvil Fleet tab surfaces capabilities. The write-side caller (/run_capability_curation_scan) has no confirmed active scheduler — see endpoint entry."
+    },
+    {
+      "name": "research_articles",
+      "writers": ["thread_gather_entries"],
+      "readers": ["get_research_articles", "anvil_research_tab"],
+      "classification": "partial",
+      "row_count": 180,
+      "last_write": "unknown — no created_at column",
+      "notes": "Anvil Research tab reads. Original writer (context_engineering_research) is retired; thread gather is the current write path. The rating/comment/status columns exist for Bill review but no automated action fires on status changes."
+    },
+    {
+      "name": "research_papers",
+      "writers": ["arxiv_aadp_pipeline"],
+      "readers": [],
+      "classification": "consumer_unknown",
+      "row_count": 34,
+      "last_write": "unknown — no timestamp confirmed",
+      "notes": "arxiv_aadp_pipeline writes here. No Anvil callable confirmed to read research_papers specifically. get_table_rows is generic and could read it manually. Not the same table as research_articles."
+    },
+    {
+      "name": "external_api_usage",
+      "writers": ["web_search", "web_fetch"],
+      "readers": [],
+      "classification": "consumer_unknown",
+      "row_count": 25,
+      "last_write": "2026-05-10",
+      "notes": "Written on every Brave/web call. No Anvil callable or stats server endpoint confirmed to read this table."
+    },
+    {
+      "name": "retrieval_log",
+      "writers": ["inject_context_v3"],
+      "readers": [],
+      "classification": "consumer_unknown",
+      "row_count": 205,
+      "last_write": "2026-05-09",
+      "notes": "inject_context_v3 logs what was retrieved each session. No confirmed reader. Could feed lesson utilization analytics but nothing currently consumes it."
+    },
+    {
+      "name": "resources",
+      "writers": ["resource_scout_reddit (paused)", "processed_content_agent (paused)"],
+      "readers": [],
+      "classification": "consumer_unknown",
+      "row_count": "unknown",
+      "last_write": "unknown — no timestamp column confirmed",
+      "notes": "Both writers are paused. No Anvil callable confirmed to read this table."
+    },
+    {
+      "name": "feedback_log",
+      "writers": ["feedback_agent (paused)"],
+      "readers": [],
+      "classification": "consumer_unknown",
+      "row_count": 78,
+      "last_write": "2026-04-17",
+      "notes": "feedback_agent is paused. 78 rows accumulated. No confirmed reader found."
+    },
+    {
+      "name": "refinements",
+      "writers": ["feedback_agent (paused)"],
+      "readers": [],
+      "classification": "consumer_unknown",
+      "row_count": 6,
+      "last_write": "2026-04-17",
+      "notes": "feedback_agent is paused. No confirmed reader found."
+    },
+    {
+      "name": "inbox",
+      "writers": [],
+      "readers": ["get_inbox", "approve_inbox_item", "deny_inbox_item"],
+      "classification": "consumer_unknown",
+      "row_count": 10,
+      "last_write": "2026-04-06",
+      "notes": "Read path exists in Anvil (approve/deny callables). Writer is unclear — no active agent or endpoint confirmed to write here currently."
+    },
+    {
+      "name": "ideas",
+      "writers": ["mcp__aadp__idea_capture"],
+      "readers": ["mcp__aadp__idea_list"],
+      "classification": "consumer_unknown",
+      "row_count": 2,
+      "last_write": "2026-04-01",
+      "notes": "MCP tools read/write. No Anvil surface confirmed. Not clear whether Bill can see ideas without running idea_list in a Claude Code session."
+    },
+    {
+      "name": "daily_digests",
+      "writers": [],
+      "readers": [],
+      "classification": "orphaned",
+      "row_count": 0,
+      "last_write": null,
+      "notes": "Zero rows. No writer found in any active agent or endpoint."
+    },
+    {
+      "name": "agent_outputs",
+      "writers": [],
+      "readers": [],
+      "classification": "orphaned",
+      "row_count": 0,
+      "last_write": null,
+      "notes": "Zero rows. Likely superseded by experimental_outputs. No writer or reader found."
+    },
+    {
+      "name": "directives",
+      "writers": [],
+      "readers": [],
+      "classification": "orphaned",
+      "row_count": 7,
+      "last_write": "2026-03-22",
+      "notes": "Superseded by DIRECTIVES.md file. write_directive Anvil callable writes to the file, not this table. Stale rows only."
+    },
+    {
+      "name": "_deprecated_session_notes",
+      "writers": [],
+      "readers": [],
+      "classification": "orphaned",
+      "last_write": null,
+      "notes": "Explicitly deprecated 2026-04-25. Archived."
+    }
+  ],
+
+  "agents": [
+
+    {
+      "agent_name": "telegram_command_agent",
+      "status": "active",
+      "output_destination": "work_queue",
+      "identified_consumer": "sentinel lean_runner",
+      "consumer_automated": true,
+      "classification": "partial",
+      "notes": "Write path to work_queue is wired. Consumer (sentinel) is suspended in lean mode — commands queue but are not executed until lean mode ends."
+    },
+    {
+      "agent_name": "session_health_reporter",
+      "status": "active",
+      "output_destination": "agent_artifacts (Supabase) + GitHub commit",
+      "identified_consumer": "Anvil Artifacts tab + GitHub repo",
+      "consumer_automated": true,
+      "classification": "wired",
+      "notes": "Fires after Sentinel sessions. Artifacts are immediately readable in Anvil and GitHub."
+    },
+    {
+      "agent_name": "arxiv_aadp_pipeline",
+      "status": "active",
+      "output_destination": "research_findings (ChromaDB) + research_papers (Supabase) + Telegram digest",
+      "identified_consumer": "research_synthesis_agent (ChromaDB path), Bill (Telegram)",
+      "consumer_automated": true,
+      "classification": "partial",
+      "notes": "ChromaDB output feeds research_synthesis (wired loop). research_papers Supabase output has no confirmed reader. Telegram is Bill-review only."
+    },
+    {
+      "agent_name": "research_synthesis_agent",
+      "status": "active",
+      "output_destination": "experimental_outputs + Telegram digest",
+      "identified_consumer": "Bill (Telegram), Anvil Artifacts tab",
+      "consumer_automated": false,
+      "classification": "partial",
+      "notes": "Synthesizes corpus weekly and notifies Bill. No automated downstream action on synthesis findings."
+    },
+    {
+      "agent_name": "agent_health_monitor",
+      "status": "active",
+      "output_destination": "experimental_outputs + Telegram alert if issues found",
+      "identified_consumer": "Bill (Telegram)",
+      "consumer_automated": false,
+      "classification": "partial",
+      "notes": "Alerts Bill when agents need retirement. Action on the alert is manual — no automated retirement trigger."
+    },
+    {
+      "agent_name": "architecture_review",
+      "status": "active",
+      "output_destination": "experimental_outputs + work_queue items (for implement decisions) + Telegram digest",
+      "identified_consumer": "Bill (Telegram), sentinel (work_queue) — sentinel suspended",
+      "consumer_automated": false,
+      "classification": "partial",
+      "notes": "Has run once. work_queue items require sentinel to claim them. Sentinel suspended in lean mode."
+    },
+    {
+      "agent_name": "morning_briefing",
+      "status": "active",
+      "output_destination": "Telegram",
+      "identified_consumer": "Bill",
+      "consumer_automated": false,
+      "classification": "partial",
+      "notes": "Informational Telegram message. Bill is the terminal consumer; no automated downstream action."
+    },
+    {
+      "agent_name": "lesson_injector",
+      "status": "active",
+      "output_destination": "enriched task payload returned to caller",
+      "identified_consumer": "sentinel lean_runner",
+      "consumer_automated": true,
+      "classification": "partial",
+      "notes": "Designed to enrich tasks before claude -p execution. Consumer (sentinel) is suspended in lean mode — effectively idle during lean sessions."
+    },
+    {
+      "agent_name": "behavioral_health_check",
+      "status": "paused",
+      "output_destination": "experimental_outputs",
+      "identified_consumer": "none confirmed",
+      "consumer_automated": false,
+      "classification": "partial",
+      "notes": "Built and tested in sandbox. Never activated in production. No scheduled caller and no consumer of its output identified."
+    },
+    {
+      "agent_name": "agent_evaluator_4pillars",
+      "status": "paused",
+      "output_destination": "experimental_outputs",
+      "identified_consumer": "none confirmed",
+      "consumer_automated": false,
+      "classification": "partial",
+      "notes": "Paused. Evaluation scores written to experimental_outputs but no automated downstream action on scores."
+    }
+  ]
+}
