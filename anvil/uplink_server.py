@@ -3565,6 +3565,237 @@ def mark_bill_note_addressed(note_id):
     return {'addressed': True}
 
 
+# ── Audit bundle (B-122) ─────────────────────────────────────────────────────
+
+@anvil.server.callable
+def get_audit_bundle():
+    """Return markdown system snapshot for design and review sessions.
+
+    Sections: store sizes/activity (last 14d), agent fleet, recent sessions
+    (last 14d, all, no filter), open work, delta since last_audit_at.
+    Bigger than working bundle; read when doing design work or periodic review.
+    """
+    import glob
+    import os as _os
+
+    def _clean_summary(text, max_chars=120):
+        if len(text) <= max_chars:
+            return text
+        truncated = text[:max_chars]
+        last_space = truncated.rfind(' ')
+        if last_space > int(max_chars * 0.7):
+            truncated = truncated[:last_space]
+        return truncated.rstrip('.,;:') + '…'
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=14)
+    cutoff_iso = cutoff.isoformat()
+    lines = []
+
+    # ── Store sizes and activity ─────────────────────────────────────────────
+    lines.append('## Store sizes and activity (last 14 days)\n')
+    lines.append('| Store | Total | +14d | Last write |')
+    lines.append('|---|---|---|---|')
+
+    # (table_name, timestamp_column)
+    SUPABASE_STORES = [
+        ('lessons_learned', 'created_at'),
+        ('research_articles', 'retrieved_at'),
+        ('threads', 'created_at'),
+        ('thread_entries', 'created_at'),
+        ('agent_feedback', 'created_at'),
+        ('bill_notes', 'created_at'),
+    ]
+    store_totals = {}
+
+    for table, ts_col in SUPABASE_STORES:
+        try:
+            r = requests.get(
+                f'{_SUPABASE_URL}/rest/v1/{table}',
+                headers={**_HEADERS, 'Prefer': 'count=exact'},
+                params={'select': ts_col, 'order': f'{ts_col}.desc', 'limit': '1'},
+                timeout=10,
+            )
+            r.raise_for_status()
+            cr = r.headers.get('Content-Range', '*/0')
+            total = int(cr.split('/')[-1]) if '/' in cr and cr.split('/')[-1].isdigit() else 0
+            rows_body = r.json()
+            last_write = rows_body[0][ts_col][:16].replace('T', ' ') if rows_body else 'never'
+            r2 = requests.head(
+                f'{_SUPABASE_URL}/rest/v1/{table}',
+                headers={**_HEADERS, 'Prefer': 'count=exact'},
+                params={'select': '*', ts_col: f'gte.{cutoff_iso}'},
+                timeout=10,
+            )
+            r2.raise_for_status()
+            cr2 = r2.headers.get('Content-Range', '*/0')
+            added = int(cr2.split('/')[-1]) if '/' in cr2 and cr2.split('/')[-1].isdigit() else 0
+            store_totals[table] = total
+            lines.append(f'| supabase:{table} | {total} | +{added} | {last_write} |')
+        except Exception as e:
+            lines.append(f'| supabase:{table} | error | — | {str(e)[:60]} |')
+
+    CHROMADB_STORES = ['lessons_learned', 'research_findings', 'session_memory', 'reference_material']
+    for col_name in CHROMADB_STORES:
+        try:
+            col_id = _get_chromadb_collection_id(col_name)
+            r = requests.get(f'{_CHROMADB_URL}/api/v1/collections/{col_id}/count', timeout=5)
+            r.raise_for_status()
+            total = r.json()
+            lines.append(f'| chromadb:{col_name} | {total} | N/A | N/A |')
+        except Exception as e:
+            lines.append(f'| chromadb:{col_name} | error | — | {str(e)[:60]} |')
+
+    # ── Agent fleet ──────────────────────────────────────────────────────────
+    lines.append('\n## Agent fleet\n')
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/agent_registry',
+            headers=_HEADERS,
+            params={'select': 'agent_name,description,status,updated_at', 'order': 'agent_name'},
+            timeout=10,
+        )
+        r.raise_for_status()
+        agents = r.json()
+        status_counts = {}
+        for a in agents:
+            s = a.get('status', 'unknown')
+            status_counts[s] = status_counts.get(s, 0) + 1
+        status_summary = ', '.join(f'{v} {k}' for k, v in sorted(status_counts.items()))
+        lines.append(f'Total: {len(agents)} ({status_summary})\n')
+        lines.append('**Active agents:**')
+        for a in agents:
+            if a.get('status') == 'active':
+                last = (a.get('updated_at') or '')[:10]
+                desc = (a.get('description') or '—')[:80]
+                lines.append(f'- {a["agent_name"]} [{last}]: {desc}')
+    except Exception as e:
+        lines.append(f'_Error: {e}_')
+
+    # ── Recent sessions (last 14 days, all) ──────────────────────────────────
+    lines.append('\n## Recent sessions (last 14 days, all)\n')
+    sessions_dir = _os.path.expanduser('~/aadp/claudis/sessions/lean')
+    try:
+        session_lines = []
+        for path in sorted(glob.glob(f'{sessions_dir}/*.md'), reverse=True):
+            name = _os.path.basename(path)
+            try:
+                file_date = datetime.strptime(name[:10], '%Y-%m-%d').date()
+            except ValueError:
+                continue
+            if file_date < cutoff.date():
+                continue
+            try:
+                with open(path) as f:
+                    text = f.read()
+            except Exception:
+                continue
+            title = name[:-3]
+            for line in text.splitlines():
+                if line.startswith('# '):
+                    title = line[2:].strip()
+                    break
+            after_line = ''
+            for line in text.splitlines():
+                if line.startswith('**After:**'):
+                    after_line = line.replace('**After:**', '').strip()
+                    break
+            outcome = _clean_summary(after_line) if after_line else '(no outcome recorded)'
+            session_lines.append(f'- [{file_date}] {title}: {outcome}')
+        lines.extend(session_lines if session_lines else ['_No session artifacts in the last 14 days._'])
+    except Exception as e:
+        lines.append(f'_Error reading sessions: {e}_')
+
+    # ── Open work ────────────────────────────────────────────────────────────
+    lines.append('\n## Open work\n')
+    directives_path = _os.path.expanduser('~/aadp/claudis/DIRECTIVES.md')
+    try:
+        with open(directives_path) as f:
+            directives_text = f.read().strip()
+        lines.append(f'**DIRECTIVES.md:**\n```\n{directives_text}\n```\n')
+    except Exception as e:
+        lines.append(f'**DIRECTIVES.md:** _Error: {e}_\n')
+    try:
+        r = requests.head(
+            f'{_SUPABASE_URL}/rest/v1/work_queue',
+            headers={**_HEADERS, 'Prefer': 'count=exact'},
+            params={'select': '*', 'status': 'in.(pending,claimed)'},
+            timeout=10,
+        )
+        r.raise_for_status()
+        cr = r.headers.get('Content-Range', '*/0')
+        wq_count = int(cr.split('/')[-1]) if '/' in cr and cr.split('/')[-1].isdigit() else 0
+        lines.append(f'work_queue pending+claimed: {wq_count}')
+    except Exception as e:
+        lines.append(f'work_queue: _Error: {e}_')
+    try:
+        r = requests.head(
+            f'{_SUPABASE_URL}/rest/v1/bill_notes',
+            headers={**_HEADERS, 'Prefer': 'count=exact'},
+            params={'select': '*', 'addressed': 'eq.false'},
+            timeout=10,
+        )
+        r.raise_for_status()
+        cr = r.headers.get('Content-Range', '*/0')
+        notes_count = int(cr.split('/')[-1]) if '/' in cr and cr.split('/')[-1].isdigit() else 0
+        lines.append(f'Unaddressed bill_notes: {notes_count}')
+    except Exception as e:
+        lines.append(f'bill_notes: _Error: {e}_')
+
+    # ── Delta since last audit ───────────────────────────────────────────────
+    lines.append('\n## What\'s changed since last audit\n')
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/system_config',
+            headers=_HEADERS,
+            params={'select': 'value,updated_at', 'key': 'eq.last_audit_at'},
+            timeout=10,
+        )
+        r.raise_for_status()
+        cfg_rows = r.json()
+        if not cfg_rows:
+            lines.append('_No prior audit recorded._')
+        else:
+            last_audit_ts = cfg_rows[0]['value']
+            last_audit_label = (cfg_rows[0].get('updated_at') or str(last_audit_ts))[:16].replace('T', ' ')
+            lines.append(f'Last audit: {last_audit_label} UTC\n')
+            grew = []
+            for table, ts_col in SUPABASE_STORES:
+                try:
+                    r2 = requests.head(
+                        f'{_SUPABASE_URL}/rest/v1/{table}',
+                        headers={**_HEADERS, 'Prefer': 'count=exact'},
+                        params={'select': '*', ts_col: f'gte.{last_audit_ts}'},
+                        timeout=10,
+                    )
+                    r2.raise_for_status()
+                    cr2 = r2.headers.get('Content-Range', '*/0')
+                    added_since = int(cr2.split('/')[-1]) if '/' in cr2 and cr2.split('/')[-1].isdigit() else 0
+                    if added_since > 0:
+                        grew.append(f'- supabase:{table}: +{added_since}')
+                except Exception:
+                    pass
+            lines.extend(grew if grew else ['_No Supabase stores grew since last audit._'])
+    except Exception as e:
+        lines.append(f'_Error checking last_audit_at: {e}_')
+
+    return '\n'.join(lines)
+
+
+@anvil.server.callable
+def mark_audit_taken():
+    """Write/update last_audit_at in system_config to now(). Call manually after exporting audit bundle."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/system_config',
+        headers={**_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+        json={'key': 'last_audit_at', 'value': now_iso, 'updated_at': now_iso},
+        timeout=10,
+    )
+    r.raise_for_status()
+    return {'marked_at': now_iso}
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
