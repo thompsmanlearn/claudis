@@ -2217,7 +2217,7 @@ def _auto_wire_thread(thread_id, charter_dict, current_thread):
                     'target_type': 'thread',
                     'target_id': str(thread_id),
                     'content': gap_desc,
-                    'intent': 'build_request',
+                    'metadata': {'intent_type': 'build_request'},
                     'processed': False,
                 },
                 timeout=10,
