@@ -2001,6 +2001,7 @@ def get_skill(name):
 _THREAD_ENTRY_TYPES = {
     'gather', 'annotation', 'analysis', 'conclusion', 'state_change',
     'summary', 'screening', 'screening_uncertain', 'sub_question_candidate',
+    'finding', 'cycle_summary',
 }
 _THREAD_STATES = {'active', 'dormant', 'closed'}
 

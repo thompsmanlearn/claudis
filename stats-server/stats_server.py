@@ -3680,6 +3680,207 @@ def run_research_cycle(payload: dict = {}):
     })
 
 
+# ── Thread research agent (B-117) ────────────────────────────────────────────
+
+_HAIKU_INPUT_COST_PER_TOK = 0.00000025   # $0.25 / 1M tokens
+_HAIKU_OUTPUT_COST_PER_TOK = 0.00000125  # $1.25 / 1M tokens
+
+_THREAD_RESEARCH_SCREEN_SYSTEM = (
+    "You are a research screener. Given a web search result and research criteria, "
+    "decide if it qualifies as a relevant finding.\n"
+    "Respond with valid JSON only: "
+    "{\"qualifies\": true/false, \"relevance_note\": \"one concise sentence\"}"
+)
+
+_FRESHNESS_MAP = {
+    "day": "pd", "24h": "pd",
+    "week": "pw", "7 day": "pw",
+    "month": "pm", "30 day": "pm",
+    "year": "py", "12 month": "py",
+}
+
+
+def _charter_freshness(recency: str) -> str | None:
+    rl = recency.lower()
+    for kw, code in _FRESHNESS_MAP.items():
+        if kw in rl:
+            return code
+    return None
+
+
+def _screen_result_haiku(item: dict, question: str, success_criteria: str,
+                          disqualifying_criteria: str, api_key: str) -> tuple[bool, str, float]:
+    """Screen one search result with Haiku. Returns (qualifies, relevance_note, cost_usd)."""
+    prompt = (
+        f"Research question: {question[:300]}\n\n"
+        f"Success criteria:\n{success_criteria[:400]}\n\n"
+        f"Disqualifying criteria:\n{disqualifying_criteria[:300]}\n\n"
+        f"Result:\nTitle: {item.get('title', '')}\n"
+        f"URL: {item.get('url', '')}\n"
+        f"Snippet: {item.get('snippet', '')[:400]}\n\n"
+        f"Does this qualify? JSON only."
+    )
+    data = _json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 120,
+        "messages": [{"role": "user", "content": prompt}],
+        "system": _THREAD_RESEARCH_SCREEN_SYSTEM,
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages", data=data,
+        headers={"x-api-key": api_key, "anthropic-version": "2023-06-01",
+                 "content-type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as r:
+        resp = _json.loads(r.read())
+    usage = resp.get("usage", {})
+    cost = (usage.get("input_tokens", 0) * _HAIKU_INPUT_COST_PER_TOK +
+            usage.get("output_tokens", 0) * _HAIKU_OUTPUT_COST_PER_TOK)
+    raw = resp["content"][0]["text"].strip()
+    start, end = raw.find("{"), raw.rfind("}") + 1
+    verdict = _json.loads(raw[start:end])
+    return verdict.get("qualifies", False), verdict.get("relevance_note", ""), cost
+
+
+@app.post("/run_thread_research")
+def run_thread_research(payload: dict = {}):
+    """B-117: Thread-native research agent. Reads charter JSONB, searches Brave, screens with
+    Haiku, writes finding + cycle_summary entries to thread_entries."""
+    thread_id = (payload.get("thread_id") or "").strip()
+    if not thread_id:
+        return JSONResponse({"error": "thread_id required"}, status_code=400)
+
+    env = _read_env_simple()
+    api_key = env.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return JSONResponse({"error": "ANTHROPIC_API_KEY not found"}, status_code=500)
+    if not env.get("BRAVE_API_KEY"):
+        return JSONResponse({"error": "BRAVE_API_KEY not found"}, status_code=500)
+
+    # Read charter JSONB from threads table
+    thread_rows = _sb_query(env, "threads",
+                            {"id": f"eq.{thread_id}", "select": "id,title,charter"})
+    if not thread_rows:
+        return JSONResponse({"error": f"Thread {thread_id} not found"}, status_code=404)
+    charter = thread_rows[0].get("charter") or {}
+    if not charter.get("question", "").strip():
+        return JSONResponse({"error": "No charter found for thread. Add a charter first."},
+                            status_code=404)
+
+    question = charter["question"].strip()
+    sub_questions = [q.strip() for q in (charter.get("sub_questions") or []) if q.strip()]
+    success_criteria = charter.get("success_criteria", "").strip()
+    disqualifying_criteria = charter.get("disqualifying_criteria", "").strip()
+    freshness = _charter_freshness(charter.get("recency_requirement", ""))
+
+    # One query per sub-question (up to 5); fall back to main question
+    queries = sub_questions[:5] or [question]
+
+    cost_usd = 0.0
+    all_results = []
+    seen_urls: set = set()
+    queries_run = []
+
+    # Search Brave for each query
+    for query in queries:
+        if cost_usd >= _ORCHESTRATOR_COST_CAP_USD:
+            break
+        try:
+            ws_data = _json.dumps({"query": query, "max_results": 5,
+                                   "freshness_window": freshness}).encode()
+            ws_req = urllib.request.Request(
+                "http://localhost:9100/web_search", data=ws_data,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(ws_req, timeout=20) as ws_r:
+                ws_resp = _json.loads(ws_r.read())
+            queries_run.append(query)
+            for item in ws_resp.get("results", []):
+                url = item.get("url", "")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    item["search_query"] = query
+                    all_results.append(item)
+        except Exception:
+            pass
+
+    # Screen each result via Haiku against charter criteria
+    qualifying = []
+    screened_count = 0
+    for item in all_results:
+        if cost_usd >= _ORCHESTRATOR_COST_CAP_USD:
+            break
+        screened_count += 1
+        try:
+            qualifies, note, call_cost = _screen_result_haiku(
+                item, question, success_criteria, disqualifying_criteria, api_key
+            )
+            cost_usd += call_cost
+            if qualifies:
+                item["relevance_note"] = note
+                qualifying.append(item)
+        except Exception:
+            pass
+
+    # Write qualifying results as finding entries
+    finding_ids = []
+    for item in qualifying:
+        content = (
+            f"**{item.get('title', 'Untitled')}**\n"
+            f"URL: {item.get('url', '')}\n"
+            f"Query: {item.get('search_query', '')}\n\n"
+            f"{item.get('snippet', '')}\n\n"
+            f"Relevance: {item.get('relevance_note', '')}"
+        )
+        eid = _sb_post_entry(env, {
+            "thread_id": thread_id,
+            "entry_type": "finding",
+            "content": content,
+            "source": item.get("url", ""),
+            "metadata": _json.dumps({
+                "url": item.get("url", ""),
+                "title": item.get("title", ""),
+                "source_domain": item.get("source_domain", ""),
+                "search_query": item.get("search_query", ""),
+                "relevance_note": item.get("relevance_note", ""),
+            }),
+        })
+        if eid:
+            finding_ids.append(eid)
+
+    # Write cycle_summary entry
+    summary_content = (
+        f"## Research Cycle Summary\n\n"
+        f"**Queries run:** {len(queries_run)}\n"
+        f"**Results screened:** {screened_count}\n"
+        f"**Qualifying findings:** {len(finding_ids)}\n"
+        f"**Estimated cost:** ${cost_usd:.4f}\n\n"
+        f"Queries: {', '.join(queries_run[:5])}"
+    )
+    cycle_id = _sb_post_entry(env, {
+        "thread_id": thread_id,
+        "entry_type": "cycle_summary",
+        "content": summary_content,
+        "source": "thread_research_agent",
+        "metadata": _json.dumps({
+            "queries_run": len(queries_run),
+            "results_screened": screened_count,
+            "findings_written": len(finding_ids),
+            "cost_usd": round(cost_usd, 4),
+        }),
+    })
+
+    return JSONResponse({
+        "thread_id": thread_id,
+        "queries_run": len(queries_run),
+        "results_screened": screened_count,
+        "findings_written": len(finding_ids),
+        "cost_usd": round(cost_usd, 4),
+        "finding_ids": finding_ids,
+        "cycle_summary_id": cycle_id,
+    })
+
+
 # ── Semantic article indexing (B-103) ────────────────────────────────────────
 _CHROMA_URL = "http://localhost:8000"
 
