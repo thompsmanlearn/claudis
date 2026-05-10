@@ -161,3 +161,4 @@ Done when
 Scope
 Touch: uplink_server.py (auto-wire logic on charter save), agent_registry (capability_tags column if absent), agent_feedback table (build_request rows), Anvil dashboard (thread detail view — show auto-wire status).
 Do not touch: existing wired threads, n8n workflow internals, work_queue.
+
