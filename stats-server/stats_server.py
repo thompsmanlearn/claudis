@@ -1280,6 +1280,51 @@ def _expand_intent_with_haiku(task_type, description, api_key):
         return []
 
 
+# --- inject_context_v3 routing and display constants ---
+
+_V3_TASK_ROUTING: dict = {
+    "design_and_build": ["lessons_learned", "reference_material"],
+    "agent_build":      ["lessons_learned", "reference_material"],
+    "debug":            ["lessons_learned", "error_patterns"],
+    "code_review":      ["lessons_learned", "error_patterns"],
+    "research":         ["lessons_learned", "research_findings"],
+    "general":          ["lessons_learned"],
+}
+
+_V3_DEFAULT_COLLECTIONS: list = ["lessons_learned"]
+
+_V3_DEFAULT_DESCRIPTIONS: dict = {
+    "design_and_build": "Design and implement a new feature or system component for AADP",
+    "agent_build":      "Build or modify an autonomous agent and its n8n workflow",
+    "debug":            "Investigate and fix a bug, error, or unexpected system behavior",
+    "code_review":      "Review code for correctness, quality, and AADP conventions",
+    "research":         "Research a technical topic and synthesize findings",
+    "general":          "General AADP development, operations, and maintenance work",
+}
+
+_V3_COLLECTION_PARAMS: dict = {
+    # (n_results, distance_threshold)
+    "lessons_learned":    (5, 1.4),
+    "error_patterns":     (3, 1.1),
+    "reference_material": (3, 1.3),
+    "research_findings":  (3, 1.2),
+}
+
+_V3_SECTION_LABELS: dict = {
+    "lessons_learned":    "### Lessons",
+    "error_patterns":     "### Known Error Patterns",
+    "reference_material": "### Reference Material",
+    "research_findings":  "### Research Findings",
+}
+
+_V3_CONTENT_TRUNC: dict = {
+    "lessons_learned":    None,
+    "error_patterns":     300,
+    "reference_material": 500,
+    "research_findings":  400,
+}
+
+
 @app.post("/inject_context_v3")
 def inject_context_v3(payload: dict = {}):
     """Task-type-routed context injection with retrieval-vs-reasoning confidence signal (v3.0).

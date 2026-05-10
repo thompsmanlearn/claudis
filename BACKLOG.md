@@ -87,7 +87,7 @@ The audit bundle is intentionally bigger than the working bundle. It's not read 
 Touch: ~/aadp/claudis/anvil/uplink_server.py (new callables), ~/aadp/claude-dashboard/client_code/Form1/__init__.py (add Export audit bundle button to Workspace tab)
 Do not touch: get_working_bundle, bill_notes table, any other existing callable, any other tab.
 ## B-123: Restore inject_context_v3 missing constants
-Status: ready
+Status: complete 2026-05-10
 Depends on: B-122
 
 ### Goal
