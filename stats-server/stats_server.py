@@ -5924,5 +5924,142 @@ def export_comment_driven_results(payload: dict = {}):
     return JSONResponse({"markdown": header + "\n".join(sections), "count": len(driven)})
 
 
+_CONSUMER_MANIFEST_PATH = os.path.join(REPO, "architecture", "consumer_manifest.json")
+
+_SEVERITY_ORDER = {"orphaned": 0, "consumer_unknown": 1, "partial": 2, "wired": 3}
+
+
+def _n8n_workflow_status(workflow_id: str, n8n_key: str) -> dict:
+    """Return {active, recent_executions} for a workflow, or None on error."""
+    if not workflow_id or not n8n_key:
+        return None
+    try:
+        # Check active state
+        url = f"http://localhost:5678/api/v1/workflows/{workflow_id}"
+        req = urllib.request.Request(url, headers={"X-N8N-API-KEY": n8n_key})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            wf = _json.loads(r.read().decode())
+        active = bool(wf.get("active", False))
+
+        # Count executions in last 14 days
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        url2 = f"http://localhost:5678/api/v1/executions?workflowId={workflow_id}&limit=50"
+        req2 = urllib.request.Request(url2, headers={"X-N8N-API-KEY": n8n_key})
+        with urllib.request.urlopen(req2, timeout=5) as r2:
+            exec_data = _json.loads(r2.read().decode())
+        recent = sum(
+            1 for e in exec_data.get("data", [])
+            if (e.get("startedAt") or "") >= cutoff
+        )
+        return {"active": active, "recent_executions": recent}
+    except Exception:
+        return None
+
+
+def _build_finding(resource: dict, rtype: str, live_override: str = None, live_note: str = None) -> dict:
+    """Build a single audit finding dict."""
+    classification = live_override or resource.get("classification", "consumer_unknown")
+    return {
+        "resource": resource.get("path") or resource.get("name") or resource.get("agent_name"),
+        "type": rtype,
+        "classification": classification,
+        "manifest_classification": resource.get("classification"),
+        "notes": resource.get("notes", ""),
+        "live_note": live_note or "",
+    }
+
+
+@app.post("/consumer_audit")
+def consumer_audit(payload: dict = {}):
+    """
+    Reads consumer_manifest.json, augments endpoint/agent entries with live n8n
+    workflow state, and returns all findings sorted by severity (orphaned first).
+    """
+    # Load manifest
+    try:
+        with open(_CONSUMER_MANIFEST_PATH) as f:
+            manifest = _json.load(f)
+    except Exception as e:
+        return JSONResponse({"error": f"Could not load manifest: {e}"}, status_code=500)
+
+    env = _read_env_simple()
+    n8n_key = env.get("N8N_API_KEY", "")
+
+    findings = []
+
+    # --- Endpoints ---
+    for ep in manifest.get("endpoints", []):
+        caller_type = ep.get("caller_type")
+        caller_ids = ep.get("caller_ids", [])
+        manifest_class = ep.get("classification")
+        live_override = None
+        live_note = None
+
+        if caller_type == "n8n_workflow" and caller_ids:
+            statuses = []
+            for wf_id in caller_ids:
+                s = _n8n_workflow_status(wf_id, n8n_key)
+                if s:
+                    statuses.append(s)
+
+            if statuses:
+                all_active = all(s["active"] for s in statuses)
+                total_recent = sum(s["recent_executions"] for s in statuses)
+                if not all_active:
+                    live_override = "partial"
+                    live_note = f"Caller workflow(s) inactive in n8n. Recent executions (14d): {total_recent}."
+                elif total_recent == 0:
+                    live_override = "partial"
+                    live_note = f"Caller workflow active but 0 executions in last 14 days."
+                else:
+                    live_note = f"Caller workflow active. Recent executions (14d): {total_recent}."
+            else:
+                live_note = "n8n status check failed or N8N_API_KEY missing."
+
+        findings.append(_build_finding(ep, "endpoint", live_override, live_note))
+
+    # --- Tables ---
+    for tbl in manifest.get("tables", []):
+        findings.append(_build_finding(tbl, "table"))
+
+    # --- Agents ---
+    for agent in manifest.get("agents", []):
+        manifest_class = agent.get("classification")
+        live_override = None
+        live_note = None
+
+        # Check agent's n8n workflow if it has one
+        # Agent status comes from manifest (already reflects agent_registry)
+        wf_id = None  # agents don't store workflow_id in manifest — skip live n8n check
+        # Instead surface status from manifest notes
+        if agent.get("status") == "paused":
+            live_note = "Agent is paused in agent_registry."
+        elif agent.get("status") == "active":
+            # Check consumer_automated flag
+            if not agent.get("consumer_automated", False):
+                live_note = "Consumer is manual (Bill). Loop does not close automatically."
+            else:
+                live_note = "Consumer is automated."
+
+        findings.append(_build_finding(agent, "agent", live_override, live_note))
+
+    # Sort by severity: orphaned → consumer_unknown → partial → wired
+    findings.sort(key=lambda f: _SEVERITY_ORDER.get(f["classification"], 99))
+
+    # Summary counts
+    counts = {"wired": 0, "partial": 0, "orphaned": 0, "consumer_unknown": 0}
+    for f in findings:
+        c = f["classification"]
+        counts[c] = counts.get(c, 0) + 1
+
+    return JSONResponse({
+        "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "manifest_path": _CONSUMER_MANIFEST_PATH,
+        "summary": counts,
+        "total": len(findings),
+        "findings": findings,
+    })
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=9100, log_level="warning", access_log=False)
