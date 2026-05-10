@@ -3465,9 +3465,27 @@ def add_bill_note(content):
 
 @anvil.server.callable
 def get_working_bundle():
-    """Return markdown with Bill's unaddressed notes, flagged session artifacts, and recent activity."""
+    """Return markdown with Bill's unaddressed notes, flagged session artifacts, and recent activity.
+
+    Flagged = artifacts within last 14 days where the **After:** line contains
+    'failed', 'stuck', 'blocked', 'unresolved', or 'error' (case-insensitive).
+    Only the After line is searched — searching full text caused false positives
+    from historical references in artifact bodies.
+
+    Artifacts with no **After:** line are excluded from both sections. They have
+    no recorded outcome and add no signal to the bundle.
+    """
     import glob
     import os as _os
+
+    def _clean_summary(text, max_chars=120):
+        if len(text) <= max_chars:
+            return text
+        truncated = text[:max_chars]
+        last_space = truncated.rfind(' ')
+        if last_space > int(max_chars * 0.7):
+            truncated = truncated[:last_space]
+        return truncated.rstrip('.,;:') + '…'
 
     # Section 1: What's on Bill's mind
     r = requests.get(
@@ -3489,7 +3507,7 @@ def get_working_bundle():
     # Sections 2 & 3: session artifacts
     sessions_dir = _os.path.expanduser('~/aadp/claudis/sessions/lean')
     cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).date()
-    FLAG_WORDS = ('failed', 'stuck', 'blocked', 'unresolved')
+    FLAG_WORDS = ('failed', 'stuck', 'blocked', 'unresolved', 'error')
     all_artifacts = []  # (date, title, after_line, flagged)
 
     for path in sorted(glob.glob(f'{sessions_dir}/*.md'), reverse=True):
@@ -3513,22 +3531,22 @@ def get_working_bundle():
             if line.startswith('**After:**'):
                 after_line = line.replace('**After:**', '').strip()
                 break
-        flagged = file_date >= cutoff and any(w in text.lower() for w in FLAG_WORDS)
+        if not after_line:
+            continue
+        flagged = file_date >= cutoff and any(w in after_line.lower() for w in FLAG_WORDS)
         all_artifacts.append((file_date, title, after_line, flagged))
 
     lines.append('\n## What Claude Code flagged\n')
     flagged_arts = [(d, t, a) for d, t, a, f in all_artifacts if f]
     if flagged_arts:
         for d, t, a in flagged_arts:
-            summary = a[:100] if a else '(no delta)'
-            lines.append(f"- [{d}] {t}: {summary}")
+            lines.append(f"- [{d}] {t}: {_clean_summary(a)}")
     else:
         lines.append("_Nothing flagged in the last 14 days._")
 
     lines.append('\n## Recent activity\n')
     for d, t, a, _ in all_artifacts[:5]:
-        summary = a[:80] if a else '(no delta)'
-        lines.append(f"- [{d}] {t}: {summary}")
+        lines.append(f"- [{d}] {t}: {_clean_summary(a)}")
 
     return '\n'.join(lines)
 
