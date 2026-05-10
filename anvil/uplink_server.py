@@ -3234,6 +3234,14 @@ def get_comment_driven_activity():
     return result
 
 
+@anvil.server.callable
+def run_consumer_audit():
+    """Run the consumer audit against the manifest and return findings."""
+    r = requests.post(f'{_STATS_URL}/consumer_audit', json={}, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
