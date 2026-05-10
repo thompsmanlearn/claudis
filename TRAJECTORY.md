@@ -20,6 +20,7 @@
 - **B-119 complete (2026-05-09):** Auto-wiring live. Charter save scores agents via capability_tags; wires best match (≥0.7) or queues build_request in agent_feedback. Telegram notification on wire. Form1 shows result inline.
 - **Thread research pipeline bugs fixed (2026-05-10):** Duplicate findings blocked (cross-cycle dedup via existing source URLs). Memory consultation now fetches charter question from DB (authoritative). thread_research_agent webhook activated; non-200 warning added to gather trigger.
 - Fleet: 9 active + 1 sandbox (thread_research_agent).
+- **B-120/B-121/B-122 complete (2026-05-10):** Workspace tab live. Bill's notes capture, working bundle, and audit bundle all functional. Export buttons in Workspace tab.
 - **Next:** B-118 (Gather trigger), then Chapter 4 when Bill decides.
 
 **Project arc next:** System review, then Chapter 4 when Bill decides.
@@ -28,17 +29,17 @@
 
 ## Handoff (pick up here)
 
+**2026-05-10 (B-122 audit bundle):**
+- **What I was doing:** B-122 — audit bundle. Added `get_audit_bundle()` and `mark_audit_taken()` to uplink_server.py. Added "Export audit bundle" button to Workspace tab. Discovered `research_articles` uses `retrieved_at` not `created_at` — fixed by parameterizing timestamp column per store as `(table, ts_col)` tuples.
+- **What I learned:** Supabase stores don't all share the same timestamp column — don't assume `created_at` in cross-store queries. ChromaDB count endpoint is GET `/api/v1/collections/{id}/count`. stats server `/inject_context_v3` was returning 500 this session.
+- **Continue:** B-118 (Gather trigger in Anvil UI). 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03). Call `mark_audit_taken()` manually after first audit export.
+- **Left better:** Workspace tab now has both working bundle and audit bundle export. Audit bundle gives full system snapshot for design/review sessions.
+
 **2026-05-10 (thread research pipeline bugs):**
 - **What I was doing:** Fixed three bugs in the thread research pipeline: (1) duplicate findings — `run_thread_research` now fetches existing finding source URLs before writing, skips cross-cycle dupes; (2) memory consultation wrong query — `consult_memory` now fetches `threads.charter['question']` from DB when thread_id given, ignoring caller-supplied question; (3) gather trigger silent failure — thread_research_agent workflow was inactive, webhook returned error with zero nodes running, swallowed silently; activated workflow + docker restart n8n + added non-200 warning log in `_fire()`.
 - **What I learned:** n8n sandbox workflows deactivated after testing still have webhook_url in agent_registry — POST to inactive production webhook fails immediately with no nodes running. fire-and-forget webhook callers must check response status. `consult_memory` must own query derivation; callers can't be trusted to pass the right question.
-- **Continue:** B-118 (Gather trigger in Anvil UI). Two unprocessed annotations in agent_feedback. Pending agent_build work_queue item (SpecOps GUI, 2026-05-03).
-- **Left better:** Thread research pipeline now correctly deduplicates, uses authoritative charter question, and surfaces webhook failures.
-
-**2026-05-09 (B-119):**
-- **What I was doing:** B-119 — auto-wiring. Added `capability_tags text[]` to agent_registry (DDL + seed for all 10 agents). Added `_score_agent()` and `_auto_wire_thread()` to uplink_server.py. `save_charter()` now calls auto-wire and returns `{**thread, '_auto_wire': result}`. Telegram notify on wire; `agent_feedback.metadata.intent_type='build_request'` if no match.
-- **What I learned:** `agent_feedback` intent lives in `metadata.intent_type` JSONB (B-086 pattern). Stats server `/inject_context_v3` may 500 — ChromaDB fallback is reliable.
 - **Continue:** Covered by entry above.
-- **Left better:** Charter save auto-wires agents.
+- **Left better:** Thread research pipeline now correctly deduplicates, uses authoritative charter question, and surfaces webhook failures.
 
 
 ---
