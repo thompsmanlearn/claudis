@@ -2153,7 +2153,7 @@ def wire_thread_agent(thread_id, agent_name):
 @anvil.server.callable
 def get_threads(state='active'):
     params = {
-        'select': 'id,title,question,state,close_reason,bound_agent,created_at,updated_at,last_activity_at,watch_enabled,watch_interval,last_watch_cycle_at,next_watch_due_at',
+        'select': 'id,title,question,state,close_reason,bound_agent,created_at,updated_at,last_activity_at,watch_enabled,watch_interval,last_watch_cycle_at,next_watch_due_at,charter',
         'order': 'last_activity_at.desc',
     }
     if state is not None:
@@ -2873,6 +2873,74 @@ def add_charter(thread_id, charter_content):
         log.warning('add_charter: memory consultation failed (non-fatal): %s', e)
 
     return {'id': entry_id, 'created': True}
+
+
+@anvil.server.callable
+def save_charter(thread_id, charter_dict):
+    """Write structured charter to threads.charter (JSONB) and as a formatted thread_entry. B-116."""
+    if not (charter_dict or {}).get('question', '').strip():
+        raise Exception('Question is required.')
+    if not (charter_dict or {}).get('success_criteria', '').strip():
+        raise Exception('Success Criteria is required.')
+
+    sq_list = charter_dict.get('sub_questions') or []
+    sq_text = '\n'.join(f'- {q}' for q in sq_list if q)
+    sections = [
+        ('Question', charter_dict.get('question', '').strip()),
+        ('Scope', charter_dict.get('scope', '').strip()),
+        ('Success Criteria', charter_dict.get('success_criteria', '').strip()),
+        ('Disqualifying Criteria', charter_dict.get('disqualifying_criteria', '').strip()),
+        ('Sub-Questions', sq_text),
+        ('Source Preferences', charter_dict.get('source_preferences', '').strip()),
+        ('Recency Requirement', charter_dict.get('recency_requirement', '').strip()),
+    ]
+    formatted = '\n\n'.join(f'## {label}\n{value}' for label, value in sections if value)
+
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        params={'id': f'eq.{thread_id}'},
+        json={'charter': charter_dict, 'updated_at': datetime.now(timezone.utc).isoformat()},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Thread {thread_id} not found.')
+    thread = rows[0]
+
+    _insert_thread_entry(thread_id, 'charter', formatted[:10000], source='bill', embed=False)
+
+    try:
+        requests.post(
+            f'{_STATS_URL}/consult_memory',
+            json={'thread_id': thread_id,
+                  'question': charter_dict['question'][:500],
+                  'charter_summary': formatted[:300]},
+            timeout=35,
+        )
+        log.info('save_charter: memory consultation triggered for thread=%s', thread_id)
+    except Exception as e:
+        log.warning('save_charter: memory consultation failed (non-fatal): %s', e)
+
+    log.info('save_charter: thread=%s', thread_id)
+    return thread
+
+
+@anvil.server.callable
+def get_charter(thread_id):
+    """Return the structured charter JSONB dict from threads.charter, or None. B-116."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/threads',
+        headers=_HEADERS,
+        params={'select': 'charter', 'id': f'eq.{thread_id}'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Thread {thread_id} not found.')
+    return rows[0].get('charter')
 
 
 # ── Grader evaluation export (B-102) ─────────────────────────────────────────
