@@ -101,3 +101,52 @@ Every agent and capability has a tier (1/2/3). Tier 1: act then notify. Tier 2: 
 - Endpoints: `/verb_noun` (stats_server pattern).
 - Branches: `attempt/descriptor`.
 
+---
+
+## 3. Two-pass review for architecture cards
+
+### Which cards need review
+
+**Goes through review:** any card that creates a new agent, a new table, a new UI surface, or a new pattern (new convention, new file type, new workflow shape).
+
+**Straight execution:** bounded fixes — bug fixes, updates to existing lessons, adding a field to an existing table, polish, retries, restoration jobs.
+
+Any of the three actors (Opus, Claude Code, Bill) can request review on a card that wouldn't normally require it.
+
+### Flow
+
+1. Opus produces a design sketch — not a full card. Problem, proposed shape, open questions. ~200 words.
+2. Bill pastes the sketch to Claude Code as a "design review" prompt (not an executable card).
+3. Claude Code reviews against current system state. Responds in roughly the same length: what's right, what's off, what changes the proposal needs. May propose a different shape entirely.
+4. Bill pastes Claude Code's response back to Opus.
+5. Opus revises the design and produces the final card with review-shaped changes baked in. Card includes a `Design reviewed by Claude Code` marker.
+6. Bill decides whether to send the card. If yes, paste to Claude Code as a normal directive.
+
+Bill sees the design sketch and the resolved card. He does not need to read the review exchange unless he wants to.
+
+### Resolved standard
+
+A card is resolved when either:
+- Opus and Claude Code agree the design is buildable as written, OR
+- The disagreement is named explicitly in the card under `## Resolved with disagreement` so Bill can decide.
+
+A sketch without a concrete proposed shape is not resolved. Agreement on the problem without agreement on the solution is not resolved.
+
+### Design sketch format
+
+~200 words. Three fields:
+
+**Problem:** What gap or failure is this fixing? One sentence.
+**Proposed shape:** What the solution looks like — components, flow, data. Enough for Claude Code to review against actual system state.
+**Open questions:** What's unresolved. What the reviewer should push on.
+
+**Worked example:**
+
+> **Problem:** The comment-classifier sometimes routes correction-intent comments to `note` — observed twice on 2026-05-08, both borderline confidence cases.
+>
+> **Proposed shape:** Add a confidence floor (0.7) in `classify_comment_intent()`. Below floor, route to a new `ambiguous` bucket. Write `ambiguous` rows to `agent_feedback` with `target_type='review_request'` for Bill to classify. No new table.
+>
+> **Open questions:** Is 0.7 the right floor, or should it be tunable per target_type? Does `review_request` exist in the annotation vocabulary (annotation-pattern.md) or does it need to be added?
+
+Claude Code reviewing this sketch would note: `review_request` is not in annotation-pattern.md — adding it is a new pattern, which makes this card architecture-adjacent and warrants review before execution.
+

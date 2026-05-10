@@ -24,6 +24,8 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 
    If the card is not complete (or completion cannot be determined quickly), continue normally.
 
+   **Design-review check:** Cards that create a new agent, table, UI surface, or pattern (new convention, file type, or workflow shape) require two-pass review before execution — see CONVENTIONS.md § "Two-pass review for architecture cards". Reviewed cards carry a `Design reviewed by Claude Code` marker. If the card matches the heuristic and the marker is absent: stop. Telegram Bill: "Design review needed for [card ID]. This card creates [new X] — it should go through two-pass review before I build. Reply to proceed or route it through Opus first." Do not execute until Bill responds.
+
 6. Resolve skills via stats server:
    ```
    POST http://localhost:9100/resolve_skills
