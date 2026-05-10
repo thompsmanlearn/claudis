@@ -2341,8 +2341,12 @@ def trigger_thread_gather(thread_id):
                 json={'thread_id': thread_id, 'queries': queries},
                 timeout=120,
             )
-            log.info('trigger_thread_gather: thread=%s agent=%s status=%d',
-                     thread_id, bound_agent, resp.status_code)
+            if resp.status_code not in (200, 201):
+                log.warning('trigger_thread_gather: webhook returned %d for thread=%s agent=%s — findings may not be written',
+                             resp.status_code, thread_id, bound_agent)
+            else:
+                log.info('trigger_thread_gather: thread=%s agent=%s status=%d',
+                         thread_id, bound_agent, resp.status_code)
         except Exception as e:
             log.warning('trigger_thread_gather webhook error: thread=%s %s', thread_id, e)
 

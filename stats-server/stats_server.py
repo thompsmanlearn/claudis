@@ -3822,8 +3822,22 @@ def run_thread_research(payload: dict = {}):
         except Exception:
             pass
 
+    # Fetch URLs already written as findings for this thread to prevent cross-cycle duplicates
+    existing_finding_urls: set = set()
+    try:
+        existing_rows = _sb_query(env, "thread_entries",
+                                  {"thread_id": f"eq.{thread_id}", "entry_type": "eq.finding",
+                                   "select": "source", "limit": "200"})
+        for row in existing_rows:
+            src = (row.get("source") or "").strip()
+            if src:
+                existing_finding_urls.add(src)
+    except Exception:
+        pass
+
     # Write qualifying results as finding entries
     finding_ids = []
+    skipped_duplicates = 0
     for item in qualifying:
         content = (
             f"**{item.get('title', 'Untitled')}**\n"
@@ -3832,13 +3846,17 @@ def run_thread_research(payload: dict = {}):
             f"{item.get('snippet', '')}\n\n"
             f"Relevance: {item.get('relevance_note', '')}"
         )
+        url = item.get("url", "")
+        if url and url in existing_finding_urls:
+            skipped_duplicates += 1
+            continue
         eid = _sb_post_entry(env, {
             "thread_id": thread_id,
             "entry_type": "finding",
             "content": content,
-            "source": item.get("url", ""),
+            "source": url,
             "metadata": _json.dumps({
-                "url": item.get("url", ""),
+                "url": url,
                 "title": item.get("title", ""),
                 "source_domain": item.get("source_domain", ""),
                 "search_query": item.get("search_query", ""),
@@ -3847,13 +3865,16 @@ def run_thread_research(payload: dict = {}):
         })
         if eid:
             finding_ids.append(eid)
+            existing_finding_urls.add(url)
 
     # Write cycle_summary entry
+    dup_note = f"\n**Skipped duplicates:** {skipped_duplicates}" if skipped_duplicates else ""
     summary_content = (
         f"## Research Cycle Summary\n\n"
         f"**Queries run:** {len(queries_run)}\n"
         f"**Results screened:** {screened_count}\n"
-        f"**Qualifying findings:** {len(finding_ids)}\n"
+        f"**Qualifying findings:** {len(finding_ids)}"
+        f"{dup_note}\n"
         f"**Estimated cost:** ${cost_usd:.4f}\n\n"
         f"Queries: {', '.join(queries_run[:5])}"
     )
@@ -3875,6 +3896,7 @@ def run_thread_research(payload: dict = {}):
         "queries_run": len(queries_run),
         "results_screened": screened_count,
         "findings_written": len(finding_ids),
+        "skipped_duplicates": skipped_duplicates,
         "cost_usd": round(cost_usd, 4),
         "finding_ids": finding_ids,
         "cycle_summary_id": cycle_id,
@@ -4087,8 +4109,22 @@ def consult_memory(payload: dict = {}):
     if not question and not charter_summary:
         return JSONResponse({"error": "question or charter_summary required"}, status_code=400)
 
-    query_text = question or charter_summary
     env = _read_env_simple()
+
+    # When thread_id is provided, fetch the charter question directly from the threads table.
+    # This is the authoritative source — callers may pass stale or incorrect question text.
+    if thread_id:
+        try:
+            charter_rows = _sb_query(env, "threads",
+                                     {"id": f"eq.{thread_id}", "select": "charter"})
+            if charter_rows:
+                charter_q = ((charter_rows[0].get("charter") or {}).get("question") or "").strip()
+                if charter_q:
+                    question = charter_q
+        except Exception:
+            pass  # fall through to caller-provided question
+
+    query_text = question or charter_summary
 
     # Build consultation results from the same 4 sources as the orchestrator memory pass
     mock_charter = {"question": query_text}
