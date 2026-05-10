@@ -86,3 +86,27 @@ The audit bundle is intentionally bigger than the working bundle. It's not read 
 ### Scope
 Touch: ~/aadp/claudis/anvil/uplink_server.py (new callables), ~/aadp/claude-dashboard/client_code/Form1/__init__.py (add Export audit bundle button to Workspace tab)
 Do not touch: get_working_bundle, bill_notes table, any other existing callable, any other tab.
+## B-123: Restore inject_context_v3 missing constants
+Status: ready
+Depends on: B-122
+
+### Goal
+Restore the three module-level constants in stats_server.py that inject_context_v3 references but that were dropped in a recent edit. Endpoint has been returning 500 since 2026-05-09, silently breaking lesson retrieval in every session.
+
+### Context
+Investigation on 2026-05-10 confirmed: /inject_context_v3 returns 500 because three constants — _V3_TASK_ROUTING, _V3_DEFAULT_COLLECTIONS, _V3_DEFAULT_DESCRIPTIONS — are referenced inside the function but no longer defined at module level. Even the housekeeping fast-path hits one of them before branching.
+
+7 failures logged in the last 2 days. The lesson_injector n8n agent (MFmk28ijs1wMig7h) has been silently failing on every run. times_applied counters on lessons have not incremented since the break.
+
+No git history on stats_server, so the original definitions need to be reconstructed from the function's usage pattern. Claude Code: infer the structure from how the constants are referenced in the function body. _V3_TASK_ROUTING is task_type → list of collections. _V3_DEFAULT_COLLECTIONS is a fallback list. _V3_DEFAULT_DESCRIPTIONS is task_type → human-readable description. Reconstruct based on what the code actually uses.
+
+### Done when
+- Three constants restored at module level above the inject_context_v3 function definition
+- POST /inject_context_v3 with body {"task_type": "housekeeping"} returns 200 with valid output (not 500)
+- Test with at least three other task_types to confirm routing works
+- stats_server restarted and healthy
+- Run one full session-start sequence (manually trigger /inject_context_v3 the way LEAN_BOOT would) and confirm no errors in stats_server logs
+
+### Scope
+Touch: ~/aadp/stats-server/stats_server.py only
+Do not touch: anything else
