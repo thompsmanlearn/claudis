@@ -23,3 +23,26 @@ This card builds the smallest viable version: one input, one storage location, o
 ### Scope
 Touch: ~/aadp/claudis/anvil/uplink_server.py, ~/aadp/claude-dashboard/client_code/Form1/__init__.py, Supabase schema (new table)
 Do not touch: agent_feedback, thread_entries, directives flow, anything else
+
+## B-121: Fix working bundle output quality
+Status: ready
+Depends on: B-120
+
+### Goal
+Working bundle output is structurally right but content is unusable. Truncated summaries, broken filter on the "flagged" section, and "(no delta)" lines surfacing without explanation. Fix so the bundle is something a desktop session can actually read and act on.
+
+### Context
+First run on 2026-05-10. Bill's note landed correctly. Issues:
+- Session summaries truncated mid-sentence (e.g. "Bill can write free-text notes via the Workspace tab. Notes persist in `bill_not")
+- "What Claude Code flagged" section returns recent sessions broadly, not just sessions matching failed/stuck/blocked/unresolved. The filter logic in get_working_bundle isn't working as intended.
+- "(no delta)" appears as a session outcome on most entries. Either these sessions wrote no real outcome line, or the parser is misreading the artifact format. Either way, "(no delta)" entries shouldn't surface as notable activity.
+
+### Done when
+- Session summaries in the bundle show either: the full outcome/learned line from the artifact, OR a clean one-line summary capped at ~120 chars with no mid-word truncation
+- The "What Claude Code flagged" section ONLY contains sessions where the artifact body contains "failed", "stuck", "blocked", "unresolved", or "error" (case-insensitive). Verify by running the callable and confirming non-matching sessions don't appear.
+- "(no delta)" sessions either get filtered out of the bundle entirely, or get a clear label explaining what (no delta) means. Pick one. Document the choice in the callable's docstring.
+- Re-run get_working_bundle() and paste the output back so Bill can verify before closing the card.
+
+### Scope
+Touch: ~/aadp/claudis/anvil/uplink_server.py (get_working_bundle only)
+Do not touch: bill_notes table, add_bill_note, mark_bill_note_addressed, the Workspace UI, or any other callable.
