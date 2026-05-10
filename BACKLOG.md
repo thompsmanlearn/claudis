@@ -54,3 +54,110 @@ Touch: `agents` table row where `name = 'architecture_review'` (description and 
 Do not touch: n8n workflow `7mVc61pDCIObJFos`, webhook route `/webhook/architecture-review`, any `experimental_outputs` records, `work_queue` table, Telegram integration config, any other agent rows
 
 > Generated from agent_feedback bb49d2c9-58e2-4621-8013-a394c1a87882 on 2026-05-09 (intent=correction, confidence=0.95)
+
+## B-116: Charter authoring UI
+
+Status: ready Depends on: none
+
+Goal
+Add a charter form to the Threads tab so Bill can author and save a full research charter entirely from the Anvil UI without any direct API calls. The charter appears either at thread creation or as an "Add charter" step on an existing thread without a charter. Saved charters display as a readable block in the thread detail view.
+
+Context
+The charter schema (Question, Scope, Success Criteria, Disqualifying Criteria, Sub-Questions, Source Preferences, Recency) exists in the backend and is used by the research orchestrator. The threads table has a charter column (JSONB). There is currently no UI to author or view a charter — it can only be written via direct API call. This makes threads feel inert: Bill can state a research question but cannot define the criteria that govern how it gets answered. B-117 (thread research agent) depends on a charter being present; this card unblocks it.
+
+Done when
+- A charter form is reachable from the Threads tab — either inline at thread creation or via an "Add charter" button on an existing thread that has no charter.
+- The form contains: Question (pre-filled from thread title), Scope, Success Criteria, Disqualifying Criteria, Sub-Questions (multi-line, one per line), Source Preferences, Recency Requirement (optional).
+- Submitting the form writes the charter as JSONB to the `charter` column of the `threads` table for that thread_id.
+- The thread detail view displays the saved charter as a readable block (field labels + values, not raw JSON).
+- UI follows existing dashboard conventions: larger font sizes, minimal padding, dense layout — no large empty regions between fields.
+- No direct API calls required from Bill to complete the authoring flow.
+
+Scope
+Touch: Anvil dashboard client code (Form1/__init__.py), threads table (charter column — no schema change needed if column exists; add if not), uplink_server.py (save_charter and get_charter callables if not present).
+Do not touch: thread_entries table, research orchestrator logic, agent_registry, n8n workflows.
+
+
+## B-117: Thread research agent with Brave
+
+Status: ready Depends on: B-116
+
+Goal
+Build a thread-native research agent that reads a thread's charter, generates search queries from its sub-questions, fetches results via /web_search (Brave), screens results against the charter's criteria, and writes qualifying findings back to thread_entries. This wires Brave Search into the research pipeline for the first time.
+
+Context
+/web_search exists on the stats server with a working Brave API key but has zero callers (classified orphaned in the consumer audit). The thread infrastructure (thread_entries, charter, screening logic in the orchestrator) is in place but only the arxiv pipeline feeds it — and only for fixed topics on a fixed schedule. A thread research agent responds to a specific question rather than a preset topic list. It does not auto-run; B-118 adds the gather trigger.
+
+Behavior
+- Reads charter JSONB from the threads table for the given thread_id.
+- Generates one search query per sub-question (up to 5 queries per cycle).
+- Calls POST /web_search for each query (max_results=5 per call).
+- Screens each result against success criteria and disqualifying criteria via a Haiku call.
+- Writes qualifying results to thread_entries: entry_type="finding", content includes source URL, summary, and a brief relevance note.
+- Writes a cycle summary entry (entry_type="cycle_summary") when complete: queries run, results screened, entries written, cost estimate.
+- Respects the existing cost cap (_ORCHESTRATOR_COST_CAP_USD = 0.50).
+- Triggered via webhook POST /webhook/thread-research-agent {thread_id}.
+
+Done when
+- Running the agent against a thread that has a real charter (authored via B-116) produces at least 3 qualifying thread_entries visible in the thread detail view in Anvil.
+- A cycle summary entry appears after the run.
+- The agent is registered in agent_registry with status=sandbox.
+- /web_search appears in consumer_manifest.json with classification=partial (wired to this agent's workflow).
+
+Scope
+Touch: n8n workflow (new), stats_server.py (if agent logic delegated there), agent_registry (new row), consumer_manifest.json (/web_search entry).
+Do not touch: existing thread_entries rows, arxiv_aadp_pipeline, research_synthesis_agent.
+
+
+## B-118: Gather trigger
+
+Status: ready Depends on: B-116, B-117
+
+Goal
+Add a "Gather" button to the thread detail view in Anvil. Clicking it fires the wired research agent against the current charter and refreshes the entry list when complete.
+
+Context
+Even with a charter (B-116) and a research agent (B-117), there is no UI trigger. Bill would need to call the webhook manually. The gather button closes this loop: chartered thread + wired agent + one click = research run.
+
+Behavior
+- Button only appears when: a charter exists on the thread AND an agent is wired.
+- Clicking Gather calls the wired agent's webhook with {thread_id}.
+- Shows a running indicator ("Gathering…") while the cycle executes.
+- On completion (poll or callback), refreshes the thread entry list so new findings appear without a manual page reload.
+- If the agent call fails, surfaces the error inline (no silent failures).
+
+Done when
+- Clicking Gather on a chartered, wired thread fires the research agent and new entries appear in the thread detail view without a manual refresh.
+- The Gather button is absent on threads with no charter or no wired agent.
+- A failed gather surfaces an error message in the UI.
+
+Scope
+Touch: Anvil dashboard client code (Form1/__init__.py), uplink_server.py (trigger_thread_gather already exists — verify it calls the wired agent's webhook with thread_id).
+Do not touch: agent logic, thread_entries schema, n8n workflow internals.
+
+
+## B-119: Auto-wiring
+
+Status: ready Depends on: B-117
+
+Goal
+When a thread is created or a charter is saved, automatically match the charter to the best available agent and wire it — or queue a build request if no adequate agent exists.
+
+Context
+Currently Bill must manually wire an agent to each thread. The matching logic is implicit knowledge: "web search" in source preferences → thread research agent; arxiv topics → arxiv_aadp_pipeline. Auto-wiring makes this explicit and automated, removing a manual step and ensuring new threads don't sit unwired.
+
+Behavior
+- Triggers on: thread creation (if charter provided at creation) or charter save (B-116).
+- Scores available agents against charter's source_preferences and question text. Scoring considers: agent capability tags (add a capability_tags column to agent_registry if not present), keyword overlap with source preferences, agent status (active or sandbox only).
+- If best match score exceeds threshold (≥ 0.7): wire automatically, write an audit entry, notify Bill via Telegram ("🔗 Auto-wired [agent] to thread '[title]' — confidence [score].").
+- If no match meets threshold: write an agent_feedback row (target_type='thread', intent='build_request') describing the gap, leave thread unwired, show "No matching agent found — build request queued" in the thread detail view.
+- Wiring is always overridable from the thread detail view.
+
+Done when
+- Creating a chartered thread with "web search" in source preferences automatically wires the thread research agent (B-117) without manual intervention.
+- A Telegram notification confirms the auto-wiring with agent name and confidence score.
+- A thread whose source preferences match no available agent shows "build request queued" in the UI and a corresponding agent_feedback row exists in Supabase.
+
+Scope
+Touch: uplink_server.py (auto-wire logic on charter save), agent_registry (capability_tags column if absent), agent_feedback table (build_request rows), Anvil dashboard (thread detail view — show auto-wire status).
+Do not touch: existing wired threads, n8n workflow internals, work_queue.
