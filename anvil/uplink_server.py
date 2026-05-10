@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import subprocess
 import threading
 import time
@@ -2129,6 +2130,123 @@ def update_thread_state(thread_id, state, close_reason=None):
     return thread
 
 
+_AUTO_WIRE_STOP_WORDS = {
+    'the', 'a', 'an', 'and', 'or', 'for', 'to', 'in', 'of', 'with',
+    'is', 'are', 'was', 'be', 'by', 'as', 'at', 'from', 'that', 'this',
+    'on', 'it', 'its', 'my', 'i', 'me', 'what', 'how', 'when', 'where',
+}
+_AUTO_WIRE_THRESHOLD = 0.7
+_TELEGRAM_QUICK_SEND = 'http://localhost:5678/webhook/telegram-quick-send'
+
+
+def _score_agent(agent, source_prefs, question):
+    """Return 0–1 match score for agent against charter source_prefs and question."""
+    tags = agent.get('capability_tags') or []
+    if not tags:
+        return 0.0
+    tag_words = set()
+    for t in tags:
+        tag_words.update(re.split(r'[_\-\s]', t.lower()))
+    tag_words.discard('')
+
+    def _keywords(text):
+        raw = re.sub(r'[^\w\s]', ' ', (text or '').lower()).split()
+        return [w for w in raw if w not in _AUTO_WIRE_STOP_WORDS and len(w) > 2]
+
+    pref_words = _keywords(source_prefs)
+    q_words = _keywords(question)
+    pref_score = (
+        len([w for w in pref_words if w in tag_words]) / len(pref_words)
+        if pref_words else 0.0
+    )
+    q_score = (
+        len([w for w in q_words if w in tag_words]) / len(q_words)
+        if q_words else 0.0
+    )
+    return round(0.8 * pref_score + 0.2 * q_score, 3)
+
+
+def _auto_wire_thread(thread_id, charter_dict, current_thread):
+    """Score active/sandbox agents and wire the best match if confidence >= threshold.
+
+    Returns a dict: {status, agent, confidence} or {status, reason}.
+    Non-fatal — logs warnings on any sub-failure.
+    """
+    if current_thread.get('bound_agent'):
+        return {'status': 'already_wired', 'agent': current_thread['bound_agent']}
+
+    source_prefs = (charter_dict.get('source_preferences') or '').strip()
+    question = (charter_dict.get('question') or '').strip()
+    if not source_prefs and not question:
+        return {'status': 'skipped', 'reason': 'no_charter_text'}
+
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/agent_registry',
+            headers=_HEADERS,
+            params={
+                'select': 'agent_name,capability_tags,webhook_url,status',
+                'status': 'in.(active,sandbox)',
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        agents = [a for a in r.json() if a.get('webhook_url') and a.get('capability_tags')]
+    except Exception as e:
+        log.warning('_auto_wire_thread: registry fetch failed: %s', e)
+        return {'status': 'error', 'reason': str(e)}
+
+    scored = [
+        (a, _score_agent(a, source_prefs, question))
+        for a in agents
+    ]
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    if not scored or scored[0][1] < _AUTO_WIRE_THRESHOLD:
+        # Queue build request
+        gap_desc = (
+            f'No agent matched charter for thread {thread_id}. '
+            f'Source preferences: "{source_prefs}". '
+            f'Best score: {scored[0][1] if scored else 0.0:.2f} ({scored[0][0]["agent_name"] if scored else "none"}).'
+        )
+        try:
+            requests.post(
+                f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+                headers={**_HEADERS, 'Prefer': 'return=minimal'},
+                json={
+                    'target_type': 'thread',
+                    'target_id': str(thread_id),
+                    'content': gap_desc,
+                    'metadata': {'intent_type': 'build_request'},
+                    'processed': False,
+                },
+                timeout=10,
+            ).raise_for_status()
+        except Exception as e:
+            log.warning('_auto_wire_thread: feedback insert failed: %s', e)
+        return {'status': 'build_request_queued', 'best_score': scored[0][1] if scored else 0.0}
+
+    best_agent, confidence = scored[0]
+    agent_name = best_agent['agent_name']
+
+    # Wire the agent
+    try:
+        wire_thread_agent(thread_id, agent_name)
+    except Exception as e:
+        log.warning('_auto_wire_thread: wiring failed for %s: %s', agent_name, e)
+        return {'status': 'error', 'reason': str(e)}
+
+    # Notify Bill
+    msg = f'🔗 Auto-wired {agent_name} to thread {thread_id} — confidence {confidence:.0%}.'
+    try:
+        requests.post(_TELEGRAM_QUICK_SEND, json={'message': msg}, timeout=10)
+    except Exception as e:
+        log.warning('_auto_wire_thread: telegram notify failed: %s', e)
+
+    log.info('_auto_wire_thread: wired %s → thread %s (confidence %.3f)', agent_name, thread_id, confidence)
+    return {'status': 'wired', 'agent': agent_name, 'confidence': confidence}
+
+
 @anvil.server.callable
 def wire_thread_agent(thread_id, agent_name):
     if agent_name is not None:
@@ -2924,8 +3042,9 @@ def save_charter(thread_id, charter_dict):
     except Exception as e:
         log.warning('save_charter: memory consultation failed (non-fatal): %s', e)
 
-    log.info('save_charter: thread=%s', thread_id)
-    return thread
+    auto_wire = _auto_wire_thread(thread_id, charter_dict, thread)
+    log.info('save_charter: thread=%s auto_wire=%s', thread_id, auto_wire)
+    return {**thread, '_auto_wire': auto_wire}
 
 
 @anvil.server.callable
