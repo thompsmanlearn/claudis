@@ -1,105 +1,93 @@
-## B-125: Establish two-pass review convention for architecture cards
+## B-127: Dashboard layout restructure — five-tab structure
 Status: ready
-Depends on: B-124
+Depends on: B-126
 
 ### Goal
-Create a working convention where cards that touch architecture or set new patterns get reviewed by Claude Code before execution, with Opus revising in response, and only the resolved proposal reaching Bill. Bounded implementation cards stay as straight execution. The goal is real collaboration between Opus and Claude Code in the design phase, not after, so flaws get caught before code lands and Bill's decisions are made on stress-tested proposals.
+Restructure the Anvil dashboard from its current ten-tab layout into a five-tab structure organized around how Bill actually uses the system. Move daily-use actions and information to a Home landing tab. Consolidate system-internal views into a single System tab with collapsible sections. Keep Threads and Sessions as their own tabs. Add Workpad as a placeholder tab (real implementation in a follow-on card).
 
-This card establishes the convention itself — the lightweight infrastructure and the language. It does not retrofit existing work.
+This card is layout and navigation only. No new features. No data model changes. Workpad gets a stub tab with a "coming soon" placeholder so the navigation reflects the final shape; the surface itself is B-128.
 
 ### Context
-Decided in design conversation 2026-05-10 between Bill, Opus, and Claude Code:
+Decided through two-pass review on 2026-05-10. Opus proposed a two-layer design (top strip + collapsed sections). Claude Code reviewed and identified six load-bearing issues (Inbox vs bill_notes confusion, Write Directive missing from primary actions, Threads can't be collapsed, Grader and Autonomous Mode needing explicit decisions, scope estimate of 300-400 lines). Bill and Opus then reshaped to a five-tab structure organized by activity type.
 
-- The three-way collaboration is real. Opus has perspective and reasoning time; Claude Code has ground truth and can act; Bill has judgment and continuous memory.
-- The biggest project risk is over-aspiration — building structure that doesn't get validated.
-- Friction for Bill is the constraint to minimize. He should see resolved proposals, not exchanges.
-- The two-pass convention applies to architecture cards. Bounded fixes don't need it.
+**The five tabs and what each is for:**
 
-The heuristic for which cards go through review (Claude Code can refine, but this is the starting frame):
-- Goes through review: any card that creates a new agent, a new table, a new UI surface, or a new pattern (a new convention, new file type, new workflow shape).
-- Straight execution: bounded fixes (bug fixes, updates to existing lessons, adding a field to an existing table, polish, retries, restoration jobs like B-123).
+1. **Home** — daily-use landing surface. 80% of Bill's interaction lives here.
+   - Status strip at top: green/yellow/red overall, agents active, work queue count, pending Inbox count (prominent if > 0)
+   - Primary actions: Write note, Write directive, Export working bundle, Export audit bundle
+   - Unaddressed bill_notes list (from current Workspace tab)
+   - Pending Inbox approvals list with Approve/Deny buttons (from current Fleet → Inbox section)
+   - Autonomous Mode toggle (from current Fleet → Controls)
+   - Trigger Lean Session button (from current Fleet → Controls)
 
-The flow for review-required cards:
-1. Opus produces a design sketch — not a full card. Problem, proposed shape, open questions. Roughly 200 words.
-2. Bill pastes the sketch to Claude Code as a "design review" prompt (not an executable card).
-3. Claude Code reviews against current system state, responds in roughly the same length — what's right, what's off, what changes the proposal needs. May propose a different shape entirely.
-4. Bill pastes Claude Code's response back to Opus.
-5. Opus revises the design and produces the final card with the review-shaped changes baked in.
-6. Bill decides whether to send the card. If yes, paste to Claude Code as a normal directive.
+2. **Workpad** — stub for now. Tab exists, body is a placeholder ("Workpad — coming in B-128"). Reserves the navigation slot.
 
-Bill sees the design sketch and the resolved card. He does not need to read the review exchange unless he wants to.
+3. **Threads** — keep as-is. The investigation workflow surface stays where it is.
+
+4. **Sessions** — keep as-is. Recent session artifacts, execution window.
+
+5. **System** — consolidation of current Fleet, Memory, Lessons, Skills, Artifacts, Research, Grader into one tab with collapsible sub-sections. Each sub-section is what its current tab is, just nested. Bill goes here for periodic review, not daily.
+   - Fleet (agent list, system health detail)
+   - Memory
+   - Lessons
+   - Skills
+   - Artifacts
+   - Research
+   - Grader
+
+**Font sizes:** body text bumped from 16 to 18. Section headers from 20 to 22. Status strip indicators larger still (24). One global pass through Form1/__init__.py.
+
+**What gets cut entirely:** the current Workspace tab disappears — its contents are absorbed into Home.
 
 ### Done when
 
-1. A new file ~/aadp/claudis/CONVENTIONS.md (if it exists, append; if not, create) contains a section titled "Two-pass review for architecture cards" that documents:
-   - The heuristic above for which cards need review
-   - The flow above for review-required cards
-   - A clear note that any of the three actors can request a review on a card that wouldn't normally need one
-   - The standard for what counts as resolved: Opus and Claude Code both agree the design is buildable as written, OR the disagreement is named explicitly in the card under a "Resolved with disagreement" section so Bill can decide
+1. Anvil Form1 has five tabs in this order: Home, Workpad, Threads, Sessions, System.
 
-2. A new section in LEAN_BOOT.md (or wherever fits best — Claude Code's call) that briefly tells future Claude Code sessions: "Cards may arrive with a 'Design reviewed by Claude Code' marker indicating they've been through the two-pass process. Cards without this marker that match the architecture-card heuristic — stop before building and request a design review from Bill."
+2. Home tab contains:
+   - Status strip at top with: overall health indicator (green/yellow/red), active agents count, work queue count, pending Inbox count (visually prominent when > 0)
+   - Four primary action buttons: Write note, Write directive, Export working bundle, Export audit bundle
+   - Unaddressed bill_notes list with Mark addressed buttons
+   - Pending Inbox approvals list with Approve/Deny buttons
+   - Autonomous Mode toggle with current state visible
+   - Trigger Lean Session button
 
-3. The first design sketch format is documented as part of the CONVENTIONS.md section, with one worked example. Doesn't need to be elaborate — just enough that the next sketch I write has a model to follow.
+3. Workpad tab exists with placeholder content: "Workpad — coming in B-128. This will be a lightweight investigation surface for exploring questions before they become threads."
 
-4. Commit the changes to claudis main and push.
+4. Threads tab unchanged in functionality.
 
-### Scope
-Touch: ~/aadp/claudis/CONVENTIONS.md, ~/aadp/claudis/LEAN_BOOT.md
-Do not touch: any code, any existing card, any other doc
+5. Sessions tab unchanged in functionality.
 
-### Invitation to Claude Code
+6. System tab contains the current Fleet, Memory, Lessons, Skills, Artifacts, Research, and Grader views as collapsible sub-sections. Each opens to its current full functionality. Default state: all collapsed.
 
-This card is establishing a convention that affects how you work. You're the one who'll be living with it. Two paths:
+7. Font sizes increased: body labels to 18, section headers to 22, status strip indicators to 24. Apply consistently across Form1.
 
-- If you want to change things within scope — clearer wording, better section names, a different file location that fits the system better, fixing my mistakes about what exists — make those changes and proceed. Note what you changed and why in the session artifact.
+8. Existing Workspace tab removed.
 
-- If you want to change things structurally — different heuristic for which cards need review, different flow, different number of passes, you think we're solving the wrong problem, or anything else that changes the shape of the convention — stop and send Bill an output message describing what you'd change and why. Bill will paste it to Opus and we'll work through it before you build.
+9. All current functionality remains accessible — nothing is cut, only relocated. Specifically verify: charter editing in Threads, agent approve/deny, lesson search, memory browse, autonomous toggle, trigger session, all four export bundles, write directive flow.
 
-The distinction: scoped changes happen quietly and get noted. Structural pushback comes back to the loop before code lands.
-## B-126: Reader-writer discipline in two-pass review
-Status: ready
-Depends on: B-125
-Supersedes: previous B-126 draft (VALIDATION.md approach — abandoned)
-
-### Goal
-Add reader-writer discipline as a standard concern in the two-pass review convention. Any card that creates a writer (a thumbs-up button, a new table, a logging hook, a new artifact format) should name its reader — what consumes the output and acts on it. If the reader doesn't exist yet, that's allowed, but it must be named as a follow-on card or explicitly deferred.
-
-The point is to catch dead-end writers during design, not after they've accumulated. This is a refinement of the two-pass review, not a new file or tracking system.
-
-### Context
-Decided in design conversation 2026-05-10 between Bill, Opus, and Claude Code, replacing an earlier draft of B-126 that proposed a VALIDATION.md file. Bill pointed out that the real discipline isn't a tracking file after the fact — it's designing the reader alongside the writer in the first place. A thumbs-up that writes to a Supabase table is useless without something that reads the table and uses the signal. Both ends or it doesn't ship.
-
-This is being written through the two-pass convention from B-125, refining that same convention.
-
-The mechanism: reader-writer is a standard question Claude Code asks during design review. Not a hard rule — sometimes building the writer first is deliberate. But if the reader is missing, the review names it, and we either add a follow-on card, defer it explicitly, or rethink whether the writer should ship.
-
-### Done when
-
-1. CONVENTIONS.md §3 (the two-pass review section from B-125) updated with:
-   - A new standard question for Claude Code's review: "Where's the reader? What consumes this output and acts on it?"
-   - Acceptable answers: a named reader that exists, a named follow-on card that will build it, or an explicit deferral with reasoning. "We'll figure it out later" is not acceptable.
-   - One-line note that the design sketch format should name the writer and the reader together when possible.
-
-2. The design sketch format documented in CONVENTIONS.md updated to include a "Reader" field alongside the existing fields. Format something like:
-   - Problem
-   - Proposed shape
-   - Writer (what this card produces)
-   - Reader (what consumes it, or follow-on card, or deferred-with-reason)
-   - Open questions
-
-3. Commit and push.
+10. Commit and push. Both claude-dashboard and claudis repos if changes touch both.
 
 ### Scope
-Touch: ~/aadp/claudis/CONVENTIONS.md only
-Do not touch: any code, any other doc, no new files
+Touch: ~/aadp/claude-dashboard/client_code/Form1/__init__.py (the layout file)
+Do not touch: any uplink callable, any backend code, any data model, the threads workflow, the gather pipeline, anything outside Form1
+
+### Design reviewed by Claude Code
+Yes. See B-125 / two-pass convention. Six structural issues from Claude Code's review were incorporated:
+- Inbox elevated to status strip prominence (was being conflated with bill_notes)
+- Write Directive added as a fourth primary action button
+- Threads kept as its own tab, not collapsed
+- Grader explicitly placed inside System tab (not accidentally omitted)
+- Autonomous Mode toggle explicitly placed on Home (not accidentally omitted)
+- Workspace tab fate decided explicitly: removed, contents absorbed into Home
 
 ### Invitation to Claude Code
+Same two paths as B-125 and B-126:
 
-Same two paths as B-125:
+- Scoped changes (better placement of specific buttons within Home, refining how System sub-sections collapse, font size adjustments if 18/22/24 feels wrong in practice, fixing any assumption I made about what's currently where) — make them and proceed, note in session artifact.
 
-- Scoped changes (better wording, better placement within CONVENTIONS.md, refining the standard question) — make them and proceed.
+- Structural changes (you think the five-tab division is wrong, the System tab consolidation will hurt rather than help, the font overhaul has a risk I haven't accounted for, anything else that reshapes the proposal) — stop and send Bill an output message before building.
 
-- Structural changes (you think reader-writer should be a hard rule not a question, the design sketch format should look different, the convention update belongs somewhere else entirely, or you disagree with this approach) — stop and send Bill an output message.
-
-One specific thing: if you think the standard question should be phrased differently to be more useful at review time, change it. You're the one who'll be asking it.
-
+Specific judgment calls to make during execution:
+- Spacing and visual weight on Home — make it scannable, not crowded. Use your judgment.
+- The status strip's "overall health indicator" — define what makes it green vs yellow vs red. Reasonable defaults: green = no unresolved errors, no pending inbox > 24h old, autonomous mode matches expected state. Yellow/red as escalations from that baseline.
+- If 300-400 lines turns out to be 600+, stop and send Bill a message before committing — that's structural pushback territory.
