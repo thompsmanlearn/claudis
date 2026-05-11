@@ -36,10 +36,16 @@
 
 ## Handoff (pick up here)
 
+**2026-05-10 (B-129 Workpad Brave search):**
+- **What I was doing:** B-129 — wired Brave Search into Workpad. `search_brave` uplink callable wraps stats_server `/web_search`. Search button in Workpad actions row (disabled until input non-empty). `_wp_render_output` extended with search branch: 🔍 header, clickable result rows that populate URL field. Commits: claudis 00e805d, claude-dashboard 32be089.
+- **What I learned:** When BACKLOG.md has a card that's cut off mid-sentence (incomplete push), halt and Telegram before executing — don't guess at the spec. Bill provided the rest in-session.
+- **Continue:** Chapter 4 when Bill decides. 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03). Browser test B-129 first (search → click result → Read URL → persist on reload).
+- **Left better:** Workpad now supports the full research motion: search → click result → read full page without leaving the dashboard.
+
 **2026-05-10 (B-128 Workpad surface):**
 - **What I was doing:** B-128 — Workpad surface. `workpad_state` singleton table, 5 uplink callables, full Form1 Workpad tab with input/URL/actions/output/auto-save/promote. HTML stripping via stdlib `re` + `html.unescape` (bs4 not in venv). Commits: claude-dashboard f57254d, claudis a1580af.
 - **What I learned:** When bs4/html2text aren't available, `re.sub(r'<[^>]+>', ' ', raw)` + `html.unescape()` covers most real-world HTML adequately. Check venv before reaching for a library.
-- **Continue:** Chapter 4 when Bill decides. 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03).
+- **Continue:** Covered by B-129 entry above.
 - **Left better:** Workpad is live — Bill can now drop content, fetch URLs, and promote investigations to threads without leaving the dashboard.
 
 **2026-05-10 (B-127 five-tab dashboard layout):**
@@ -47,12 +53,6 @@
 - **What I learned:** Anvil widgets have single-parent ownership — avoid duplicating the same widget in multiple panels. System/Fleet got status+agents+queue only; inbox and controls were lifted to Home exclusively rather than duplicated.
 - **Continue:** Covered by entry above.
 - **Left better:** Dashboard is now organized by activity type. Daily work lands on Home; system internals are one System tab away.
-
-**2026-05-10 (B-122 audit bundle):**
-- **What I was doing:** B-122 — audit bundle. Added `get_audit_bundle()` and `mark_audit_taken()` to uplink_server.py. Added "Export audit bundle" button to Workspace tab. Discovered `research_articles` uses `retrieved_at` not `created_at` — fixed by parameterizing timestamp column per store as `(table, ts_col)` tuples.
-- **What I learned:** Supabase stores don't all share the same timestamp column — don't assume `created_at` in cross-store queries. ChromaDB count endpoint is GET `/api/v1/collections/{id}/count`.
-- **Continue:** Covered by entry above.
-- **Left better:** Workspace tab now has both working bundle and audit bundle export. Audit bundle gives full system snapshot for design/review sessions.
 
 
 ---
