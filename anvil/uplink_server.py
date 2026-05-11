@@ -3903,6 +3903,54 @@ def promote_workpad_to_thread(title, question):
     return {'thread_id': thread_id, 'title': title}
 
 
+@anvil.server.callable
+def search_brave(query, max_results=5):
+    query = (query or '').strip()
+    if not query:
+        raise Exception('Query is required.')
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        resp = requests.post(
+            'http://localhost:9100/web_search',
+            json={'query': query, 'max_results': max_results},
+            timeout=20,
+        )
+    except Exception as e:
+        raise Exception(f'Search unavailable: {e}')
+    if resp.status_code == 429:
+        raise Exception('Brave rate limit hit, try again in a moment')
+    if not resp.ok:
+        data = resp.json() if resp.content else {}
+        raise Exception(f'Search error: {data.get("error", resp.status_code)}')
+    data = resp.json()
+    results = data.get('results', [])
+    entry = {
+        'action': 'search',
+        'query': query,
+        'results': results,
+        'timestamp': now,
+    }
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers=_HEADERS,
+        params={'select': 'output_entries', 'id': 'eq.1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    current = (rows[0].get('output_entries') or []) if rows else []
+    current.append(entry)
+    r2 = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers={**_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+        json={'id': 1, 'output_entries': current, 'updated_at': now},
+        timeout=10,
+    )
+    r2.raise_for_status()
+    log.info('search_brave: query=%s results=%d', query[:60], len(results))
+    return entry
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
