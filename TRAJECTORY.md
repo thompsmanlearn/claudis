@@ -26,18 +26,25 @@
 - **B-125/B-126 complete (2026-05-10):** Two-pass review convention established (B-125) and extended with reader-writer discipline (B-126). CONVENTIONS.md §3 now has: which cards need review, the six-step flow, resolved standard, reader-writer check (standard question + acceptable answers), and five-field design sketch format (adds Writer and Reader fields).
 - **B-127 complete (2026-05-10):** Dashboard restructured from 10 tabs to 5-tab layout. Home (status strip, primary actions, bill_notes, inbox, autonomous toggle, lean trigger), Workpad stub, Threads/Sessions unchanged, System (Fleet/Memory/Lessons/Skills/Artifacts/Research/Grader as collapsible sections with lazy-load on expand). Font pass: body 16→18, section headers 20→22, status strip 24. Commit 91b55eb.
 - **B-118 already complete (verified 2026-05-10):** Gather button live in thread actions — gated on charter+wired agent+webhook, calls `trigger_thread_gather`, polls every 15s, refreshes entries on cycle_summary, surfaces errors inline. No work needed.
-- **Next:** B-128 (Workpad surface) or Chapter 4 when Bill decides.
+- **B-128 complete (2026-05-10):** Workpad surface live. `workpad_state` table (singleton), 5 uplink callables (get/save/fetch_url/clear/promote), full Form1 Workpad tab: input textarea, URL field, Read URL/Copy/Clear/Promote actions, debounced auto-save, scrollable output entries, inline promote form. Commits: claude-dashboard f57254d, claudis a1580af.
+- **Next:** Chapter 4 when Bill decides.
 
-**Project arc next:** System review, then Chapter 4 when Bill decides.
+**Project arc next:** Chapter 4 when Bill decides.
 
 ---
 
 ## Handoff (pick up here)
 
+**2026-05-10 (B-128 Workpad surface):**
+- **What I was doing:** B-128 — Workpad surface. `workpad_state` singleton table, 5 uplink callables, full Form1 Workpad tab with input/URL/actions/output/auto-save/promote. HTML stripping via stdlib `re` + `html.unescape` (bs4 not in venv). Commits: claude-dashboard f57254d, claudis a1580af.
+- **What I learned:** When bs4/html2text aren't available, `re.sub(r'<[^>]+>', ' ', raw)` + `html.unescape()` covers most real-world HTML adequately. Check venv before reaching for a library.
+- **Continue:** Chapter 4 when Bill decides. 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03).
+- **Left better:** Workpad is live — Bill can now drop content, fetch URLs, and promote investigations to threads without leaving the dashboard.
+
 **2026-05-10 (B-127 five-tab dashboard layout):**
 - **What I was doing:** B-127 — restructured Form1 from 10 tabs to Home/Workpad/Threads/Sessions/System. Home is now the daily-use landing: status strip (24px health/agents/queue/inbox), four primary action buttons, bill_notes capture + list, inbox approvals, autonomous toggle, lean trigger. System tab wraps Fleet/Memory/Lessons/Skills/Artifacts/Research/Grader as collapsible sections with lazy-load on expand. Font pass: 16→18, 20→22 throughout. Commit 91b55eb.
 - **What I learned:** Anvil widgets have single-parent ownership — avoid duplicating the same widget in multiple panels. System/Fleet got status+agents+queue only; inbox and controls were lifted to Home exclusively rather than duplicated.
-- **Continue:** B-118 (Gather trigger in Anvil UI). 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03).
+- **Continue:** Covered by entry above.
 - **Left better:** Dashboard is now organized by activity type. Daily work lands on Home; system internals are one System tab away.
 
 **2026-05-10 (B-122 audit bundle):**
@@ -45,12 +52,6 @@
 - **What I learned:** Supabase stores don't all share the same timestamp column — don't assume `created_at` in cross-store queries. ChromaDB count endpoint is GET `/api/v1/collections/{id}/count`.
 - **Continue:** Covered by entry above.
 - **Left better:** Workspace tab now has both working bundle and audit bundle export. Audit bundle gives full system snapshot for design/review sessions.
-
-**2026-05-10 (B-126 reader-writer discipline):**
-- **What I was doing:** B-126 — added reader-writer check subsection and Writer/Reader fields to CONVENTIONS.md §3. Docs-only, committed f6cdcd7.
-- **What I learned:** Nothing surprising — clean scoped change, no ambiguities.
-- **Continue:** B-118 (Gather trigger in Anvil UI). 1 pending agent_build in work_queue (SpecOps GUI).
-- **Left better:** Design review sketches now require Writer and Reader fields — dead-end writers caught during design, not after accumulation.
 
 
 ---
