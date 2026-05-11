@@ -132,12 +132,25 @@ A card is resolved when either:
 
 A sketch without a concrete proposed shape is not resolved. Agreement on the problem without agreement on the solution is not resolved.
 
+### Reader-writer check
+
+For any card that creates a writer — a new table, a button that logs a row, a hook that generates output, a new artifact format — ask during design review: **"Where's the reader? What consumes this output and acts on it?"**
+
+Acceptable answers:
+- A named reader that already exists
+- A named follow-on card that will build the reader
+- An explicit deferral with reasoning
+
+"We'll figure it out later" is not acceptable. If the reader can't be named, the card needs a follow-on card or should be reconsidered before it ships. This is a question, not a hard rule — sometimes building the writer first is deliberate — but the decision to defer the reader must be explicit.
+
 ### Design sketch format
 
-~200 words. Three fields:
+~200 words. Five fields. Name the writer and reader together when possible.
 
 **Problem:** What gap or failure is this fixing? One sentence.
 **Proposed shape:** What the solution looks like — components, flow, data. Enough for Claude Code to review against actual system state.
+**Writer:** What this card produces — table row, artifact, output, UI element.
+**Reader:** What consumes it — an existing system component, a named follow-on card, or an explicit deferral with reasoning.
 **Open questions:** What's unresolved. What the reviewer should push on.
 
 **Worked example:**
@@ -145,6 +158,10 @@ A sketch without a concrete proposed shape is not resolved. Agreement on the pro
 > **Problem:** The comment-classifier sometimes routes correction-intent comments to `note` — observed twice on 2026-05-08, both borderline confidence cases.
 >
 > **Proposed shape:** Add a confidence floor (0.7) in `classify_comment_intent()`. Below floor, route to a new `ambiguous` bucket. Write `ambiguous` rows to `agent_feedback` with `target_type='review_request'` for Bill to classify. No new table.
+>
+> **Writer:** `classify_comment_intent()` — writes `ambiguous` rows to `agent_feedback`.
+>
+> **Reader:** Bill via Anvil annotation view (existing). `agent_feedback` rows already surface in Anvil; no new consumer needed.
 >
 > **Open questions:** Is 0.7 the right floor, or should it be tunable per target_type? Does `review_request` exist in the annotation vocabulary (annotation-pattern.md) or does it need to be added?
 
