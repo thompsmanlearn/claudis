@@ -163,3 +163,23 @@ Specific things to use your judgment on:
 - HTML stripping in fetch_url_content — use whichever library is already available (BeautifulSoup, html2text, or stdlib). Pick the cheapest path.
 - Debounce timing — 2 seconds is a guess. Adjust if it feels wrong in practice.
 - Output entry truncation length — 500 chars is a guess. Adjust if a different threshold feels better with real content.
+## B-129: Workpad search via Brave
+Status: ready
+Depends on: B-128
+
+### Goal
+Add a Search button to the Workpad that uses the current input text as a query against Brave Search, displaying results inline in the Output region as clickable rows. Clicking a result populates the URL field so Bill can immediately fetch the full content with Read URL.
+
+This wires Brave to a real user surface for the first time. The same Brave endpoint already exists in stats_server (used by the gather pipeline for thread research) — this card connects Workpad to it as a thin wrapper.
+
+### Context
+Designed through two-pass review on 2026-05-10. Opus proposed adding Brave wiring directly to the uplink server; Claude Code's review showed stats_server already has /web_search with rate limiting, usage logging, and 429 handling. Brave key lives in ~/aadp/mcp-server/.env. Don't duplicate.
+
+Workpad gets 5 results per search. The existing output_entries schema stores strings; search needs a structured shape because results are a list, and each result needs to be clickable.
+
+### Done when
+
+1. New uplink callable `search_brave(query, max_results=5)`:
+   - POSTs to http://localhost:9100/web_search with the query and max_results
+   - Receives parsed Brave results: list of {url, title, snippet, source_domain, published_date}
+   - Appends a new entry to workpad_state.output_entries with shape:
