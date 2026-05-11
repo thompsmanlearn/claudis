@@ -1,1 +1,1 @@
-Say "hi Bill" and wait for prompt in chat
+Run B-127
