@@ -25,7 +25,8 @@
 - **B-124 complete (2026-05-10):** stats_server now under git version control. Own repo at ~/aadp/stats-server/ (commit d28f88c). Two-repo sync pattern; symlink ruled out (venv constraint).
 - **B-125/B-126 complete (2026-05-10):** Two-pass review convention established (B-125) and extended with reader-writer discipline (B-126). CONVENTIONS.md §3 now has: which cards need review, the six-step flow, resolved standard, reader-writer check (standard question + acceptable answers), and five-field design sketch format (adds Writer and Reader fields).
 - **B-127 complete (2026-05-10):** Dashboard restructured from 10 tabs to 5-tab layout. Home (status strip, primary actions, bill_notes, inbox, autonomous toggle, lean trigger), Workpad stub, Threads/Sessions unchanged, System (Fleet/Memory/Lessons/Skills/Artifacts/Research/Grader as collapsible sections with lazy-load on expand). Font pass: body 16→18, section headers 20→22, status strip 24. Commit 91b55eb.
-- **Next:** B-118 (Gather trigger in Anvil UI), then Chapter 4 when Bill decides.
+- **B-118 already complete (verified 2026-05-10):** Gather button live in thread actions — gated on charter+wired agent+webhook, calls `trigger_thread_gather`, polls every 15s, refreshes entries on cycle_summary, surfaces errors inline. No work needed.
+- **Next:** B-128 (Workpad surface) or Chapter 4 when Bill decides.
 
 **Project arc next:** System review, then Chapter 4 when Bill decides.
 
