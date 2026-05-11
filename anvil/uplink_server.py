@@ -3796,6 +3796,113 @@ def mark_audit_taken():
     return {'marked_at': now_iso}
 
 
+# ── Workpad ───────────────────────────────────────────────────────────────────
+
+_WORKPAD_EMPTY = {'input_text': '', 'attach_url': '', 'output_entries': []}
+
+
+@anvil.server.callable
+def get_workpad_state():
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers=_HEADERS,
+        params={'select': '*', 'id': 'eq.1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        return dict(_WORKPAD_EMPTY)
+    row = rows[0]
+    return {
+        'input_text': row.get('input_text', ''),
+        'attach_url': row.get('attach_url', ''),
+        'output_entries': row.get('output_entries') or [],
+    }
+
+
+@anvil.server.callable
+def save_workpad_input(input_text, attach_url):
+    now = datetime.now(timezone.utc).isoformat()
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers={**_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+        json={'id': 1, 'input_text': input_text or '', 'attach_url': attach_url or '', 'updated_at': now},
+        timeout=10,
+    )
+    r.raise_for_status()
+    return {'saved_at': now}
+
+
+@anvil.server.callable
+def fetch_url_content(url):
+    import html as _html_mod
+    try:
+        resp = requests.get(url, timeout=15, headers={'User-Agent': 'AADP/1.0'})
+        resp.raise_for_status()
+        raw = resp.text
+        text = re.sub(r'<[^>]+>', ' ', raw)
+        text = _html_mod.unescape(text)
+        text = re.sub(r'\s+', ' ', text).strip()
+    except Exception as e:
+        text = f'Error fetching URL: {e}'
+    now = datetime.now(timezone.utc).isoformat()
+    entry = {'action': 'read_url', 'result': text, 'timestamp': now}
+    # Read current entries, append, then upsert
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers=_HEADERS,
+        params={'select': 'output_entries', 'id': 'eq.1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    current = (rows[0].get('output_entries') or []) if rows else []
+    current.append(entry)
+    r2 = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers={**_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+        json={'id': 1, 'output_entries': current, 'updated_at': now},
+        timeout=10,
+    )
+    r2.raise_for_status()
+    log.info('fetch_url_content: url=%s chars=%d', url[:80], len(text))
+    return entry
+
+
+@anvil.server.callable
+def clear_workpad():
+    now = datetime.now(timezone.utc).isoformat()
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers={**_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+        json={'id': 1, 'input_text': '', 'attach_url': '', 'output_entries': [], 'updated_at': now},
+        timeout=10,
+    )
+    r.raise_for_status()
+    log.info('clear_workpad: cleared at %s', now)
+    return {'cleared_at': now}
+
+
+@anvil.server.callable
+def promote_workpad_to_thread(title, question):
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers=_HEADERS,
+        params={'select': 'input_text', 'id': 'eq.1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    current_input = rows[0].get('input_text', '') if rows else ''
+    thread = create_thread(title, question)
+    thread_id = thread['id']
+    if current_input.strip():
+        add_thread_entry(thread_id, 'charter', current_input)
+    log.info('promote_workpad_to_thread: thread=%s title=%s', thread_id, title[:60])
+    return {'thread_id': thread_id, 'title': title}
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
