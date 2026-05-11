@@ -23,6 +23,7 @@
 - **B-120/B-121/B-122 complete (2026-05-10):** Workspace tab live. Bill's notes capture, working bundle, and audit bundle all functional. Export buttons in Workspace tab.
 - **B-123 complete (2026-05-10):** inject_context_v3 restored — 6 missing module-level constants reconstructed. Lesson retrieval and times_applied tracking working again.
 - **B-124 complete (2026-05-10):** stats_server now under git version control. Own repo at ~/aadp/stats-server/ (commit d28f88c). Two-repo sync pattern; symlink ruled out (venv constraint).
+- **B-125/B-126 complete (2026-05-10):** Two-pass review convention established (B-125) and extended with reader-writer discipline (B-126). CONVENTIONS.md §3 now has: which cards need review, the six-step flow, resolved standard, reader-writer check (standard question + acceptable answers), and five-field design sketch format (adds Writer and Reader fields).
 - **Next:** B-118 (Gather trigger in Anvil UI), then Chapter 4 when Bill decides.
 
 **Project arc next:** System review, then Chapter 4 when Bill decides.
@@ -43,11 +44,11 @@
 - **Continue:** Covered by entry above.
 - **Left better:** Workspace tab now has both working bundle and audit bundle export. Audit bundle gives full system snapshot for design/review sessions.
 
-**2026-05-10 (thread research pipeline bugs):**
-- **What I was doing:** Fixed three bugs in the thread research pipeline: (1) duplicate findings; (2) memory consultation wrong query; (3) gather trigger silent failure — thread_research_agent workflow was inactive.
-- **What I learned:** n8n sandbox workflows deactivated after testing still have webhook_url in agent_registry — POST to inactive production webhook fails immediately. fire-and-forget webhook callers must check response status.
-- **Continue:** Covered by entry above.
-- **Left better:** Thread research pipeline now correctly deduplicates, uses authoritative charter question, and surfaces webhook failures.
+**2026-05-10 (B-126 reader-writer discipline):**
+- **What I was doing:** B-126 — added reader-writer check subsection and Writer/Reader fields to CONVENTIONS.md §3. Docs-only, committed f6cdcd7.
+- **What I learned:** Nothing surprising — clean scoped change, no ambiguities.
+- **Continue:** B-118 (Gather trigger in Anvil UI). 1 pending agent_build in work_queue (SpecOps GUI).
+- **Left better:** Design review sketches now require Writer and Reader fields — dead-end writers caught during design, not after accumulation.
 
 
 ---
