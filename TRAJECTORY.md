@@ -24,6 +24,7 @@
 - **B-123 complete (2026-05-10):** inject_context_v3 restored — 6 missing module-level constants reconstructed. Lesson retrieval and times_applied tracking working again.
 - **B-124 complete (2026-05-10):** stats_server now under git version control. Own repo at ~/aadp/stats-server/ (commit d28f88c). Two-repo sync pattern; symlink ruled out (venv constraint).
 - **B-125/B-126 complete (2026-05-10):** Two-pass review convention established (B-125) and extended with reader-writer discipline (B-126). CONVENTIONS.md §3 now has: which cards need review, the six-step flow, resolved standard, reader-writer check (standard question + acceptable answers), and five-field design sketch format (adds Writer and Reader fields).
+- **B-127 complete (2026-05-10):** Dashboard restructured from 10 tabs to 5-tab layout. Home (status strip, primary actions, bill_notes, inbox, autonomous toggle, lean trigger), Workpad stub, Threads/Sessions unchanged, System (Fleet/Memory/Lessons/Skills/Artifacts/Research/Grader as collapsible sections with lazy-load on expand). Font pass: body 16→18, section headers 20→22, status strip 24. Commit 91b55eb.
 - **Next:** B-118 (Gather trigger in Anvil UI), then Chapter 4 when Bill decides.
 
 **Project arc next:** System review, then Chapter 4 when Bill decides.
@@ -32,11 +33,11 @@
 
 ## Handoff (pick up here)
 
-**2026-05-10 (B-124 stats-server version control):**
-- **What I was doing:** B-124 — git init ~/aadp/stats-server/ as own repo. Committed stats_server.py (post-B-123, d28f88c). Symlink ruled out: venv at hardcoded systemd path can't survive directory symlink; file-level symlinks can't satisfy `git log` from deploy dir. Updated lesson_stats_server_deploy_path_2026-04-26 to reflect two-repo sync pattern.
-- **What I learned:** Lesson recommends symlink by default, but always verify the done-when criterion for `git log` from the deploy dir — it forces an own-repo if the dir can't be symlinked wholesale.
+**2026-05-10 (B-127 five-tab dashboard layout):**
+- **What I was doing:** B-127 — restructured Form1 from 10 tabs to Home/Workpad/Threads/Sessions/System. Home is now the daily-use landing: status strip (24px health/agents/queue/inbox), four primary action buttons, bill_notes capture + list, inbox approvals, autonomous toggle, lean trigger. System tab wraps Fleet/Memory/Lessons/Skills/Artifacts/Research/Grader as collapsible sections with lazy-load on expand. Font pass: 16→18, 20→22 throughout. Commit 91b55eb.
+- **What I learned:** Anvil widgets have single-parent ownership — avoid duplicating the same widget in multiple panels. System/Fleet got status+agents+queue only; inbox and controls were lifted to Home exclusively rather than duplicated.
 - **Continue:** B-118 (Gather trigger in Anvil UI). 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03).
-- **Left better:** stats_server.py now recoverable via git revert instead of constant reconstruction.
+- **Left better:** Dashboard is now organized by activity type. Daily work lands on Home; system internals are one System tab away.
 
 **2026-05-10 (B-122 audit bundle):**
 - **What I was doing:** B-122 — audit bundle. Added `get_audit_bundle()` and `mark_audit_taken()` to uplink_server.py. Added "Export audit bundle" button to Workspace tab. Discovered `research_articles` uses `retrieved_at` not `created_at` — fixed by parameterizing timestamp column per store as `(table, ts_col)` tuples.
