@@ -27,6 +27,7 @@
 - **B-127 complete (2026-05-10):** Dashboard restructured from 10 tabs to 5-tab layout. Home (status strip, primary actions, bill_notes, inbox, autonomous toggle, lean trigger), Workpad stub, Threads/Sessions unchanged, System (Fleet/Memory/Lessons/Skills/Artifacts/Research/Grader as collapsible sections with lazy-load on expand). Font pass: body 16→18, section headers 20→22, status strip 24. Commit 91b55eb.
 - **B-118 already complete (verified 2026-05-10):** Gather button live in thread actions — gated on charter+wired agent+webhook, calls `trigger_thread_gather`, polls every 15s, refreshes entries on cycle_summary, surfaces errors inline. No work needed.
 - **B-128 complete (2026-05-10):** Workpad surface live. `workpad_state` table (singleton), 5 uplink callables (get/save/fetch_url/clear/promote), full Form1 Workpad tab: input textarea, URL field, Read URL/Copy/Clear/Promote actions, debounced auto-save, scrollable output entries, inline promote form. Commits: claude-dashboard f57254d, claudis a1580af.
+- **B-129 complete (2026-05-10):** Workpad Brave search live. `search_brave` uplink callable wraps stats_server /web_search (rate-limit and error handling). Form1 Workpad tab: Search button (disabled until input non-empty), `_wp_render_output` extended with search branch (🔍 header, clickable result rows, click populates URL field). Commits: claude-dashboard 32be089, claudis 00e805d.
 - **Next:** Chapter 4 when Bill decides.
 
 **Project arc next:** Chapter 4 when Bill decides.
