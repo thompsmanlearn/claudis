@@ -15,25 +15,26 @@
 - **2026-05-16 system evaluation:** Full audit of what's performative vs. useful. Key finding: research pipeline finds and synthesizes but output lands in `experimental_outputs` with no reader — loop broken. Dashboard not used. Three-way collaboration ritual established. Phase 1–4 rebuild plan scoped with Desktop Claude.
 - **B-130 complete (2026-05-16):** lesson_injector and session_health_reporter retired (n8n workflows deleted). agent_health_monitor wired to 6h schedule — already had Telegram path via Sandbox Notify. Fleet: 9 → 7 active. Commit 3e9eb6c.
 - **B-131 complete (2026-05-17):** Desktop Claude export live. `get_desktop_bundle()` callable in uplink_server.py; "Export for Desktop Claude" button on Home tab. Export covers active threads (summaries expanded), recent research (full URLs), session artifacts (capability delta), fragilities, store counts. Commits: claudis 8fb3337, claude-dashboard 730aae2.
+- **Anvil UI input flow designed (2026-05-17):** Full design settled for `bill_input` table + three-mode input surface (Question/Comment/Command) + LEAN_BOOT.md priority step + response window. Design summary ready for Desktop Claude to write the card. Trigger Lean Session button confirmed working end-to-end.
 - **Phase 1 remaining:** Boot path unification (bootstrap + LEAN_BOOT.md → one sequence). Needs design pass before card.
 
-**Project arc next:** Phase 1 — boot path unification. Then Phase 2 (close the research output loop).
+**Project arc next:** Anvil UI input flow card (Desktop Claude writes it, Bill brings it back). Then Phase 1 boot path unification.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-05-17 (B-131 Desktop Claude export):**
-- **What I was doing:** B-131 — added `get_desktop_bundle()` callable and "Export for Desktop Claude" button on Home tab. Commits: claudis dd616d5 (attempt), 8fb3337 (main merge); claude-dashboard 0414d3c (attempt), 730aae2 (master merge).
-- **What I learned:** Cards may say "Workspace tab" but the actual tab is "Home" — always verify UI element names by reading Form1/__init__.py rather than trusting card descriptions.
-- **Continue:** Boot path unification (Phase 1 remaining). Needs design pass with Desktop Claude before writing the card. Gate question to ask: "After unification, what specifically will Bill do differently?"
-- **Left better:** Desktop Claude now has a purpose-built export — Bill can paste it into a take-stock conversation and get threads, research, fragilities, and deltas in one shot.
+**2026-05-17 (design session — Anvil UI input flow):**
+- **What I was doing:** Design discussion with Bill. Investigated bootstrap skill, confirmed Trigger Lean Session is working end-to-end, settled design for bill_input table + three-mode input surface. No code built — output is a design summary for Desktop Claude to write the card.
+- **What I learned:** Trigger Lean Session spawns lean_runner.sh → `claude -p --dangerously-skip-permissions` with LEAN_BOOT.md as the prompt. The full boot sequence runs non-interactively. This means any new LEAN_BOOT.md step runs automatically when Bill hits the button.
+- **Continue:** Take the design summary (in session artifact 2026-05-17-anvil-input-flow-design.md) to Desktop Claude. Ask it to write the card. Bring the card back. Card requires two-pass review marker since it creates a new table + new UI surface — it's already reviewed in this session, so Desktop Claude should include "Design reviewed by Claude Code."
+- **Left better:** Design is fully resolved — no open questions remain. Desktop Claude can write the card without needing another design pass.
 
-**2026-05-16 (B-130 + system evaluation):**
-- **What I was doing:** Full system evaluation with Bill and Desktop Claude. Executed B-130: retired lesson_injector + session_health_reporter, added 6h schedule to agent_health_monitor. Commit 3e9eb6c.
-- **What I learned:** Sandbox Notify (Ls0znhBx9W5Cr6sV) already sends Telegram with 24h rate limiting — not an orphan sink as the agent description implied. Agent descriptions can be misleading; read the workflow before assuming.
-- **Continue:** Phase 1 remaining (boot path unification) per above.
-- **Left better:** Fleet cleaned to 7 active agents. agent_health_monitor alerts Bill on Telegram if any agent accumulates 3+ consecutive errors.
+**2026-05-17 (B-131 Desktop Claude export):**
+- **What I was doing:** B-131 — added `get_desktop_bundle()` callable and "Export for Desktop Claude" button on Home tab. Commits: claudis 8fb3337, claude-dashboard 730aae2.
+- **What I learned:** Cards may say "Workspace tab" but the actual tab is "Home" — always verify UI element names by reading Form1/__init__.py rather than trusting card descriptions.
+- **Continue:** Anvil UI input flow card per above.
+- **Left better:** Desktop Claude now has a purpose-built export covering threads, research, session deltas, fragilities, and store counts.
 
 
 ---
