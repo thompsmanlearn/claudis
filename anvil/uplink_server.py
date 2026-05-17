@@ -1406,6 +1406,26 @@ def get_research_bundle(agent_run_id=None):
     return '\n'.join(lines)
 
 
+@anvil.server.callable
+def run_research_synthesis():
+    r = requests.post(f'{_STATS_URL}/run_paper_synthesis', timeout=55)
+    r.raise_for_status()
+    return r.json()
+
+
+@anvil.server.callable
+def get_latest_briefing():
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/research_briefings',
+        headers=_HEADERS,
+        params={'order': 'created_at.desc', 'limit': '1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    return rows[0] if rows else None
+
+
 # ── Export bundle callables ─────────────────────────────────────────────────
 
 def _bundle_header(bundle_type, view_filter, row_count):
