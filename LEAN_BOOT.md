@@ -45,6 +45,7 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 
    **Stale-card check:** Before continuing, verify the card is not already complete. Check the card's verification checklist against actual state (read key artifacts, one fast Supabase query if needed). If all criteria are already met:
    - Compose a structured briefing (≤600 chars): directive seen, TRAJECTORY.md project arc next, pending `work_queue` count + task types, unresolved `error_logs` count, active agent count.
+   - If a `bill_input` row was processed in step 4.5 (Question or Comment mode), append it to the briefing: `"## Bill input\nQ: <question text>\nA: <response text>"`.
    - Call `post_boot_briefing(content, directive_seen)` via the Anvil uplink callable.
    - Telegram Bill: "🔔 Stale directive (Run: B-NNN already complete). Boot briefing posted to Anvil Sessions tab."
    - **STOP. Do not proceed to step 6.**
