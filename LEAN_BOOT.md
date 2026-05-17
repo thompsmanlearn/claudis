@@ -14,6 +14,23 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 2. `cp ~/aadp/claudis/LEAN_BOOT.md ~/aadp/LEAN_BOOT.md`.
 3. Read `~/aadp/claudis/skills/PROTECTED.md`.
 4. Read `~/aadp/claudis/CONVENTIONS.md`.
+
+4.5. **Check for pending Bill input** (`mcp__aadp__supabase_exec_sql`, read-only):
+   ```sql
+   SELECT id, mode, text FROM bill_input WHERE status = 'pending' LIMIT 1;
+   ```
+   **If a row is found**, process it by mode before reading DIRECTIVES.md:
+
+   - **Command** — write the text to `~/aadp/claudis/DIRECTIVES.md`, commit and push (`cd ~/aadp/claudis && git add DIRECTIVES.md && git commit -m "bill_input: command from Bill" && git push`). Write response: `"Command written to DIRECTIVES.md — executing as directive this session"`. The command replaces DIRECTIVES.md for this session; continue to step 5 which will now read the new directive.
+   - **Question** — answer the question using current system knowledge (read CONTEXT.md, TRAJECTORY.md, query Supabase as needed). Write the answer to the response field.
+   - **Comment** — save the text as a lesson in `lessons_learned` + ChromaDB using `mcp__aadp__memory_add`. Write response: `"Saved as lesson: [title]"`. DIRECTIVES.md is unchanged.
+
+   Mark the row processed regardless of mode:
+   ```sql
+   UPDATE bill_input SET status = 'processed', processed_at = now(), response = '<response text>' WHERE id = '<id>';
+   ```
+   **If no row is found**, skip silently.
+
 5. Read `~/aadp/claudis/DIRECTIVES.md`. If it contains `Run: B-NNN`, read that card from `~/aadp/claudis/BACKLOG.md` — the card is the directive.
 
    **Stale-card check:** Before continuing, verify the card is not already complete. Check the card's verification checklist against actual state (read key artifacts, one fast Supabase query if needed). If all criteria are already met:

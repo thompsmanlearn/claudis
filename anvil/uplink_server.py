@@ -4172,6 +4172,52 @@ def search_brave(query, max_results=5):
     return entry
 
 
+@anvil.server.callable
+def submit_bill_input(mode, text):
+    mode = (mode or '').strip()
+    text = (text or '').strip()
+    if mode not in ('Question', 'Comment', 'Command'):
+        raise Exception(f'Invalid mode: {mode}')
+    if not text:
+        raise Exception('Text is required.')
+    # Overwrite any existing row — table holds at most one entry at a time
+    requests.delete(
+        f'{_SUPABASE_URL}/rest/v1/bill_input',
+        headers=_HEADERS,
+        params={'id': 'neq.00000000-0000-0000-0000-000000000000'},
+        timeout=10,
+    ).raise_for_status()
+    requests.post(
+        f'{_SUPABASE_URL}/rest/v1/bill_input',
+        headers=_HEADERS,
+        json={'mode': mode, 'text': text, 'status': 'pending'},
+        timeout=10,
+    ).raise_for_status()
+    log.info('submit_bill_input: mode=%s text_len=%d', mode, len(text))
+    return {'status': 'ok'}
+
+
+@anvil.server.callable
+def get_bill_input_response():
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/bill_input',
+        headers=_HEADERS,
+        params={'select': 'status,response,mode,text', 'order': 'created_at.desc', 'limit': '1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        return {'status': 'none', 'response': None}
+    row = rows[0]
+    return {
+        'status': row.get('status', 'pending'),
+        'response': row.get('response'),
+        'mode': row.get('mode'),
+        'text': row.get('text'),
+    }
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
