@@ -17,18 +17,19 @@
 - **B-131 complete (2026-05-17):** Desktop Claude export live. `get_desktop_bundle()` callable in uplink_server.py; "Export for Desktop Claude" button on Home tab. Export covers active threads (summaries expanded), recent research (full URLs), session artifacts (capability delta), fragilities, store counts. Commits: claudis 8fb3337, claude-dashboard 730aae2.
 - **B-132 complete (2026-05-17):** Bill input channel live. `bill_input` table in Supabase, `submit_bill_input` + `get_bill_input_response` callables in uplink_server.py, three-mode input panel (Question/Comment/Command) on Home tab above export buttons, LEAN_BOOT.md step 4.5 checks pending input before reading DIRECTIVES.md. Commits: claudis 1d2ae51, claude-dashboard 6c87fc2.
 - **B-133 complete (2026-05-17):** Boot path cleanup done. Dead lesson injection removed from lean_runner.sh (lesson_injector deleted B-130, webhook was 404 every session). session_notes_load removed from bootstrap.md (table archived 2026-04-25). Boot heartbeat added to LEAN_BOOT.md step 1.5 — lean sessions now write claudis_current_task to system_config at start. Commit a4f334b.
+- **2026-05-17 Bill session (this session):** Two investigations (session status stuck, safe stop mechanism) → two bug fixes (write_phase UPSERT, Home tab status label) → Request Close button built (Option B: flag checked by lean_runner after Claude exits, second close-session invocation). GEMINI_API_KEY added. B-135 built: /run_paper_synthesis (gemini-2.5-flash), research_briefings table, Research Briefing panel on Home tab. Multiple dashboard polish fixes. Commits: claudis 9011f62, eb8d388; claude-dashboard 21af5a0, 6702a06, 9e47ece, 6283f15, 529df29, 99dc3c9, 21e0361; stats-server fce1a5e, 9fe44d4.
 
-**Project arc next:** Phase 2 — scoped with Desktop Claude. Research pipeline reader gap is the main open thread.
+**Project arc next:** DIRECTIVES.md needs updating before next lean session. Research pipeline loop is now closed — papers score, synthesize, surface on Home tab. Next: Phase 2 scoping with Desktop Claude (ChromaDB leverage, research reader gap fully resolved).
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-05-17 (post-B133 polish):**
-- **What I was doing:** Two small follow-ons after B-133 close: (1) LEAN_BOOT.md stale-card briefing now includes bill_input Q&A when a Question/Comment was processed at step 4.5 (f9af0cb). (2) Anvil Home tab "Get Output" button now always visible (not hidden until submit), fetches and auto-copies in one click (98c5e74, claude-dashboard).
-- **What I learned:** bill_input response panel was only shown after Submit in the current browser session — a page refresh hid it. Always-visible is the right default for output surfaces.
-- **Continue:** Phase 2 scoping with Desktop Claude. Research pipeline reader gap is the main open thread. DIRECTIVES.md still says Run B-133 — update before next lean session.
-- **Left better:** Bill can submit a question, trigger lean, come back later and hit "Get Output" on the Home tab — answer appears and copies in one click, even after a page refresh.
+**2026-05-17 (end of Bill session):**
+- **What I was doing:** B-135 Research Briefing panel — last fix was stripping EXECUTIVE_BRIEFING marker lines from full-briefing fallback display (commit 21e0361). DIRECTIVES.md still says Run B-133 — must be updated before triggering a lean session.
+- **What I learned:** PostgREST `resolution=merge-duplicates` requires explicit `on_conflict=column` param — without it, UPSERT conflicts silently fail. Also: instance variable name collisions in Anvil Form1 are runtime bugs, not syntax errors — assignment overwrites silently.
+- **Continue:** Update DIRECTIVES.md to the next card before triggering lean. Consider running Run Synthesis again once more discovered papers accumulate (13 synthesized this session, pipeline will refill from arxiv_aadp_pipeline).
+- **Left better:** Research loop closed — 13 papers synthesized with Gemini, executive briefing visible on Home tab, Copy sends full text to Desktop Claude.
 
 
 ---
