@@ -16,25 +16,25 @@
 - **B-130 complete (2026-05-16):** lesson_injector and session_health_reporter retired (n8n workflows deleted). agent_health_monitor wired to 6h schedule — already had Telegram path via Sandbox Notify. Fleet: 9 → 7 active. Commit 3e9eb6c.
 - **B-131 complete (2026-05-17):** Desktop Claude export live. `get_desktop_bundle()` callable in uplink_server.py; "Export for Desktop Claude" button on Home tab. Export covers active threads (summaries expanded), recent research (full URLs), session artifacts (capability delta), fragilities, store counts. Commits: claudis 8fb3337, claude-dashboard 730aae2.
 - **B-132 complete (2026-05-17):** Bill input channel live. `bill_input` table in Supabase, `submit_bill_input` + `get_bill_input_response` callables in uplink_server.py, three-mode input panel (Question/Comment/Command) on Home tab above export buttons, LEAN_BOOT.md step 4.5 checks pending input before reading DIRECTIVES.md. Commits: claudis 1d2ae51, claude-dashboard 6c87fc2.
-- **Phase 1 remaining:** Boot path unification (bootstrap + LEAN_BOOT.md → one sequence). Needs design pass before card.
+- **B-133 design analysis complete (2026-05-17):** Boot path unification design facts delivered to Desktop Claude. Key findings: lean_runner.sh lesson injection is dead (lesson_injector deleted B-130, webhook 404); only real redundancy is double git pull; bootstrap is Sentinel-only and currently invoked by nothing active. Desktop Claude to write B-133 card.
 
-**Project arc next:** Phase 1 boot path unification (design pass first). Then Phase 2.
+**Project arc next:** B-133 (boot path unification) — Desktop Claude writes card, Bill brings it back. Then Phase 2.
 
 ---
 
 ## Handoff (pick up here)
 
+**2026-05-17 (B-133 design analysis — boot path unification):**
+- **What I was doing:** Design collaboration for Desktop Claude before B-133 is written. Answered 5 questions about LEAN_BOOT.md vs bootstrap divergence, active invocation paths, and double lesson injection.
+- **What I learned:** lean_runner.sh lesson injection via n8n webhook is dead — lesson_injector was deleted in B-130, webhook returns 404, CONTEXT_BLOCK is always empty. Only LEAN_BOOT.md step 11 (inject_context_v3 direct) is active. Double git pull is the only live redundancy. bootstrap is Sentinel-only, invoked by nothing currently active.
+- **Continue:** Desktop Claude writes B-133 card using the design analysis. Bill brings it back. Card scope: remove dead lesson injection from lean_runner.sh, clarify bootstrap as Sentinel-only, optionally add heartbeat update to LEAN_BOOT.md (currently missing from lean sessions).
+- **Left better:** Complete factual picture of the boot path delivered — Desktop Claude can write the card without further research.
+
 **2026-05-17 (B-132 Bill input channel):**
 - **What I was doing:** Built the bill_input channel end-to-end: Supabase table, two Anvil callables, Home tab UI panel, LEAN_BOOT.md step 4.5. All pushed and uplink restarted.
 - **What I learned:** LEAN_BOOT.md step 4.5 runs before DIRECTIVES.md — Command mode overwrites DIRECTIVES.md and the session executes that instead. The bill_input table holds at most one row; submit_bill_input deletes all existing rows before inserting.
-- **Continue:** Phase 1 boot path unification — bootstrap skill + LEAN_BOOT.md → one sequence. Needs design pass with Desktop Claude before writing a card.
+- **Continue:** B-133 per above.
 - **Left better:** Bill can now type a Question, Comment, or Command into Anvil before triggering a lean session; Claude Code processes it at boot and posts the response back.
-
-**2026-05-17 (B-131 Desktop Claude export):**
-- **What I was doing:** B-131 — added `get_desktop_bundle()` callable and "Export for Desktop Claude" button on Home tab. Commits: claudis 8fb3337, claude-dashboard 730aae2.
-- **What I learned:** Cards may say "Workspace tab" but the actual tab is "Home" — always verify UI element names by reading Form1/__init__.py rather than trusting card descriptions.
-- **Continue:** B-132 complete; next is boot path unification design pass.
-- **Left better:** Desktop Claude now has a purpose-built export covering threads, research, session deltas, fragilities, and store counts.
 
 
 ---
