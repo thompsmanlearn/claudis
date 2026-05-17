@@ -11,6 +11,16 @@ You are Claude Code operating the AADP on a Raspberry Pi 5. Bill directs; you ex
 ## Startup Sequence
 
 1. `git pull` on `~/aadp/claudis/`. If pull fails, Telegram Bill that directives may be stale and STOP.
+
+1.5. **Boot heartbeat** — Peek at `~/aadp/claudis/DIRECTIVES.md` (first line, truncated to 80 chars) and write active status to system_config. Use `mcp__aadp__supabase_exec_sql` — do not use `config_set`, which targets agent_config, not system_config:
+   ```sql
+   INSERT INTO system_config (key, value) VALUES
+     ('claudis_current_task', to_jsonb('<first 80 chars of first line of DIRECTIVES.md>'::text)),
+     ('claudis_heartbeat_at', to_jsonb(NOW()::text))
+   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+   ```
+   close-session resets `claudis_current_task` to `idle`.
+
 2. `cp ~/aadp/claudis/LEAN_BOOT.md ~/aadp/LEAN_BOOT.md`.
 3. Read `~/aadp/claudis/skills/PROTECTED.md`.
 4. Read `~/aadp/claudis/CONVENTIONS.md`.

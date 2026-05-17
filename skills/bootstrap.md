@@ -30,13 +30,7 @@ Read each file in order. These are load-bearing, not decorative:
 2. `~/aadp/claudis/CONVENTIONS.md` — operational procedures
 3. `~/aadp/claudis/TRAJECTORY.md` — long-term destinations and active vectors
 
-Then load session context:
-
-4. Call `session_notes_load` with `consume=true` — this reads unconsumed handoff notes AND marks them consumed so they don't accumulate across sessions. These contain: what was in progress at last close, the highest-priority next action, what was left better.
-
-   **IMPORTANT: pass `consume=true` explicitly.** The default is `consume=false` (safe peek). Without `consume=true`, notes are never cleared and will pile up across sessions, growing DCL by ~1,700 tokens per session.
-
-Approximate context consumed by this step: ~3,500 tokens for the three documents, plus variable for session notes (0–2 notes when working correctly).
+Approximate context consumed by this step: ~3,500 tokens.
 
 ---
 

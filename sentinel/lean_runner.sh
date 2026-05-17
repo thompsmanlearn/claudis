@@ -1,7 +1,6 @@
 #!/bin/bash
 # lean_runner.sh — spawned by stats_server /trigger_lean
 # Runs a non-interactive Claude Code lean session via LEAN_BOOT.md.
-# Injects relevant lessons from lesson_injector before starting.
 # Manages its own lock, timeout, and Telegram notifications.
 
 LOCK_FILE="/tmp/oslean.lock"
@@ -12,8 +11,6 @@ MCP_DIR="/home/thompsman/aadp/mcp-server"
 LEAN_BOOT="/home/thompsman/aadp/LEAN_BOOT.md"
 DIRECTIVES="${CLAUDIS_DIR}/DIRECTIVES.md"
 CLAUDE_BIN="/home/thompsman/.local/bin/claude"
-INJECT_WEBHOOK="http://localhost:5678/webhook/inject-context"
-BACKLOG="${CLAUDIS_DIR}/BACKLOG.md"
 MAX_TURNS=200
 TIMEOUT_SECS=7200   # 2 hours
 TG_WEBHOOK="http://localhost:5678/webhook/telegram-quick-send"
@@ -70,48 +67,15 @@ if ! git -C "${CLAUDIS_DIR}" pull >> "${LOG_FILE}" 2>&1; then
     exit 1
 fi
 
-# Build directive description for lesson injection.
-# If DIRECTIVES.md is a single-line pointer "Run: B-NNN", resolve the backlog card.
+# Extract CARD_ID if DIRECTIVES.md is a single-line pointer "Run: B-NNN"
 DIRECTIVE_RAW=$(cat "${DIRECTIVES}" 2>/dev/null | tr -d '\r')
 if echo "${DIRECTIVE_RAW}" | grep -qE '^Run: B-[0-9]+$'; then
     CARD_ID=$(echo "${DIRECTIVE_RAW}" | grep -oE 'B-[0-9]+')
-    DIRECTIVE_DESC=$(awk "/^## ${CARD_ID}:/{found=1} found{print; if(found && NF==0) count++; if(count>3) exit}" "${BACKLOG}" 2>/dev/null \
-        | head -20 | tr '\n' ' ' | sed 's/["\\/]//g' | cut -c1-300)
-    [ -z "${DIRECTIVE_DESC}" ] && DIRECTIVE_DESC="lean session ${CARD_ID}"
-    log "INJECT: resolved ${CARD_ID} from BACKLOG.md"
-else
-    DIRECTIVE_DESC=$(echo "${DIRECTIVE_RAW}" | head -20 | tr '\n' ' ' | sed 's/["\\/]//g' | cut -c1-300)
 fi
-[ -z "${DIRECTIVE_DESC}" ] && DIRECTIVE_DESC="lean session directive"
 
 write_phase "started" "booting: ${CARD_ID:-directive}"
 log "STATUS: wrote started phase to session_status"
 
-# Fetch lesson context from injector (25s timeout — endpoint takes ~15s)
-log "INJECT: fetching lesson context"
-INJECT_PAYLOAD=$(python3 -c "
-import json, sys
-print(json.dumps({
-    'task_type': 'general',
-    'task_id': '',
-    'description': sys.argv[1]
-}))" "${DIRECTIVE_DESC}" 2>/dev/null)
-
-CONTEXT_BLOCK=$(curl -s --max-time 25 -X POST "${INJECT_WEBHOOK}" \
-    -H "Content-Type: application/json" \
-    -d "${INJECT_PAYLOAD}" \
-    2>/dev/null | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(d.get('context_block', ''))" 2>/dev/null || echo "")
-
-# Assemble prompt: context block + quality signal instruction + LEAN_BOOT trigger
-if [ -n "${CONTEXT_BLOCK}" ]; then
-    echo "${CONTEXT_BLOCK}" > "${PROMPT_FILE}"
-    log "INJECT: context block received ($(echo "${CONTEXT_BLOCK}" | wc -l) lines)"
-else
-    log "INJECT: no context returned — proceeding without enrichment"
-fi
 
 cat >> "${PROMPT_FILE}" << 'EOF'
 
