@@ -9,50 +9,30 @@
 **Anvil UI** — primary control surface for monitoring, directing, reviewing. Includes data-scouting agents that write structured Supabase rows (source URLs + rich metadata) for Anvil to surface.
 
 **Where we are:**
-- Lean mode: sentinel timer disabled, `autonomous_growth_scheduler` deactivated. Desktop scopes cards; Claude Code executes.
-- **Chapter 1 complete (B-084–B-093):** Foundation patterns.
-- **Chapter 2 complete (B-094–B-101):** Research orchestrator.
-- **Chapter 3 complete (B-106–B-112):** Cleanup + ChromaDB leverage.
-- **Post-chapter additions (B-113–B-114):** Execution disciplines in CONVENTIONS. Comment-driven card loop live — B-115-cmt executed (first comment-generated card complete).
-- **System review complete (2026-05-09):** B-115-cmt executed, pipeline verified end-to-end, 5 agents retired, "Document AADP on the Site" project closed. Two revision findings queued as annotations: grader blind spot for data-only cards, card generator missing schema context.
-- Thread architecture complete (B-070–B-083): all live.
-- **B-117 complete (2026-05-10):** Thread research agent with Brave live in sandbox. /web_search first wired. 14 findings + 3 cycle_summaries written to test thread. B-116 (charter UI) was already complete.
-- **B-119 complete (2026-05-09):** Auto-wiring live. Charter save scores agents via capability_tags; wires best match (≥0.7) or queues build_request in agent_feedback. Telegram notification on wire. Form1 shows result inline.
-- **Thread research pipeline bugs fixed (2026-05-10):** Duplicate findings blocked (cross-cycle dedup via existing source URLs). Memory consultation now fetches charter question from DB (authoritative). thread_research_agent webhook activated; non-200 warning added to gather trigger.
-- Fleet: 9 active + 1 sandbox (thread_research_agent).
-- **B-120/B-121/B-122 complete (2026-05-10):** Workspace tab live. Bill's notes capture, working bundle, and audit bundle all functional. Export buttons in Workspace tab.
-- **B-123 complete (2026-05-10):** inject_context_v3 restored — 6 missing module-level constants reconstructed. Lesson retrieval and times_applied tracking working again.
-- **B-124 complete (2026-05-10):** stats_server now under git version control. Own repo at ~/aadp/stats-server/ (commit d28f88c). Two-repo sync pattern; symlink ruled out (venv constraint).
-- **B-125/B-126 complete (2026-05-10):** Two-pass review convention established (B-125) and extended with reader-writer discipline (B-126). CONVENTIONS.md §3 now has: which cards need review, the six-step flow, resolved standard, reader-writer check (standard question + acceptable answers), and five-field design sketch format (adds Writer and Reader fields).
-- **B-127 complete (2026-05-10):** Dashboard restructured from 10 tabs to 5-tab layout. Home (status strip, primary actions, bill_notes, inbox, autonomous toggle, lean trigger), Workpad stub, Threads/Sessions unchanged, System (Fleet/Memory/Lessons/Skills/Artifacts/Research/Grader as collapsible sections with lazy-load on expand). Font pass: body 16→18, section headers 20→22, status strip 24. Commit 91b55eb.
-- **B-118 already complete (verified 2026-05-10):** Gather button live in thread actions — gated on charter+wired agent+webhook, calls `trigger_thread_gather`, polls every 15s, refreshes entries on cycle_summary, surfaces errors inline. No work needed.
-- **B-128 complete (2026-05-10):** Workpad surface live. `workpad_state` table (singleton), 5 uplink callables (get/save/fetch_url/clear/promote), full Form1 Workpad tab: input textarea, URL field, Read URL/Copy/Clear/Promote actions, debounced auto-save, scrollable output entries, inline promote form. Commits: claude-dashboard f57254d, claudis a1580af.
-- **B-129 complete (2026-05-10):** Workpad Brave search live. `search_brave` uplink callable wraps stats_server /web_search (rate-limit and error handling). Form1 Workpad tab: Search button (disabled until input non-empty), `_wp_render_output` extended with search branch (🔍 header, clickable result rows, click populates URL field). Commits: claude-dashboard 32be089, claudis 00e805d.
-- **Next:** Chapter 4 when Bill decides.
+- Lean mode: sentinel timer disabled, `autonomous_growth_scheduler` deactivated. Three-way collaboration model active: Bill directs, Claude Code executes, Desktop Claude is design skeptic.
+- **Chapters 1–3 complete (B-084–B-112).** Post-chapter: execution disciplines, comment-driven cards, two-pass review, reader-writer check.
+- **B-129 complete (2026-05-10):** Workpad Brave search live. Full dashboard: Home/Workpad/Threads/Sessions/System (5 tabs).
+- **2026-05-16 system evaluation:** Full audit of what's performative vs. useful. Key finding: research pipeline finds and synthesizes but output lands in `experimental_outputs` with no reader — loop broken. Dashboard not used. Three-way collaboration ritual established. Phase 1–4 rebuild plan scoped with Desktop Claude.
+- **B-130 complete (2026-05-16):** lesson_injector and session_health_reporter retired (n8n workflows deleted). agent_health_monitor wired to 6h schedule — already had Telegram path via Sandbox Notify. Fleet: 9 → 7 active. Commit 3e9eb6c.
+- **Phase 1 next:** Boot path unification (bootstrap + LEAN_BOOT.md → one sequence) and export redesign (research-shaped, Desktop Claude as named reader). Both need design passes before cards.
 
-**Project arc next:** Chapter 4 when Bill decides.
+**Project arc next:** Phase 1 — close the input loop. Boot path unification, export redesign.
 
 ---
 
 ## Handoff (pick up here)
 
+**2026-05-16 (B-130 + system evaluation):**
+- **What I was doing:** Full system evaluation with Bill and Desktop Claude. Identified performative complexity pattern throughout: features that satisfy spec shape but don't close the loop. Executed B-130: retired lesson_injector + session_health_reporter, added 6h schedule to agent_health_monitor. Commit 3e9eb6c.
+- **What I learned:** Sandbox Notify (Ls0znhBx9W5Cr6sV) already sends Telegram with 24h rate limiting — not an orphan sink as the agent description implied. Agent descriptions can be misleading; read the workflow before assuming.
+- **Continue:** Phase 1 — boot path unification and export redesign. Both need design passes (Desktop Claude as skeptic) before cards are written. Gate: "After this is built, Bill will specifically do X."
+- **Left better:** Fleet cleaned to 7 active agents. agent_health_monitor now runs every 6h and will alert Bill on Telegram if any agent accumulates 3+ consecutive errors.
+
 **2026-05-10 (B-129 Workpad Brave search):**
-- **What I was doing:** B-129 — wired Brave Search into Workpad. `search_brave` uplink callable wraps stats_server `/web_search`. Search button in Workpad actions row (disabled until input non-empty). `_wp_render_output` extended with search branch: 🔍 header, clickable result rows that populate URL field. Commits: claudis 00e805d, claude-dashboard 32be089.
-- **What I learned:** When BACKLOG.md has a card that's cut off mid-sentence (incomplete push), halt and Telegram before executing — don't guess at the spec. Bill provided the rest in-session.
-- **Continue:** Chapter 4 when Bill decides. 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03). Browser test B-129 first (search → click result → Read URL → persist on reload).
-- **Left better:** Workpad now supports the full research motion: search → click result → read full page without leaving the dashboard.
-
-**2026-05-10 (B-128 Workpad surface):**
-- **What I was doing:** B-128 — Workpad surface. `workpad_state` singleton table, 5 uplink callables, full Form1 Workpad tab with input/URL/actions/output/auto-save/promote. HTML stripping via stdlib `re` + `html.unescape` (bs4 not in venv). Commits: claude-dashboard f57254d, claudis a1580af.
-- **What I learned:** When bs4/html2text aren't available, `re.sub(r'<[^>]+>', ' ', raw)` + `html.unescape()` covers most real-world HTML adequately. Check venv before reaching for a library.
-- **Continue:** Covered by B-129 entry above.
-- **Left better:** Workpad is live — Bill can now drop content, fetch URLs, and promote investigations to threads without leaving the dashboard.
-
-**2026-05-10 (B-127 five-tab dashboard layout):**
-- **What I was doing:** B-127 — restructured Form1 from 10 tabs to Home/Workpad/Threads/Sessions/System. Home is now the daily-use landing: status strip (24px health/agents/queue/inbox), four primary action buttons, bill_notes capture + list, inbox approvals, autonomous toggle, lean trigger. System tab wraps Fleet/Memory/Lessons/Skills/Artifacts/Research/Grader as collapsible sections with lazy-load on expand. Font pass: 16→18, 20→22 throughout. Commit 91b55eb.
-- **What I learned:** Anvil widgets have single-parent ownership — avoid duplicating the same widget in multiple panels. System/Fleet got status+agents+queue only; inbox and controls were lifted to Home exclusively rather than duplicated.
-- **Continue:** Covered by entry above.
-- **Left better:** Dashboard is now organized by activity type. Daily work lands on Home; system internals are one System tab away.
+- **What I was doing:** B-129 — wired Brave Search into Workpad. `search_brave` uplink callable wraps stats_server `/web_search`. Commits: claudis 00e805d, claude-dashboard 32be089.
+- **What I learned:** When BACKLOG.md has a card cut off mid-sentence, halt and Telegram before executing.
+- **Continue:** Phase 1 per above. 1 pending agent_build in work_queue (SpecOps GUI, 2026-05-03).
+- **Left better:** Workpad supports full research motion: search → click result → read full page.
 
 
 ---
