@@ -32,11 +32,13 @@ r = requests.post(
     headers={'apikey': key, 'Authorization': 'Bearer ' + key,
              'Content-Type': 'application/json',
              'Prefer': 'resolution=merge-duplicates,return=minimal'},
+    params={'on_conflict': 'session_id'},
     json={'session_id': sid, 'card_id': cid or None, 'phase': phase,
           'current_action': action,
           'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()},
     timeout=5)
-" "${SUPABASE_URL}" "${SUPABASE_KEY}" "${SESSION_ID}" "${CARD_ID}" "${phase}" "${action}" 2>/dev/null || true
+r.raise_for_status()
+" "${SUPABASE_URL}" "${SUPABASE_KEY}" "${SESSION_ID}" "${CARD_ID}" "${phase}" "${action}" || true
 }
 
 send_telegram() {
