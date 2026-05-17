@@ -3796,6 +3796,227 @@ def mark_audit_taken():
     return {'marked_at': now_iso}
 
 
+# ── Desktop Claude export (B-131) ────────────────────────────────────────────
+
+@anvil.server.callable
+def get_desktop_bundle():
+    """Return markdown export shaped for Desktop Claude as the named reader.
+
+    Sections:
+    1. Active threads with most recent summary entry expanded
+    2. Up to 10 recent research articles — title, full URL, source, summary
+    3. Up to 5 recent session artifacts — Capability delta expanded
+    4. Known fragilities — unprocessed agent_feedback for agents/skills/capabilities
+    5. Store counts (at a glance)
+    """
+    import glob
+    import os as _os
+
+    now_label = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')
+    lines = [f'# Desktop Claude Export — {now_label} UTC\n']
+    lines.append('_Paste into a take-stock conversation. Desktop Claude cannot load files autonomously._\n')
+
+    # ── 1. Active threads ────────────────────────────────────────────────────
+    lines.append('## Active threads\n')
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/threads',
+            headers=_HEADERS,
+            params={
+                'select': 'id,title,state,last_activity_at,charter',
+                'state': 'eq.active',
+                'order': 'last_activity_at.desc',
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        threads = r.json()
+        if not threads:
+            lines.append('_No active threads._\n')
+        else:
+            for t in threads:
+                title = t.get('title') or '(untitled)'
+                last_act = (t.get('last_activity_at') or '')[:10]
+                charter = t.get('charter') or {}
+                question = charter.get('question', '') if isinstance(charter, dict) else ''
+                lines.append(f'### {title} [{last_act}]')
+                if question:
+                    lines.append(f'**Question:** {question}')
+                try:
+                    re2 = requests.get(
+                        f'{_SUPABASE_URL}/rest/v1/thread_entries',
+                        headers=_HEADERS,
+                        params={
+                            'select': 'content,created_at',
+                            'thread_id': f'eq.{t["id"]}',
+                            'entry_type': 'eq.summary',
+                            'order': 'created_at.desc',
+                            'limit': '1',
+                        },
+                        timeout=10,
+                    )
+                    re2.raise_for_status()
+                    entries = re2.json()
+                    if entries:
+                        ets = (entries[0].get('created_at') or '')[:10]
+                        content = (entries[0].get('content') or '').strip()
+                        lines.append(f'**Latest summary [{ets}]:** {content}')
+                    else:
+                        lines.append('_No summary entries yet._')
+                except Exception as e2:
+                    lines.append(f'_Error fetching entries: {e2}_')
+                lines.append('')
+    except Exception as e:
+        lines.append(f'_Error fetching threads: {e}_\n')
+
+    # ── 2. Recent research articles ──────────────────────────────────────────
+    lines.append('## Recent research (up to 10 articles)\n')
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/research_articles',
+            headers=_HEADERS,
+            params={
+                'select': 'title,url,source,summary,retrieved_at',
+                'order': 'retrieved_at.desc',
+                'limit': '10',
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        articles = r.json()
+        if not articles:
+            lines.append('_No research articles found._\n')
+        else:
+            for a in articles:
+                ts = (a.get('retrieved_at') or '')[:10]
+                title = a.get('title') or '(no title)'
+                url = a.get('url') or ''
+                source = a.get('source') or ''
+                summary = (a.get('summary') or '').strip()
+                lines.append(f'**[{ts}] {title}**')
+                if url:
+                    lines.append(f'URL: {url}')
+                if source:
+                    lines.append(f'Source: {source}')
+                if summary:
+                    lines.append(f'Summary: {summary}')
+                lines.append('')
+    except Exception as e:
+        lines.append(f'_Error fetching research articles: {e}_\n')
+
+    # ── 3. Recent session artifacts ──────────────────────────────────────────
+    lines.append('## Recent sessions (up to 5)\n')
+    sessions_dir = _os.path.expanduser('~/aadp/claudis/sessions/lean')
+    try:
+        count = 0
+        for path in sorted(glob.glob(f'{sessions_dir}/*.md'), reverse=True):
+            if count >= 5:
+                break
+            name = _os.path.basename(path)
+            try:
+                file_date = datetime.strptime(name[:10], '%Y-%m-%d').date()
+            except ValueError:
+                continue
+            try:
+                with open(path) as f:
+                    text = f.read()
+            except Exception:
+                continue
+            title = name[:-3]
+            for line in text.splitlines():
+                if line.startswith('# '):
+                    title = line[2:].strip()
+                    break
+            delta_lines = []
+            in_delta = False
+            for line in text.splitlines():
+                if re.match(r'^#+\s+Capability delta', line):
+                    in_delta = True
+                    continue
+                if in_delta:
+                    if re.match(r'^#+\s+', line):
+                        break
+                    delta_lines.append(line)
+            delta_text = '\n'.join(delta_lines).strip()
+            lines.append(f'### [{file_date}] {title}')
+            if delta_text:
+                lines.append(f'**Capability delta:**\n{delta_text}')
+            else:
+                lines.append('**Capability delta:** (no delta recorded)')
+            lines.append('')
+            count += 1
+        if count == 0:
+            lines.append('_No session artifacts found._\n')
+    except Exception as e:
+        lines.append(f'_Error reading sessions: {e}_\n')
+
+    # ── 4. Known fragilities ─────────────────────────────────────────────────
+    lines.append('## Known fragilities (unprocessed feedback)\n')
+    try:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/agent_feedback',
+            headers=_HEADERS,
+            params={
+                'select': 'target_type,target_id,content,created_at',
+                'processed': 'eq.false',
+                'target_type': 'in.(agent,skill,capability)',
+                'order': 'created_at.desc',
+                'limit': '10',
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        fragilities = r.json()
+        if not fragilities:
+            lines.append('_No unprocessed fragility feedback._\n')
+        else:
+            for fb in fragilities:
+                ts = (fb.get('created_at') or '')[:10]
+                target = f'{fb.get("target_type", "?")}:{fb.get("target_id", "?")}'
+                content = (fb.get('content') or '').strip()
+                lines.append(f'- [{ts}] **{target}**: {content}')
+            lines.append('')
+    except Exception as e:
+        lines.append(f'_Error fetching fragilities: {e}_\n')
+
+    # ── 5. Store counts ──────────────────────────────────────────────────────
+    lines.append('## Store counts\n')
+    lines.append('| Store | Total |')
+    lines.append('|---|---|')
+    SUPABASE_STORES = [
+        ('lessons_learned', 'created_at'),
+        ('research_articles', 'retrieved_at'),
+        ('threads', 'created_at'),
+        ('thread_entries', 'created_at'),
+        ('agent_feedback', 'created_at'),
+    ]
+    for table, _ts_col in SUPABASE_STORES:
+        try:
+            r = requests.head(
+                f'{_SUPABASE_URL}/rest/v1/{table}',
+                headers={**_HEADERS, 'Prefer': 'count=exact'},
+                params={'select': '*'},
+                timeout=10,
+            )
+            r.raise_for_status()
+            cr = r.headers.get('Content-Range', '*/0')
+            total = int(cr.split('/')[-1]) if '/' in cr and cr.split('/')[-1].isdigit() else '?'
+            lines.append(f'| supabase:{table} | {total} |')
+        except Exception as e:
+            lines.append(f'| supabase:{table} | error ({str(e)[:40]}) |')
+    CHROMADB_STORES = ['lessons_learned', 'research_findings', 'session_memory', 'reference_material']
+    for col_name in CHROMADB_STORES:
+        try:
+            col_id = _get_chromadb_collection_id(col_name)
+            r = requests.get(f'{_CHROMADB_URL}/api/v1/collections/{col_id}/count', timeout=5)
+            r.raise_for_status()
+            lines.append(f'| chromadb:{col_name} | {r.json()} |')
+        except Exception as e:
+            lines.append(f'| chromadb:{col_name} | error ({str(e)[:40]}) |')
+
+    return '\n'.join(lines)
+
+
 # ── Workpad ───────────────────────────────────────────────────────────────────
 
 _WORKPAD_EMPTY = {'input_text': '', 'attach_url': '', 'output_entries': []}
