@@ -116,6 +116,45 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
 
     send_telegram "Lean session complete (${MINS}m ${SECS}s). Artifact in claudis/sessions/lean/"
 
+    # REQUEST CLOSE: if flag set, run close-session as a second invocation then skip grader/auto-cycle
+    CLOSE_REQUESTED=$(python3 -c "
+import sys, requests
+url, key = sys.argv[1], sys.argv[2]
+r = requests.get(url + '/rest/v1/system_config',
+    headers={'apikey': key, 'Authorization': 'Bearer ' + key},
+    params={'key': 'eq.close_session_requested', 'select': 'value'},
+    timeout=5)
+rows = r.json()
+print('yes' if rows and rows[0].get('value') == 'true' else 'no')
+" "${SUPABASE_URL}" "${SUPABASE_KEY}" 2>/dev/null || echo "no")
+
+    if [ "${CLOSE_REQUESTED}" = "yes" ]; then
+        log "CLOSE: close_session_requested flag detected — clearing flag"
+        python3 -c "
+import sys, requests
+url, key = sys.argv[1], sys.argv[2]
+requests.post(url + '/rest/v1/system_config',
+    headers={'apikey': key, 'Authorization': 'Bearer ' + key,
+             'Content-Type': 'application/json',
+             'Prefer': 'resolution=merge-duplicates,return=minimal'},
+    params={'on_conflict': 'key'},
+    json={'key': 'close_session_requested', 'value': 'false'},
+    timeout=5)
+" "${SUPABASE_URL}" "${SUPABASE_KEY}" 2>/dev/null || true
+        CLOSE_PROMPT=$(mktemp /tmp/close_prompt_XXXXXX.md)
+        echo "Read ~/aadp/mcp-server/.claude/skills/close-session.md and execute the session close ritual. Run all steps." > "${CLOSE_PROMPT}"
+        write_phase "close_session" "running close-session"
+        log "CLOSE: invoking close-session"
+        timeout 1800 "${CLAUDE_BIN}" -p \
+            --dangerously-skip-permissions \
+            --max-turns 80 \
+            < "${CLOSE_PROMPT}" \
+            >> "${LOG_FILE}" 2>&1 || log "CLOSE: close-session exited with non-zero (non-fatal)"
+        rm -f "${CLOSE_PROMPT}"
+        send_telegram "🔒 Close-session complete after ${CARD_ID:-session} (${MINS}m work + close)."
+        exit 0
+    fi
+
     # GRADER: grade the completed card if auto_cycle is enabled and CARD_ID is known (B-087)
     # Only auto-cycle sessions get graded — manual single-card sessions skip this.
     if [ -n "${CARD_ID}" ]; then
