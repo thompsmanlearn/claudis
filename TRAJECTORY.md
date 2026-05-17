@@ -24,17 +24,11 @@
 
 ## Handoff (pick up here)
 
-**2026-05-17 (B-133 boot cleanup):**
-- **What I was doing:** Removed dead lesson injection from lean_runner.sh, removed session_notes_load from bootstrap.md, added boot heartbeat step 1.5 to LEAN_BOOT.md.
-- **What I learned:** stats_server /system_status is hardware-only — system_config state (claudis_current_task) must be verified via supabase_exec_sql, not curl localhost:9100/system_status. Boot heartbeat must use supabase_exec_sql with INSERT ... ON CONFLICT, not config_set (which targets agent_config).
-- **Continue:** Phase 2 scoping with Desktop Claude. Research pipeline reader gap is the main open thread.
-- **Left better:** Lean sessions are now clean at boot — no dead 404 network calls, heartbeat active, session_notes_load call gone.
-
-**2026-05-17 (B-132 Bill input channel):**
-- **What I was doing:** Built the bill_input channel end-to-end: Supabase table, two Anvil callables, Home tab UI panel, LEAN_BOOT.md step 4.5. All pushed and uplink restarted.
-- **What I learned:** LEAN_BOOT.md step 4.5 runs before DIRECTIVES.md — Command mode overwrites DIRECTIVES.md and the session executes that instead. The bill_input table holds at most one row; submit_bill_input deletes all existing rows before inserting.
-- **Continue:** B-133 per above (now complete).
-- **Left better:** Bill can now type a Question, Comment, or Command into Anvil before triggering a lean session; Claude Code processes it at boot and posts the response back.
+**2026-05-17 (post-B133 polish):**
+- **What I was doing:** Two small follow-ons after B-133 close: (1) LEAN_BOOT.md stale-card briefing now includes bill_input Q&A when a Question/Comment was processed at step 4.5 (f9af0cb). (2) Anvil Home tab "Get Output" button now always visible (not hidden until submit), fetches and auto-copies in one click (98c5e74, claude-dashboard).
+- **What I learned:** bill_input response panel was only shown after Submit in the current browser session — a page refresh hid it. Always-visible is the right default for output surfaces.
+- **Continue:** Phase 2 scoping with Desktop Claude. Research pipeline reader gap is the main open thread. DIRECTIVES.md still says Run B-133 — update before next lean session.
+- **Left better:** Bill can submit a question, trigger lean, come back later and hit "Get Output" on the Home tab — answer appears and copies in one click, even after a page refresh.
 
 
 ---
