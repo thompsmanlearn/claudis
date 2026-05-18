@@ -22,4 +22,23 @@ Commit pushed to main
 
 Scope
 Touch: ~/aadp/claudis/sentinel/lean_runner.sh, skills/bootstrap.md, LEAN_BOOT.md
+
+B-136: Enforce Capability Delta in session artifacts
+Status: ready
+Depends on: none
+Goal
+Make Capability Delta a required section in every session artifact with three mandatory fields. Currently the section exists but is routinely left empty. An artifact without a completed delta cannot be used to verify whether a session produced real value.
+Context
+Session export from 2026-05-17 shows B-135 with empty Before/After fields. B-130 is the only recent artifact with a complete delta including a named reader. The close-session skill needs to enforce this, not suggest it. Read skills/close-session.md before editing to find the exact location of the artifact template.
+Required format for every artifact — all three fields mandatory:
+Capability delta
+Before: one concrete sentence. "Works correctly" is not acceptable. "Bill can now trigger synthesis without running a lean session" is acceptable.
+After: one concrete sentence matching the same standard.
+Reader of this change: name a specific person or process and how they encounter the change. "Future sessions" is not acceptable. "Bill — via dashboard Home tab" is acceptable.
+If a session made no capability change: write "No capability change this session — investigation only" in the delta section. Empty is not acceptable.
+Done when
+skills/close-session.md artifact template updated with the three-field Capability Delta format above, marked required, with the acceptability rules stated explicitly. The enforcement language reads: "Do not mark artifact complete until all three fields are filled or the investigation-only exception is stated." One concrete example of a correctly filled delta is included in the template. Commit pushed to main.
+Scope
+Touch: ~/aadp/claudis/skills/close-session.md
+Do not touch: existing session artifacts, LEAN_BOOT.md, any other skill file, any Supabase table
 Do not touch: uplink_server.py, any n8n workflows, session_status table writes in lean_runner.sh, close-session heartbeat reset, LEAN_BOOT.md step 11 (live lesson injection)
