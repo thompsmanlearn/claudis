@@ -17,13 +17,20 @@
 - **B-131 complete (2026-05-17):** Desktop Claude export live. `get_desktop_bundle()` callable in uplink_server.py; "Export for Desktop Claude" button on Home tab. Export covers active threads (summaries expanded), recent research (full URLs), session artifacts (capability delta), fragilities, store counts. Commits: claudis 8fb3337, claude-dashboard 730aae2.
 - **B-132 complete (2026-05-17):** Bill input channel live. `bill_input` table in Supabase, `submit_bill_input` + `get_bill_input_response` callables in uplink_server.py, three-mode input panel (Question/Comment/Command) on Home tab above export buttons, LEAN_BOOT.md step 4.5 checks pending input before reading DIRECTIVES.md. Commits: claudis 1d2ae51, claude-dashboard 6c87fc2.
 - **B-133 complete (2026-05-17):** Boot path cleanup done. Dead lesson injection removed from lean_runner.sh (lesson_injector deleted B-130, webhook was 404 every session). session_notes_load removed from bootstrap.md (table archived 2026-04-25). Boot heartbeat added to LEAN_BOOT.md step 1.5 — lean sessions now write claudis_current_task to system_config at start. Commit a4f334b.
-- **2026-05-17 Bill session (this session):** Two investigations (session status stuck, safe stop mechanism) → two bug fixes (write_phase UPSERT, Home tab status label) → Request Close button built (Option B: flag checked by lean_runner after Claude exits, second close-session invocation). GEMINI_API_KEY added. B-135 built: /run_paper_synthesis (gemini-2.5-flash), research_briefings table, Research Briefing panel on Home tab. Multiple dashboard polish fixes. Commits: claudis 9011f62, eb8d388; claude-dashboard 21af5a0, 6702a06, 9e47ece, 6283f15, 529df29, 99dc3c9, 21e0361; stats-server fce1a5e, 9fe44d4.
+- **2026-05-17 Bill session:** Two investigations (session status stuck, safe stop mechanism) → two bug fixes (write_phase UPSERT, Home tab status label) → Request Close button built (Option B: flag checked by lean_runner after Claude exits, second close-session invocation). GEMINI_API_KEY added. B-135 built: /run_paper_synthesis (gemini-2.5-flash), research_briefings table, Research Briefing panel on Home tab. Multiple dashboard polish fixes. Commits: claudis 9011f62, eb8d388; claude-dashboard 21af5a0, 6702a06, 9e47ece, 6283f15, 529df29, 99dc3c9, 21e0361; stats-server fce1a5e, 9fe44d4.
+- **B-136 complete (2026-05-17):** close-session.md Step 5 artifact template now enforces three-field Capability Delta (Before/After/Reader) with acceptability rules and a worked example. Empty deltas caught at write time. Commit b9b8245.
 
-**Project arc next:** DIRECTIVES.md needs updating before next lean session. Research pipeline loop is now closed — papers score, synthesize, surface on Home tab. Next: Phase 2 scoping with Desktop Claude (ChromaDB leverage, research reader gap fully resolved).
+**Project arc next:** Research pipeline loop is closed (B-135). Execution discipline strengthened (B-136). Next: Bill to set next card in DIRECTIVES.md; Phase 2 scoping with Desktop Claude (ChromaDB leverage).
 
 ---
 
 ## Handoff (pick up here)
+
+**2026-05-17 (lean session — B-136):**
+- **What I was doing:** B-136 — enforcing Capability Delta in session artifacts. Updated close-session.md Step 5 with Before/After/Reader format, enforcement language, worked example. Commit b9b8245 pushed to main.
+- **What I learned:** The close-session skill loaded by the Skill tool is a local copy at ~/aadp/mcp-server/.claude/skills/close-session.md — it is an older version than ~/aadp/claudis/skills/close-session.md. The symlink may be stale or missing. Bill should verify symlink: `ls -la ~/aadp/mcp-server/.claude/skills/close-session.md`.
+- **Continue:** Update DIRECTIVES.md to next backlog card before triggering next lean session. Verify close-session.md symlink is current.
+- **Left better:** Session artifacts now have enforceable Capability Delta format — three required fields with acceptability rules.
 
 **2026-05-17 (end of Bill session):**
 - **What I was doing:** B-135 Research Briefing panel — last fix was stripping EXECUTIVE_BRIEFING marker lines from full-briefing fallback display (commit 21e0361). DIRECTIVES.md still says Run B-133 — must be updated before triggering a lean session.
