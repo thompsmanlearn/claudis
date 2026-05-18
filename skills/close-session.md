@@ -81,11 +81,35 @@ Write `~/aadp/claudis/sessions/YYYY-MM-DD-HHMM.md` with:
 - Date and session type (bill-initiated / sentinel / etc.)
 - Tasks completed (one line each)
 - Key decisions made
-- Capability delta: what can the system do now that it couldn't at session start?
+- **Capability delta** (required — see format below)
 - Lessons written (count + titles)
 - Branches opened/closed
 - Commit hashes for artifacts produced
 - Usage % at close if known
+
+**Capability delta format — all three fields required:**
+
+```
+## Capability delta
+Before: <one concrete sentence — what the system or Bill could NOT do before this session>
+After: <one concrete sentence — what is now possible>
+Reader of this change: <specific person or process — and how they encounter it>
+```
+
+**Acceptability rules:**
+- "Works correctly" / "improved" / "fixed" are not acceptable for Before or After. Name the specific capability gap or addition.
+- "Future sessions" / "the system" are not acceptable for Reader. Name a person (Bill) or a specific process (arxiv_aadp_pipeline) and the surface they use (dashboard Home tab, Telegram alert, etc.).
+- Empty fields are not acceptable. If the session made no capability change, write exactly: `No capability change this session — investigation only` in the delta section.
+
+**Enforcement:** Do not mark artifact complete until all three fields are filled or the investigation-only exception is stated.
+
+**Example of a correctly filled delta:**
+```
+## Capability delta
+Before: Bill had no way to trigger paper synthesis from the dashboard — required a manual lean session.
+After: Bill can click "Run Synthesis" on the Home tab to trigger Gemini synthesis of queued papers and see the briefing inline.
+Reader of this change: Bill — via dashboard Home tab "Research Briefing" panel.
+```
 
 Commit and push this file to GitHub.
 
