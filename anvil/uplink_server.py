@@ -3035,6 +3035,7 @@ def clear_workpad():
 
 @anvil.server.callable
 def search_brave(query, max_results=5):
+    """Legacy single-engine search. Kept for backward compat; Workpad now uses search_all."""
     query = (query or '').strip()
     if not query:
         raise Exception('Query is required.')
@@ -3078,6 +3079,117 @@ def search_brave(query, max_results=5):
     )
     r2.raise_for_status()
     log.info('search_brave: query=%s results=%d', query[:60], len(results))
+    return entry
+
+
+@anvil.server.callable
+def search_all(query, max_results=5):
+    """Run Brave, Tavily, and Gemini searches in parallel. Returns combined workpad entry."""
+    import threading
+    query = (query or '').strip()
+    if not query:
+        raise Exception('Query is required.')
+    now = datetime.now(timezone.utc).isoformat()
+
+    brave_data = {}
+    tavily_data = {}
+    gemini_data = {}
+    errors = {}
+
+    def _call_brave():
+        try:
+            resp = requests.post(
+                'http://localhost:9100/web_search',
+                json={'query': query, 'max_results': max_results},
+                timeout=20,
+            )
+            brave_data.update(resp.json() if resp.ok else {'results': [], 'error': resp.text})
+        except Exception as e:
+            brave_data['error'] = str(e)
+            brave_data['results'] = []
+
+    def _call_tavily():
+        try:
+            resp = requests.post(
+                'http://localhost:9100/search_tavily',
+                json={'query': query, 'max_results': max_results},
+                timeout=25,
+            )
+            tavily_data.update(resp.json() if resp.ok else {'results': [], 'answer': '', 'error': resp.text})
+        except Exception as e:
+            tavily_data['error'] = str(e)
+            tavily_data['results'] = []
+            tavily_data['answer'] = ''
+
+    threads = [
+        threading.Thread(target=_call_brave),
+        threading.Thread(target=_call_tavily),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=30)
+
+    # Gemini synthesizes Brave + Tavily results (runs after they complete)
+    def _call_gemini():
+        try:
+            resp = requests.post(
+                'http://localhost:9100/search_gemini',
+                json={
+                    'query': query,
+                    'brave_results': brave_data.get('results', []),
+                    'tavily_results': tavily_data.get('results', []),
+                    'tavily_answer': tavily_data.get('answer', ''),
+                },
+                timeout=45,
+            )
+            gemini_data.update(resp.json() if resp.ok else {'answer': '', 'error': resp.text})
+        except Exception as e:
+            gemini_data['error'] = str(e)
+            gemini_data['answer'] = ''
+
+    _call_gemini()
+
+    entry = {
+        'action': 'search_all',
+        'query': query,
+        'timestamp': now,
+        'brave': brave_data.get('results', []),
+        'tavily': {
+            'results': tavily_data.get('results', []),
+            'answer': tavily_data.get('answer', ''),
+        },
+        'gemini': {
+            'answer': gemini_data.get('answer', ''),
+        },
+        'errors': {k: v for k, v in {
+            'brave': brave_data.get('error'),
+            'tavily': tavily_data.get('error'),
+            'gemini': gemini_data.get('error'),
+        }.items() if v},
+    }
+
+    # Append to workpad_state
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers=_HEADERS,
+        params={'select': 'output_entries', 'id': 'eq.1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    current = (rows[0].get('output_entries') or []) if rows else []
+    current.append(entry)
+    r2 = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers={**_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+        json={'id': 1, 'output_entries': current, 'updated_at': now},
+        timeout=10,
+    )
+    r2.raise_for_status()
+    log.info('search_all: query=%s brave=%d tavily=%d gemini_sources=%d',
+             query[:60], len(entry['brave']), len(entry['tavily']['results']),
+             len(entry['gemini']['sources']))
     return entry
 
 
