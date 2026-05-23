@@ -2987,32 +2987,73 @@ def save_workpad_input(input_text, attach_url):
 def _extract_article_text(raw_html, url):
     """Extract clean human-readable article text from raw HTML.
 
-    Removes script/style blocks and their content, structured data,
-    HTML tags, and boilerplate whitespace. Returns (text, failed) where
+    Removes script/style blocks and their entire content, HTML tags,
+    CSS, JS, and structured data. Returns (text, failed) where
     failed=True means clean text could not be extracted.
     """
     import html as _html_mod
-    # 1. Strip <script>, <style>, <noscript> blocks and their content
-    text = re.sub(r'<script[^>]*>.*?</script>', ' ', raw_html, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<noscript[^>]*>.*?</noscript>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
-    # 2. Strip SVG and other non-content blocks
-    text = re.sub(r'<svg[^>]*>.*?</svg>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
-    # 3. Strip all remaining HTML tags
+
+    # 1. Remove entire content of non-prose blocks before touching tags
+    _BLOCK_PATTERNS = [
+        r'<script[^>]*>.*?</script>',
+        r'<style[^>]*>.*?</style>',
+        r'<noscript[^>]*>.*?</noscript>',
+        r'<svg[^>]*>.*?</svg>',
+        r'<head[^>]*>.*?</head>',      # head contains no readable content
+        r'<iframe[^>]*>.*?</iframe>',
+        r'<!--.*?-->',                  # HTML comments
+    ]
+    text = raw_html
+    for pat in _BLOCK_PATTERNS:
+        text = re.sub(pat, ' ', text, flags=re.DOTALL | re.IGNORECASE)
+
+    # 2. Strip all remaining HTML tags
     text = re.sub(r'<[^>]+>', ' ', text)
-    # 4. Decode HTML entities
+
+    # 3. Decode HTML entities
     text = _html_mod.unescape(text)
-    # 5. Remove leftover CSS-like content (curly-brace blocks)
-    text = re.sub(r'\{[^}]{0,200}\}', ' ', text)
+
+    # 4. Remove curly-brace blocks of any length (CSS rules that leaked through)
+    #    Use re.DOTALL so multi-line blocks are caught. No char-count limit.
+    text = re.sub(r'\{[^{}]*\}', ' ', text, flags=re.DOTALL)
+    # Second pass catches nested or adjacent blocks
+    text = re.sub(r'\{[^{}]*\}', ' ', text, flags=re.DOTALL)
+
+    # 5. Line-level filtering — drop lines that look like CSS/JS artifacts
+    _JS_CSS_LINE = re.compile(
+        r'^\s*('
+        r'var |const |let |function |return |import |export |module\.|window\.|document\.|'
+        r'\.[\w-]+\s*[\({]|'          # .selector( or .selector{
+        r'[@#][\w-]|'                  # @media, #id selectors
+        r'[\w-]+\s*:\s*[\w\d#\'"%-].*?;|'  # CSS property: value;
+        r'[;{}]'                        # bare semicolons or braces
+        r')',
+        re.IGNORECASE
+    )
+    clean_lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if _JS_CSS_LINE.match(stripped):
+            continue
+        # Drop lines that are >60% punctuation/symbols
+        alpha = sum(1 for c in stripped if c.isalpha())
+        if len(stripped) > 10 and alpha / len(stripped) < 0.4:
+            continue
+        clean_lines.append(stripped)
+    text = '\n'.join(clean_lines)
+
     # 6. Collapse whitespace
     text = re.sub(r'[ \t]+', ' ', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     text = text.strip()
-    # 7. Detect markup-only result: if ratio of word-like tokens is too low
-    words = [w for w in text.split() if re.search(r'[a-zA-Z]{3,}', w)]
+
+    # 7. Quality gate: need at least 50 prose words, >50% word-like tokens
+    prose_words = [w for w in text.split() if re.search(r'[a-zA-Z]{3,}', w)]
     total_tokens = len(text.split()) or 1
-    if len(words) < 30 or (len(words) / total_tokens) < 0.4:
-        return text, True  # failed — mostly non-prose
+    if len(prose_words) < 50 or (len(prose_words) / total_tokens) < 0.5:
+        return text, True  # failed — insufficient clean prose
     return text, False
 
 
@@ -3117,19 +3158,45 @@ def search_brave(query, max_results=5):
     return entry
 
 
+def _normalize_query(q):
+    """Normalize query for deduplication: lowercase, collapse whitespace, strip punctuation ends."""
+    q = q.lower().strip()
+    q = re.sub(r'\s+', ' ', q)
+    q = q.strip('.,!?;:')
+    return q
+
+
 @anvil.server.callable
 def search_all(query, max_results=5):
-    """Run Brave, Tavily, and Gemini searches in parallel. Returns combined workpad entry."""
+    """Run Brave+Tavily in parallel, then Gemini synthesis. Deduplicates identical queries."""
     import threading
     query = (query or '').strip()
     if not query:
         raise Exception('Query is required.')
-    now = datetime.now(timezone.utc).isoformat()
 
+    # ── 1. Deduplication: read current entries before executing ──────────────
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/workpad_state',
+        headers=_HEADERS,
+        params={'select': 'output_entries', 'id': 'eq.1'},
+        timeout=10,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    current = (rows[0].get('output_entries') or []) if rows else []
+
+    norm_query = _normalize_query(query)
+    for existing in reversed(current):
+        if (existing.get('action') == 'search_all'
+                and _normalize_query(existing.get('query', '')) == norm_query):
+            log.info('search_all: duplicate query "%s" — reusing existing entry', query[:60])
+            return existing  # skip search and Gemini; return cached result
+
+    # ── 2. Run Brave + Tavily in parallel ────────────────────────────────────
+    now = datetime.now(timezone.utc).isoformat()
     brave_data = {}
     tavily_data = {}
     gemini_data = {}
-    errors = {}
 
     def _call_brave():
         try:
@@ -3138,7 +3205,7 @@ def search_all(query, max_results=5):
                 json={'query': query, 'max_results': max_results},
                 timeout=20,
             )
-            brave_data.update(resp.json() if resp.ok else {'results': [], 'error': resp.text})
+            brave_data.update(resp.json() if resp.ok else {'results': [], 'error': resp.text[:200]})
         except Exception as e:
             brave_data['error'] = str(e)
             brave_data['results'] = []
@@ -3150,22 +3217,19 @@ def search_all(query, max_results=5):
                 json={'query': query, 'max_results': max_results},
                 timeout=25,
             )
-            tavily_data.update(resp.json() if resp.ok else {'results': [], 'answer': '', 'error': resp.text})
+            tavily_data.update(resp.json() if resp.ok else {'results': [], 'answer': '', 'error': resp.text[:200]})
         except Exception as e:
             tavily_data['error'] = str(e)
             tavily_data['results'] = []
             tavily_data['answer'] = ''
 
-    threads = [
-        threading.Thread(target=_call_brave),
-        threading.Thread(target=_call_tavily),
-    ]
+    threads = [threading.Thread(target=_call_brave), threading.Thread(target=_call_tavily)]
     for t in threads:
         t.start()
     for t in threads:
         t.join(timeout=30)
 
-    # Gemini synthesizes Brave + Tavily results (runs after they complete)
+    # ── 3. Gemini synthesizes Brave+Tavily results (sequential, after both done) ──
     def _call_gemini():
         try:
             resp = requests.post(
@@ -3178,10 +3242,24 @@ def search_all(query, max_results=5):
                 },
                 timeout=45,
             )
-            gemini_data.update(resp.json() if resp.ok else {'answer': '', 'error': resp.text})
-        except Exception as e:
-            gemini_data['error'] = str(e)
+            if resp.ok:
+                data = resp.json()
+                gemini_data['answer'] = data.get('answer', '')
+                if not gemini_data['answer']:
+                    gemini_data['error_reason'] = 'api_returned_empty'
+            else:
+                try:
+                    err = resp.json().get('error', resp.text[:200])
+                except Exception:
+                    err = resp.text[:200]
+                gemini_data['answer'] = ''
+                gemini_data['error_reason'] = f'api_error: {err}'
+        except requests.exceptions.Timeout:
             gemini_data['answer'] = ''
+            gemini_data['error_reason'] = 'timeout'
+        except Exception as e:
+            gemini_data['answer'] = ''
+            gemini_data['error_reason'] = f'exception: {e}'
 
     _call_gemini()
 
@@ -3196,24 +3274,15 @@ def search_all(query, max_results=5):
         },
         'gemini': {
             'answer': gemini_data.get('answer', ''),
+            'error_reason': gemini_data.get('error_reason', ''),
         },
         'errors': {k: v for k, v in {
             'brave': brave_data.get('error'),
             'tavily': tavily_data.get('error'),
-            'gemini': gemini_data.get('error'),
         }.items() if v},
     }
 
-    # Append to workpad_state
-    r = requests.get(
-        f'{_SUPABASE_URL}/rest/v1/workpad_state',
-        headers=_HEADERS,
-        params={'select': 'output_entries', 'id': 'eq.1'},
-        timeout=10,
-    )
-    r.raise_for_status()
-    rows = r.json()
-    current = (rows[0].get('output_entries') or []) if rows else []
+    # ── 4. Append to workpad_state ───────────────────────────────────────────
     current.append(entry)
     r2 = requests.post(
         f'{_SUPABASE_URL}/rest/v1/workpad_state',
@@ -3222,9 +3291,10 @@ def search_all(query, max_results=5):
         timeout=10,
     )
     r2.raise_for_status()
-    log.info('search_all: query=%s brave=%d tavily=%d gemini_chars=%d',
+    log.info('search_all: query=%s brave=%d tavily=%d gemini_chars=%d gemini_error=%s',
              query[:60], len(entry['brave']), len(entry['tavily']['results']),
-             len(entry['gemini'].get('answer', '')))
+             len(entry['gemini'].get('answer', '')),
+             entry['gemini'].get('error_reason', 'none'))
     return entry
 
 
