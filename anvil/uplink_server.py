@@ -3187,9 +3187,9 @@ def search_all(query, max_results=5):
         timeout=10,
     )
     r2.raise_for_status()
-    log.info('search_all: query=%s brave=%d tavily=%d gemini_sources=%d',
+    log.info('search_all: query=%s brave=%d tavily=%d gemini_chars=%d',
              query[:60], len(entry['brave']), len(entry['tavily']['results']),
-             len(entry['gemini']['sources']))
+             len(entry['gemini'].get('answer', '')))
     return entry
 
 
