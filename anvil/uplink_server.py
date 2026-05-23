@@ -2984,17 +2984,52 @@ def save_workpad_input(input_text, attach_url):
 
 
 @anvil.server.callable
-def fetch_url_content(url):
+def _extract_article_text(raw_html, url):
+    """Extract clean human-readable article text from raw HTML.
+
+    Removes script/style blocks and their content, structured data,
+    HTML tags, and boilerplate whitespace. Returns (text, failed) where
+    failed=True means clean text could not be extracted.
+    """
     import html as _html_mod
+    # 1. Strip <script>, <style>, <noscript> blocks and their content
+    text = re.sub(r'<script[^>]*>.*?</script>', ' ', raw_html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<noscript[^>]*>.*?</noscript>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
+    # 2. Strip SVG and other non-content blocks
+    text = re.sub(r'<svg[^>]*>.*?</svg>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
+    # 3. Strip all remaining HTML tags
+    text = re.sub(r'<[^>]+>', ' ', text)
+    # 4. Decode HTML entities
+    text = _html_mod.unescape(text)
+    # 5. Remove leftover CSS-like content (curly-brace blocks)
+    text = re.sub(r'\{[^}]{0,200}\}', ' ', text)
+    # 6. Collapse whitespace
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = text.strip()
+    # 7. Detect markup-only result: if ratio of word-like tokens is too low
+    words = [w for w in text.split() if re.search(r'[a-zA-Z]{3,}', w)]
+    total_tokens = len(text.split()) or 1
+    if len(words) < 30 or (len(words) / total_tokens) < 0.4:
+        return text, True  # failed — mostly non-prose
+    return text, False
+
+
+def fetch_url_content(url):
     try:
         resp = requests.get(url, timeout=15, headers={'User-Agent': 'AADP/1.0'})
         resp.raise_for_status()
         raw = resp.text
-        text = re.sub(r'<[^>]+>', ' ', raw)
-        text = _html_mod.unescape(text)
-        text = re.sub(r'\s+', ' ', text).strip()
+        # Extract page title for fallback
+        title_match = re.search(r'<title[^>]*>(.*?)</title>', raw, re.IGNORECASE | re.DOTALL)
+        page_title = title_match.group(1).strip() if title_match else url
+        text, failed = _extract_article_text(raw, url)
+        if failed:
+            text = f'{page_title}\n{url}\n[FETCH FAILED - markup only]'
     except Exception as e:
         text = f'Error fetching URL: {e}'
+        failed = True
     now = datetime.now(timezone.utc).isoformat()
     entry = {'action': 'read_url', 'result': text, 'timestamp': now}
     # Read current entries, append, then upsert
