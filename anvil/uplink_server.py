@@ -332,20 +332,6 @@ def trigger_lean_session():
 
 
 @anvil.server.callable
-def request_close_session():
-    r = requests.post(
-        f'{_SUPABASE_URL}/rest/v1/system_config',
-        headers={**_HEADERS, 'Content-Type': 'application/json',
-                 'Prefer': 'resolution=merge-duplicates,return=minimal'},
-        params={'on_conflict': 'key'},
-        json={'key': 'close_session_requested', 'value': 'true'},
-        timeout=10,
-    )
-    r.raise_for_status()
-    return {'status': 'requested'}
-
-
-@anvil.server.callable
 def get_lean_status():
     try:
         result = subprocess.run(['ps', 'aux'], capture_output=True, text=True, timeout=5)

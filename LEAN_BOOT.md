@@ -124,7 +124,9 @@ If LEAN_BOOT.md is corrupted, restore from `~/aadp/prompts/LEAN_BOOT_stable.md`.
 
 ## Session Close
 
-Run the close-session skill: `~/aadp/mcp-server/.claude/skills/close-session.md`.
+**When triggered via lean_runner (dashboard "Trigger Lean Session"):** close-session runs automatically as a second invocation after the directive completes. No manual action needed.
+
+**When running interactively (Bill opens a session manually):** run the close-session skill: `~/aadp/mcp-server/.claude/skills/close-session.md`.
 
 Regenerate the site before ending:
 ```
