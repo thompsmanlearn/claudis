@@ -1657,19 +1657,23 @@ def get_memory_bundle(collection=None, limit=100):
 @anvil.server.callable
 def get_sessions_bundle(limit=10):
     """Return markdown bundle of recent session artifacts — ready to paste into a desktop session."""
-    sessions_dir = os.path.join(_CLAUDIS_DIR, 'sessions', 'lean')
-    if not os.path.isdir(sessions_dir):
+    root = os.path.join(_CLAUDIS_DIR, 'sessions')
+    if not os.path.isdir(root):
         return '# Sessions Bundle\n\nNo sessions directory found.\n'
-    files = sorted(
-        [f for f in os.listdir(sessions_dir) if f.endswith('.md') and not f.startswith('B-')],
-        reverse=True,
-    )[:limit]
-    if not files:
+    # Collect from sessions/ root and sessions/lean/ subdirectory
+    all_files = []
+    for dirpath, _dirs, fnames in os.walk(root):
+        for f in fnames:
+            if f.endswith('.md') and not f.startswith('B-'):
+                all_files.append(os.path.join(dirpath, f))
+    all_files.sort(key=lambda p: os.path.basename(p), reverse=True)
+    all_files = all_files[:limit]
+    if not all_files:
         return '# Sessions Bundle\n\nNo session files found.\n'
 
     sessions = []
-    for fname in files:
-        path = os.path.join(sessions_dir, fname)
+    for path in all_files:
+        fname = os.path.basename(path)
         try:
             with open(path) as f:
                 raw_lines = f.read().splitlines()
@@ -1682,20 +1686,25 @@ def get_sessions_bundle(limit=10):
         capability = []
         current_section = None
         for line in raw_lines:
+            stripped = line.strip()
+            stripped_lower = stripped.lower()
             if line.startswith('# '):
                 title = line[2:].strip()
             elif line.startswith('**Card:**'):
                 card = line.replace('**Card:**', '').strip()
-            elif line.strip() == '## Tasks Completed':
+            elif stripped_lower in ('## tasks completed', '## tasks'):
                 current_section = 'tasks'
-            elif line.strip() == '## Capability Delta':
+            elif stripped_lower == '## capability delta':
                 current_section = 'capability'
-            elif line.strip().startswith('## '):
+            elif stripped.startswith('## '):
                 current_section = None
             elif current_section == 'tasks' and line.startswith('- ') and len(tasks) < 3:
                 tasks.append(line[2:].strip()[:150])
-            elif current_section == 'capability' and line.startswith('**') and len(capability) < 3:
-                capability.append(line.strip()[:200])
+            elif current_section == 'capability' and len(capability) < 4:
+                for prefix in ('Before:', 'After:', 'Reader of this change:', 'Reader:'):
+                    if stripped.startswith(prefix):
+                        capability.append(stripped[:200])
+                        break
         sessions.append({'filename': fname, 'date': date, 'title': title,
                          'card': card, 'tasks': tasks, 'capability': capability})
 
