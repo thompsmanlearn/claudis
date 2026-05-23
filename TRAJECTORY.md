@@ -20,23 +20,25 @@
 - **2026-05-17 Bill session:** Two investigations (session status stuck, safe stop mechanism) → two bug fixes (write_phase UPSERT, Home tab status label) → Request Close button built (Option B: flag checked by lean_runner after Claude exits, second close-session invocation). GEMINI_API_KEY added. B-135 built: /run_paper_synthesis (gemini-2.5-flash), research_briefings table, Research Briefing panel on Home tab. Multiple dashboard polish fixes. Commits: claudis 9011f62, eb8d388; claude-dashboard 21af5a0, 6702a06, 9e47ece, 6283f15, 529df29, 99dc3c9, 21e0361; stats-server fce1a5e, 9fe44d4.
 - **B-136 complete (2026-05-17):** close-session.md Step 5 artifact template now enforces three-field Capability Delta (Before/After/Reader) with acceptability rules and a worked example. Empty deltas caught at write time. Commit b9b8245.
 
-**Project arc next:** Research pipeline loop is closed (B-135). Execution discipline strengthened (B-136). Next: Bill to set next card in DIRECTIVES.md; Phase 2 scoping with Desktop Claude (ChromaDB leverage).
+- **2026-05-22 Bill session (pruning pass):** Sessions tab converted to export-only (removed 15-card artifact list, fixed get_sessions_bundle path sessions/lean→sessions/). bill_notes removed (dead writer/no reader). lean sessions now auto-close (removed Request Close button + flag mechanism). Thread system retirement directive written — next lean session executes it. Commits: claudis d7e7a30, 4904f15, 36bdef1, 926216c; claude-dashboard d2f9068, 7cfd8a5, 9286d37.
+
+**Project arc next:** Next lean session retires thread system (Threads tab + callables + thread_research_agent). After that: System tab pruning. Research replacement TBD — Bill wants responsive question research but thread approach retired.
 
 ---
 
 ## Handoff (pick up here)
 
+**2026-05-22 (Bill session — pruning pass):**
+- **What I was doing:** Wrote thread retirement directive to DIRECTIVES.md (commit 926216c). Lean session ready to trigger.
+- **What I learned:** bill_notes was a textbook reader-writer failure — button wrote to Supabase, nothing read it. Python slice `c[:n]` where n=-1 silently corrupts files (trims last char + grafts misplaced content). Always verify block_start != -1 before using it as a slice index.
+- **Continue:** Trigger lean session — directive is set, will retire thread system. After that: System tab pruning. Then: think about replacing thread research with something simpler.
+- **Left better:** Dashboard pruned — 3 dead features removed (artifact list, bill_notes, Request Close). Lean sessions now self-closing.
+
 **2026-05-17 (lean session — B-136):**
 - **What I was doing:** B-136 — enforcing Capability Delta in session artifacts. Updated close-session.md Step 5 with Before/After/Reader format, enforcement language, worked example. Commit b9b8245 pushed to main.
-- **What I learned:** The close-session skill loaded by the Skill tool is a local copy at ~/aadp/mcp-server/.claude/skills/close-session.md — it is an older version than ~/aadp/claudis/skills/close-session.md. The symlink may be stale or missing. Bill should verify symlink: `ls -la ~/aadp/mcp-server/.claude/skills/close-session.md`.
-- **Continue:** Update DIRECTIVES.md to next backlog card before triggering next lean session. Verify close-session.md symlink is current.
-- **Left better:** Session artifacts now have enforceable Capability Delta format — three required fields with acceptability rules.
-
-**2026-05-17 (end of Bill session):**
-- **What I was doing:** B-135 Research Briefing panel — last fix was stripping EXECUTIVE_BRIEFING marker lines from full-briefing fallback display (commit 21e0361). DIRECTIVES.md still says Run B-133 — must be updated before triggering a lean session.
-- **What I learned:** PostgREST `resolution=merge-duplicates` requires explicit `on_conflict=column` param — without it, UPSERT conflicts silently fail. Also: instance variable name collisions in Anvil Form1 are runtime bugs, not syntax errors — assignment overwrites silently.
-- **Continue:** Update DIRECTIVES.md to the next card before triggering lean. Consider running Run Synthesis again once more discovered papers accumulate (13 synthesized this session, pipeline will refill from arxiv_aadp_pipeline).
-- **Left better:** Research loop closed — 13 papers synthesized with Gemini, executive briefing visible on Home tab, Copy sends full text to Desktop Claude.
+- **What I learned:** The close-session skill loaded by the Skill tool is a local copy at ~/aadp/mcp-server/.claude/skills/close-session.md — symlink verified pointing to canonical.
+- **Continue:** DIRECTIVES.md updated to thread retirement — trigger lean.
+- **Left better:** Session artifacts now have enforceable Capability Delta format.
 
 
 ---
