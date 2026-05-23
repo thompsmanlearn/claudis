@@ -21,24 +21,25 @@
 - **B-136 complete (2026-05-17):** close-session.md Step 5 artifact template now enforces three-field Capability Delta (Before/After/Reader) with acceptability rules and a worked example. Empty deltas caught at write time. Commit b9b8245.
 
 - **2026-05-22 Bill session (pruning pass):** Sessions tab converted to export-only (removed 15-card artifact list, fixed get_sessions_bundle path sessions/lean→sessions/). bill_notes removed (dead writer/no reader). lean sessions now auto-close (removed Request Close button + flag mechanism). Thread system retirement directive written — next lean session executes it. Commits: claudis d7e7a30, 4904f15, 36bdef1, 926216c; claude-dashboard d2f9068, 7cfd8a5, 9286d37.
+- **2026-05-22 lean session (thread retirement):** Thread system fully retired. Threads tab removed from Form1 (978 lines). Thread callables removed from uplink_server.py (1049 lines — Thread callables, Extraction, Sub-question spawning, Watch state, Research charter, promote_workpad_to_thread). thread_research_agent retired in agent_registry. Dashboard now 4 tabs: Home/Workpad/Sessions/System. Commits: claudis 42f98ea, claude-dashboard c96c3a6.
 
-**Project arc next:** Next lean session retires thread system (Threads tab + callables + thread_research_agent). After that: System tab pruning. Research replacement TBD — Bill wants responsive question research but thread approach retired.
+**Project arc next:** System tab pruning. Research replacement TBD — Bill wants responsive question research but thread approach retired.
 
 ---
 
 ## Handoff (pick up here)
 
+**2026-05-22 (lean session — thread retirement):**
+- **What I was doing:** Retired the thread system — Threads tab (978 lines) removed from Form1, thread callables (1049 lines) removed from uplink_server.py, thread_research_agent retired. Dashboard is now 4 tabs. Commits: claudis 42f98ea, claude-dashboard c96c3a6.
+- **What I learned:** Python `str.replace` on large Anvil files is reliable for contiguous block removal; boundary markers (section headers + known successor lines) make removal robust without fragile line numbers.
+- **Continue:** System tab pruning — identify dead sections in the System tab, same pruning pattern.
+- **Left better:** ~2000 lines of dead thread code gone. Dashboard is leaner; uplink server has no unreachable callables.
+
 **2026-05-22 (Bill session — pruning pass):**
 - **What I was doing:** Wrote thread retirement directive to DIRECTIVES.md (commit 926216c). Lean session ready to trigger.
 - **What I learned:** bill_notes was a textbook reader-writer failure — button wrote to Supabase, nothing read it. Python slice `c[:n]` where n=-1 silently corrupts files (trims last char + grafts misplaced content). Always verify block_start != -1 before using it as a slice index.
-- **Continue:** Trigger lean session — directive is set, will retire thread system. After that: System tab pruning. Then: think about replacing thread research with something simpler.
+- **Continue:** Thread system retirement — done this session.
 - **Left better:** Dashboard pruned — 3 dead features removed (artifact list, bill_notes, Request Close). Lean sessions now self-closing.
-
-**2026-05-17 (lean session — B-136):**
-- **What I was doing:** B-136 — enforcing Capability Delta in session artifacts. Updated close-session.md Step 5 with Before/After/Reader format, enforcement language, worked example. Commit b9b8245 pushed to main.
-- **What I learned:** The close-session skill loaded by the Skill tool is a local copy at ~/aadp/mcp-server/.claude/skills/close-session.md — symlink verified pointing to canonical.
-- **Continue:** DIRECTIVES.md updated to thread retirement — trigger lean.
-- **Left better:** Session artifacts now have enforceable Capability Delta format.
 
 
 ---
