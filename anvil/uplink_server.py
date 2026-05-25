@@ -3225,13 +3225,28 @@ def search_all(query, max_results=5):
             tavily_data['answer'] = ''
 
     def _call_github():
+        # GitHub repo search works on keywords, not natural language.
+        # Strip question/stop words to extract technical terms.
+        _stopwords = {
+            'what', 'how', 'why', 'when', 'where', 'who', 'which', 'are', 'is', 'was',
+            'were', 'do', 'does', 'did', 'can', 'could', 'would', 'should', 'will',
+            'the', 'a', 'an', 'and', 'or', 'but', 'not', 'for', 'of', 'with', 'to',
+            'in', 'on', 'at', 'by', 'from', 'about', 'like', 'some', 'any', 'have',
+            'has', 'had', 'i', 'we', 'you', 'they', 'it', 'be', 'been', 'being',
+            'people', 'doing', 'trying', 'using', 'there', 'their', 'this', 'that',
+            'just', 'get', 'run', 'into', 'its',
+        }
+        words = re.sub(r'[^\w\s]', ' ', query.lower()).split()
+        kws = [w for w in words if w not in _stopwords and len(w) > 2][:6]
+        gh_query = ' '.join(kws) if len(kws) >= 2 else query[:60]
         try:
             resp = requests.post(
                 'http://localhost:9100/search_github',
-                json={'query': query, 'per_page': 5},
+                json={'query': gh_query, 'per_page': 5},
                 timeout=15,
             )
             github_data.update(resp.json() if resp.ok else {'results': [], 'error': resp.text[:200]})
+            github_data['gh_query'] = gh_query  # store for debugging
         except Exception as e:
             github_data['error'] = str(e)
             github_data['results'] = []
