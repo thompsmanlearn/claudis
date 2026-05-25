@@ -3188,7 +3188,8 @@ def search_all(query, max_results=5):
     norm_query = _normalize_query(query)
     for existing in reversed(current):
         if (existing.get('action') == 'search_all'
-                and _normalize_query(existing.get('query', '')) == norm_query):
+                and _normalize_query(existing.get('query', '')) == norm_query
+                and 'github' in existing):  # only reuse entries that have github data
             log.info('search_all: duplicate query "%s" — reusing existing entry', query[:60])
             return existing  # skip search and Gemini; return cached result
 
