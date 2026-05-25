@@ -3189,7 +3189,7 @@ def search_all(query, max_results=5):
     for existing in reversed(current):
         if (existing.get('action') == 'search_all'
                 and _normalize_query(existing.get('query', '')) == norm_query
-                and 'github' in existing):  # only reuse entries that have github data
+                and existing.get('github_searched', False)):  # only reuse entries created with github support
             log.info('search_all: duplicate query "%s" — reusing existing entry', query[:60])
             return existing  # skip search and Gemini; return cached result
 
@@ -3308,6 +3308,7 @@ def search_all(query, max_results=5):
             'answer': tavily_data.get('answer', ''),
         },
         'github': github_data.get('results', []),
+        'github_searched': True,  # marks entry as created after github feature — enables dedup
         'gemini': {
             'answer': gemini_data.get('answer', ''),
             'error_reason': gemini_data.get('error_reason', ''),
