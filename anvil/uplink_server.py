@@ -3233,8 +3233,9 @@ def search_all(query, max_results=5):
             'the', 'a', 'an', 'and', 'or', 'but', 'not', 'for', 'of', 'with', 'to',
             'in', 'on', 'at', 'by', 'from', 'about', 'like', 'some', 'any', 'have',
             'has', 'had', 'i', 'we', 'you', 'they', 'it', 'be', 'been', 'being',
-            'people', 'doing', 'trying', 'using', 'there', 'their', 'this', 'that',
-            'just', 'get', 'run', 'into', 'its',
+            'people', 'doing', 'trying', 'using', 'running', 'making', 'building',
+            'working', 'getting', 'looking', 'there', 'their', 'this', 'that',
+            'just', 'get', 'run', 'into', 'its', 'more', 'also', 'now', 'even',
         }
         words = re.sub(r'[^\w\s]', ' ', query.lower()).split()
         kws = [w for w in words if w not in _stopwords and len(w) > 2][:6]
