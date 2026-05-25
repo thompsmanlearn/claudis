@@ -3192,10 +3192,11 @@ def search_all(query, max_results=5):
             log.info('search_all: duplicate query "%s" — reusing existing entry', query[:60])
             return existing  # skip search and Gemini; return cached result
 
-    # ── 2. Run Brave + Tavily in parallel ────────────────────────────────────
+    # ── 2. Run Brave + Tavily + GitHub in parallel ────────────────────────────
     now = datetime.now(timezone.utc).isoformat()
     brave_data = {}
     tavily_data = {}
+    github_data = {}
     gemini_data = {}
 
     def _call_brave():
@@ -3223,13 +3224,29 @@ def search_all(query, max_results=5):
             tavily_data['results'] = []
             tavily_data['answer'] = ''
 
-    threads = [threading.Thread(target=_call_brave), threading.Thread(target=_call_tavily)]
+    def _call_github():
+        try:
+            resp = requests.post(
+                'http://localhost:9100/search_github',
+                json={'query': query, 'per_page': 5},
+                timeout=15,
+            )
+            github_data.update(resp.json() if resp.ok else {'results': [], 'error': resp.text[:200]})
+        except Exception as e:
+            github_data['error'] = str(e)
+            github_data['results'] = []
+
+    threads = [
+        threading.Thread(target=_call_brave),
+        threading.Thread(target=_call_tavily),
+        threading.Thread(target=_call_github),
+    ]
     for t in threads:
         t.start()
     for t in threads:
         t.join(timeout=30)
 
-    # ── 3. Gemini synthesizes Brave+Tavily results (sequential, after both done) ──
+    # ── 3. Gemini synthesizes Brave+Tavily+GitHub results (sequential, after all done) ──
     def _call_gemini():
         try:
             resp = requests.post(
@@ -3239,6 +3256,7 @@ def search_all(query, max_results=5):
                     'brave_results': brave_data.get('results', []),
                     'tavily_results': tavily_data.get('results', []),
                     'tavily_answer': tavily_data.get('answer', ''),
+                    'github_results': github_data.get('results', []),
                 },
                 timeout=45,
             )
@@ -3272,6 +3290,7 @@ def search_all(query, max_results=5):
             'results': tavily_data.get('results', []),
             'answer': tavily_data.get('answer', ''),
         },
+        'github': github_data.get('results', []),
         'gemini': {
             'answer': gemini_data.get('answer', ''),
             'error_reason': gemini_data.get('error_reason', ''),
@@ -3279,6 +3298,7 @@ def search_all(query, max_results=5):
         'errors': {k: v for k, v in {
             'brave': brave_data.get('error'),
             'tavily': tavily_data.get('error'),
+            'github': github_data.get('error'),
         }.items() if v},
     }
 
@@ -3291,8 +3311,9 @@ def search_all(query, max_results=5):
         timeout=10,
     )
     r2.raise_for_status()
-    log.info('search_all: query=%s brave=%d tavily=%d gemini_chars=%d gemini_error=%s',
+    log.info('search_all: query=%s brave=%d tavily=%d github=%d gemini_chars=%d gemini_error=%s',
              query[:60], len(entry['brave']), len(entry['tavily']['results']),
+             len(entry['github']),
              len(entry['gemini'].get('answer', '')),
              entry['gemini'].get('error_reason', 'none'))
     return entry
