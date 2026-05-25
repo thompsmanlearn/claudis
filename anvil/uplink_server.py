@@ -3167,7 +3167,7 @@ def _normalize_query(q):
 
 
 @anvil.server.callable
-def search_all(query, max_results=5):
+def search_all(query, max_results=10):
     """Run Brave+Tavily in parallel, then Gemini synthesis. Deduplicates identical queries."""
     import threading
     query = (query or '').strip()
@@ -3244,7 +3244,7 @@ def search_all(query, max_results=5):
         try:
             resp = requests.post(
                 'http://localhost:9100/search_github',
-                json={'query': gh_query, 'per_page': 5},
+                json={'query': gh_query, 'per_page': 8},
                 timeout=15,
             )
             github_data.update(resp.json() if resp.ok else {'results': [], 'error': resp.text[:200]})
