@@ -42,6 +42,11 @@
 - **Continue:** System tab pruning (identified as next step before B-137). Then use the deep research pipeline on a real query to evaluate artifact quality.
 - **Left better:** Research pipeline now has a reader — artifacts land in ~/aadp/research_artifacts/ and surface in Desktop Claude export bundle. Loop is closed.
 
+**2026-05-25 (Bill session — close-session ritual):**
+- **What I was doing:** Ran close-session ritual manually to complete the 3 steps the lean session deferred (Steps 6/10/final). Verified all stores in sync: ChromaDB has both lessons and session narrative, Supabase has both lessons + capability.
+- **What I learned:** Lean sessions now complete Steps 3/5/7/8/9 reliably; Steps 6 (wisdom-review cadence) and 10 (handoff) are the gap. wisdom-review is 40 days — 2 days from 42-day threshold; queue it next session if not triggered.
+- **Continue:** System tab pruning — prune dead sections from System tab (same boundary-marker pattern used for thread removal). Then fire deep research on a real query.
+- **Left better:** Close ritual fully verified; stores confirmed in sync; wisdom-review cadence tracked.
 
 ---
 
