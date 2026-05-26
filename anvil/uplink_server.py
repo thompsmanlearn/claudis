@@ -3099,6 +3099,9 @@ def _fetch_arxiv(query):
         return []
 
 
+_WIKIPEDIA_UA = {'User-Agent': 'AADP-Research/1.0 (thompsman@gmail.com)'}
+
+
 def _fetch_wikipedia(query):
     """Two-step Wikipedia fetch. Returns list with 0 or 1 result."""
     try:
@@ -3106,6 +3109,7 @@ def _fetch_wikipedia(query):
         s1 = requests.get(
             'https://en.wikipedia.org/w/api.php',
             params={'action': 'query', 'list': 'search', 'srsearch': query, 'format': 'json', 'srlimit': 1},
+            headers=_WIKIPEDIA_UA,
             timeout=10,
         )
         s1.raise_for_status()
@@ -3116,6 +3120,7 @@ def _fetch_wikipedia(query):
         title = hits[0]['title']
         s2 = requests.get(
             f'https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}',
+            headers=_WIKIPEDIA_UA,
             timeout=10,
         )
         s2.raise_for_status()
