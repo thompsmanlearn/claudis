@@ -3403,6 +3403,9 @@ def _deep_research_worker(job_id, query):
             '- "psilocybin phase 3 remission trial"\n'
             '- "psychedelic therapy neuroplasticity mechanisms"\n'
             '- "psychedelic therapy non-clinical digital delivery"\n\n'
+            'Do not use abbreviations in the "query" field. Always spell out domain terms in full.\n'
+            'For example: "psychedelic assisted therapy" not "PAT", "post-traumatic stress disorder"\n'
+            'not "PTSD", "major depressive disorder" not "MDD".\n\n'
             'If total gaps exceed 6, return only high and medium priority items.\n\n'
             'Return only the JSON array.\n\n'
             f'Clustered findings:\n{clusters_text}'
@@ -3455,16 +3458,18 @@ def _deep_research_worker(job_id, query):
             if not fetcher:
                 return
             try:
-                gap_desc = gap.get('gap', '')
-                gap_query = gap.get('query', gap_desc)
-                # Academic APIs need short keyword query; natural language returns garbage
+                gap_desc = gap.get('gap', '')    # full natural language description
+                gap_query = gap.get('query', gap_desc)  # 3-5 keyword string for academic APIs
+                # Routing rule:
+                #   gap.query (short keywords) → semantic_scholar, arxiv
+                #   gap.gap   (full NL desc)   → guardian, brave, tavily, github
                 if source_name in ('semantic_scholar', 'arxiv'):
                     search_q = gap_query
                 elif source_name == 'wikipedia':
                     # wiki_title is a 1-3 word concept term added by Haiku routing
                     search_q = gap.get('wiki_title', gap_query)
                 else:
-                    # Guardian, Brave, Tavily, GitHub handle natural language fine
+                    # Guardian, Brave, Tavily, GitHub: natural language gets better results
                     search_q = gap_desc
                 items = fetcher(search_q) or []
                 p2_results.setdefault(gap_idx, {})[source_name] = items
