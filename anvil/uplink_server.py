@@ -3378,29 +3378,38 @@ def _deep_research_worker(job_id, query):
         # ── Call 3: Gap identification ────────────────────────────────────────
         clusters_text = json.dumps(clusters, indent=2)
         gap_prompt = (
-            f'The user is researching: {query}\n\n'
-            'Below are clustered pass one findings. Identify gaps, unanswered questions, '
-            'and weakly-supported claims. Return JSON only:\n'
-            '{\n'
-            '  "gaps": [\n'
-            '    {\n'
-            '      "gap": "concise description",\n'
-            '      "type": "academic | conceptual | current | technical",\n'
-            '      "priority": "high | medium | low"\n'
-            '    }\n'
-            '  ]\n'
-            '}\n\n'
+            f'You have just synthesized a first-pass research summary on the following topic: {query}\n\n'
+            'Review the synthesis and identify gaps, unanswered questions, and claims that need\n'
+            'deeper sourcing. Return a JSON array only — no preamble, no markdown fences.\n\n'
+            'Schema:\n'
+            '[\n'
+            '  {\n'
+            '    "gap": "concise description of what is missing or unresolved",\n'
+            '    "type": "academic | conceptual | current | technical",\n'
+            '    "priority": "high | medium | low",\n'
+            '    "query": "3-5 keyword search string for academic APIs"\n'
+            '  }\n'
+            ']\n\n'
             'Type definitions:\n'
             '- academic: needs peer-reviewed sourcing or citation evidence\n'
             '- conceptual: needs definitional grounding or relationship clarification\n'
             '- current: needs recent news or developments\n'
             '- technical: needs implementation detail, code, or applied examples\n\n'
+            'The "query" field must be short — 3 to 5 keywords maximum. It will be sent directly\n'
+            'to arXiv and Semantic Scholar search endpoints. Do not use full sentences, question\n'
+            'marks, or filler words. Extract the core topic terms only.\n\n'
+            'Examples of good query values:\n'
+            '- "MDMA PTSD long-term outcomes"\n'
+            '- "psilocybin phase 3 remission trial"\n'
+            '- "psychedelic therapy neuroplasticity mechanisms"\n'
+            '- "psychedelic therapy non-clinical digital delivery"\n\n'
             'If total gaps exceed 6, return only high and medium priority items.\n\n'
+            'Return only the JSON array.\n\n'
             f'Clustered findings:\n{clusters_text}'
         )
         gap_result, tin, tout = _gemini_json(gap_prompt)
         token_log['gaps'] = (tin, tout)
-        gaps = gap_result.get('gaps', [])
+        gaps = gap_result if isinstance(gap_result, list) else gap_result.get('gaps', [])
         log.info('DR[%s] gaps done: %d gaps', job_id, len(gaps))
 
         # ── Haiku call: gap routing ───────────────────────────────────────────
@@ -3411,6 +3420,10 @@ def _deep_research_worker(job_id, query):
             '       current → guardian\n'
             '       technical → github, arxiv\n'
             'Return the input JSON array with a "sources" field added to each item.\n'
+            'For any gap assigned to wikipedia, also return a "wiki_title" field containing\n'
+            'the most likely Wikipedia article title for this concept — 1 to 3 words,\n'
+            'title-cased, as it would appear in a Wikipedia URL.\n'
+            'Example: "wiki_title": "Psychedelic therapy"\n'
             'Return only the JSON array.'
         )
         try:
@@ -3437,12 +3450,23 @@ def _deep_research_worker(job_id, query):
         }
         p2_results = {}  # gap_idx → {source: [results]}
 
-        def _fetch_gap_source(gap_idx, gap_desc, source_name):
+        def _fetch_gap_source(gap_idx, gap, source_name):
             fetcher = _SOURCE_FETCHERS.get(source_name)
             if not fetcher:
                 return
             try:
-                items = fetcher(gap_desc) or []
+                gap_desc = gap.get('gap', '')
+                gap_query = gap.get('query', gap_desc)
+                # Academic APIs need short keyword query; natural language returns garbage
+                if source_name in ('semantic_scholar', 'arxiv'):
+                    search_q = gap_query
+                elif source_name == 'wikipedia':
+                    # wiki_title is a 1-3 word concept term added by Haiku routing
+                    search_q = gap.get('wiki_title', gap_query)
+                else:
+                    # Guardian, Brave, Tavily, GitHub handle natural language fine
+                    search_q = gap_desc
+                items = fetcher(search_q) or []
                 p2_results.setdefault(gap_idx, {})[source_name] = items
             except Exception as e:
                 p2_results.setdefault(gap_idx, {})[source_name] = []
@@ -3450,9 +3474,8 @@ def _deep_research_worker(job_id, query):
 
         p2_threads = []
         for idx, gap in enumerate(routed_gaps):
-            gap_desc = gap.get('gap', '')
             for src in (gap.get('sources') or []):
-                t = threading.Thread(target=_fetch_gap_source, args=(idx, gap_desc, src))
+                t = threading.Thread(target=_fetch_gap_source, args=(idx, gap, src))
                 p2_threads.append(t)
 
         for t in p2_threads:
@@ -3539,7 +3562,8 @@ def _deep_research_worker(job_id, query):
             t_type = gap.get('type', '')
             priority = gap.get('priority', '')
             sources = ', '.join(gap.get('sources') or [])
-            lines.append(f'| {g} | {t_type} | {priority} | {sources} | {g} |')
+            p2_query = gap.get('query', g)  # distilled keyword query if available
+            lines.append(f'| {g} | {t_type} | {priority} | {sources} | {p2_query} |')
         lines.append('')
 
         # Pass 2 findings
