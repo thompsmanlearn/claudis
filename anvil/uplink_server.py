@@ -2732,10 +2732,11 @@ def get_desktop_bundle():
 
     Sections:
     1. Active threads with most recent summary entry expanded
-    2. Up to 10 recent research articles — title, full URL, source, summary
-    3. Up to 5 recent session artifacts — Capability delta expanded
-    4. Known fragilities — unprocessed agent_feedback for agents/skills/capabilities
-    5. Store counts (at a glance)
+    2. Up to 3 recent research artifacts (full content) from ~/aadp/research_artifacts/
+    3. Up to 10 recent research articles — title, full URL, source, summary
+    4. Up to 5 recent session artifacts — Capability delta expanded
+    5. Known fragilities — unprocessed agent_feedback for agents/skills/capabilities
+    6. Store counts (at a glance)
     """
     import glob
     import os as _os
@@ -2797,7 +2798,32 @@ def get_desktop_bundle():
     except Exception as e:
         lines.append(f'_Error fetching threads: {e}_\n')
 
-    # ── 2. Recent research articles ──────────────────────────────────────────
+    # ── 2. Recent Research artifacts ─────────────────────────────────────────
+    lines.append('## Recent Research\n')
+    research_dir = os.path.expanduser('~/aadp/research_artifacts')
+    try:
+        if os.path.isdir(research_dir):
+            art_files = sorted(
+                [f for f in os.listdir(research_dir) if f.endswith('.md')],
+                key=lambda f: os.path.getmtime(os.path.join(research_dir, f)),
+                reverse=True,
+            )[:3]
+            if art_files:
+                for af in art_files:
+                    try:
+                        with open(os.path.join(research_dir, af)) as f:
+                            lines.append(f.read())
+                        lines.append('')
+                    except Exception:
+                        pass
+            else:
+                lines.append('_No research artifacts yet._\n')
+        else:
+            lines.append('_No research artifacts yet._\n')
+    except Exception as e:
+        lines.append(f'_Error reading research artifacts: {e}_\n')
+
+    # ── 3. Recent research articles ──────────────────────────────────────────
     lines.append('## Recent research (up to 10 articles)\n')
     try:
         r = requests.get(
@@ -2832,7 +2858,7 @@ def get_desktop_bundle():
     except Exception as e:
         lines.append(f'_Error fetching research articles: {e}_\n')
 
-    # ── 3. Recent session artifacts ──────────────────────────────────────────
+    # ── 4. Recent session artifacts ──────────────────────────────────────────
     lines.append('## Recent sessions (up to 5)\n')
     sessions_dir = _os.path.expanduser('~/aadp/claudis/sessions/lean')
     try:
@@ -2878,7 +2904,7 @@ def get_desktop_bundle():
     except Exception as e:
         lines.append(f'_Error reading sessions: {e}_\n')
 
-    # ── 4. Known fragilities ─────────────────────────────────────────────────
+    # ── 5. Known fragilities ─────────────────────────────────────────────────
     lines.append('## Known fragilities (unprocessed feedback)\n')
     try:
         r = requests.get(
@@ -2907,7 +2933,7 @@ def get_desktop_bundle():
     except Exception as e:
         lines.append(f'_Error fetching fragilities: {e}_\n')
 
-    # ── 5. Store counts ──────────────────────────────────────────────────────
+    # ── 6. Store counts ──────────────────────────────────────────────────────
     lines.append('## Store counts\n')
     lines.append('| Store | Total |')
     lines.append('|---|---|')
@@ -2943,6 +2969,726 @@ def get_desktop_bundle():
             lines.append(f'| chromadb:{col_name} | error ({str(e)[:40]}) |')
 
     return '\n'.join(lines)
+
+
+# ── Deep Research Pipeline (B-137) ───────────────────────────────────────────
+
+_deep_research_jobs = {}  # job_id → {status, result, error}
+_RESEARCH_ARTIFACTS_DIR = os.path.expanduser('~/aadp/research_artifacts')
+
+
+def _gemini_generate(prompt, timeout=90):
+    """Call Gemini 2.5 Flash. Returns (text, tokens_in, tokens_out)."""
+    gemini_key = _ENV.get('GEMINI_API_KEY', '')
+    if not gemini_key:
+        raise Exception('GEMINI_API_KEY not set')
+    resp = requests.post(
+        f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}',
+        json={'contents': [{'parts': [{'text': prompt}]}]},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    text = data['candidates'][0]['content']['parts'][0]['text']
+    usage = data.get('usageMetadata', {})
+    return text, usage.get('promptTokenCount', 0), usage.get('candidatesTokenCount', 0)
+
+
+def _gemini_json(prompt, timeout=90):
+    """Call Gemini and parse JSON. Returns (parsed_obj, tokens_in, tokens_out)."""
+    text, tin, tout = _gemini_generate(prompt, timeout=timeout)
+    # Strip markdown code fences if present
+    stripped = re.sub(r'^```(?:json)?\s*\n?', '', text.strip())
+    stripped = re.sub(r'\n?```\s*$', '', stripped.strip())
+    try:
+        return json.loads(stripped), tin, tout
+    except json.JSONDecodeError as e:
+        raise Exception(f'Gemini JSON parse failure: {e}\nRaw: {text[:200]}')
+
+
+def _haiku_json(system_prompt, user_content, timeout=30):
+    """Call claude-haiku-4-5. Returns (parsed_obj, tokens_in, tokens_out)."""
+    client = anthropic.Anthropic(api_key=_ENV.get('ANTHROPIC_API_KEY', ''))
+    msg = client.messages.create(
+        model='claude-haiku-4-5-20251001',
+        max_tokens=2048,
+        system=system_prompt,
+        messages=[{'role': 'user', 'content': user_content}],
+    )
+    text = msg.content[0].text
+    stripped = re.sub(r'^```(?:json)?\s*\n?', '', text.strip())
+    stripped = re.sub(r'\n?```\s*$', '', stripped.strip())
+    try:
+        return json.loads(stripped), msg.usage.input_tokens, msg.usage.output_tokens
+    except json.JSONDecodeError as e:
+        raise Exception(f'Haiku JSON parse failure: {e}\nRaw: {text[:200]}')
+
+
+def _fetch_semantic_scholar(query):
+    """Return list of result dicts from Semantic Scholar."""
+    api_key = _ENV.get('SEMANTIC_SCHOLAR_API_KEY', '')
+    headers = {}
+    if api_key:
+        headers['x-api-key'] = api_key
+    try:
+        resp = requests.get(
+            'https://api.semanticscholar.org/graph/v1/paper/search',
+            headers=headers,
+            params={
+                'query': query,
+                'fields': 'title,abstract,year,citationCount,isOpenAccess,openAccessPdf,externalIds',
+                'limit': 5,
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        papers = resp.json().get('data', [])
+        results = []
+        for p in papers:
+            eid = p.get('externalIds') or {}
+            corpus_id = eid.get('CorpusId')
+            url = p.get('openAccessPdf', {}).get('url') if p.get('isOpenAccess') else None
+            abstract_url = f'https://www.semanticscholar.org/paper/{corpus_id}' if corpus_id else None
+            results.append({
+                'source': 'semantic_scholar',
+                'title': p.get('title', ''),
+                'url': url or abstract_url or '',
+                'snippet': (p.get('abstract') or '')[:400],
+                'year': p.get('year'),
+                'citation_count': p.get('citationCount'),
+                'is_open_access': p.get('isOpenAccess'),
+                'pdf_url': url,
+            })
+        return results
+    except Exception as e:
+        log.warning('_fetch_semantic_scholar error: %s', e)
+        return []
+
+
+def _fetch_arxiv(query):
+    """Return list of result dicts from arXiv Atom feed."""
+    import xml.etree.ElementTree as ET
+    try:
+        resp = requests.get(
+            'https://export.arxiv.org/api/query',
+            params={'search_query': f'all:{query}', 'max_results': 5},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        ns = {'atom': 'http://www.w3.org/2005/Atom'}
+        root = ET.fromstring(resp.text)
+        results = []
+        for entry in root.findall('atom:entry', ns):
+            title = (entry.findtext('atom:title', '', ns) or '').strip().replace('\n', ' ')
+            abstract = (entry.findtext('atom:summary', '', ns) or '').strip().replace('\n', ' ')
+            abs_url = (entry.findtext('atom:id', '', ns) or '').strip()
+            pdf_url = abs_url.replace('/abs/', '/pdf/') if '/abs/' in abs_url else None
+            authors = [a.findtext('atom:name', '', ns) for a in entry.findall('atom:author', ns)]
+            results.append({
+                'source': 'arxiv',
+                'title': title,
+                'url': abs_url,
+                'snippet': abstract[:400],
+                'pdf_url': pdf_url,
+                'is_open_access': True,
+                'authors': authors[:3],
+            })
+        return results
+    except Exception as e:
+        log.warning('_fetch_arxiv error: %s', e)
+        return []
+
+
+def _fetch_wikipedia(query):
+    """Two-step Wikipedia fetch. Returns list with 0 or 1 result."""
+    try:
+        from urllib.parse import quote
+        s1 = requests.get(
+            'https://en.wikipedia.org/w/api.php',
+            params={'action': 'query', 'list': 'search', 'srsearch': query, 'format': 'json', 'srlimit': 1},
+            timeout=10,
+        )
+        s1.raise_for_status()
+        hits = s1.json().get('query', {}).get('search', [])
+        if not hits:
+            log.info('_fetch_wikipedia: no results for "%s"', query[:60])
+            return []
+        title = hits[0]['title']
+        s2 = requests.get(
+            f'https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}',
+            timeout=10,
+        )
+        s2.raise_for_status()
+        data = s2.json()
+        return [{
+            'source': 'wikipedia',
+            'title': data.get('title', title),
+            'url': data.get('content_urls', {}).get('desktop', {}).get('page', ''),
+            'snippet': (data.get('extract') or '')[:400],
+        }]
+    except Exception as e:
+        log.warning('_fetch_wikipedia error: %s', e)
+        return []
+
+
+def _fetch_guardian(query):
+    """Return list of result dicts from The Guardian API."""
+    api_key = _ENV.get('GUARDIAN_API_KEY', '')
+    if not api_key:
+        log.warning('_fetch_guardian: GUARDIAN_API_KEY not set')
+        return []
+    try:
+        resp = requests.get(
+            'https://content.guardianapis.com/search',
+            params={
+                'q': query,
+                'show-fields': 'headline,bodyText,webUrl,webPublicationDate,sectionName',
+                'api-key': api_key,
+                'page-size': 5,
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        items = resp.json().get('response', {}).get('results', [])
+        results = []
+        for item in items:
+            fields = item.get('fields') or {}
+            body = (fields.get('bodyText') or '')[:400]
+            results.append({
+                'source': 'guardian',
+                'title': fields.get('headline') or item.get('webTitle', ''),
+                'url': item.get('webUrl') or fields.get('webUrl', ''),
+                'snippet': body,
+                'publication_date': (item.get('webPublicationDate') or '')[:10],
+                'section': fields.get('sectionName', ''),
+            })
+        return results
+    except Exception as e:
+        log.warning('_fetch_guardian error: %s', e)
+        return []
+
+
+def _fetch_brave_dr(query, max_results=5):
+    try:
+        resp = requests.post(
+            f'{_STATS_URL}/web_search',
+            json={'query': query, 'max_results': max_results},
+            timeout=20,
+        )
+        if not resp.ok:
+            return []
+        return resp.json().get('results', [])
+    except Exception as e:
+        log.warning('_fetch_brave_dr error: %s', e)
+        return []
+
+
+def _fetch_tavily_dr(query, max_results=5):
+    try:
+        resp = requests.post(
+            f'{_STATS_URL}/search_tavily',
+            json={'query': query, 'max_results': max_results},
+            timeout=25,
+        )
+        if not resp.ok:
+            return []
+        return resp.json().get('results', [])
+    except Exception as e:
+        log.warning('_fetch_tavily_dr error: %s', e)
+        return []
+
+
+def _fetch_github_dr(query, per_page=8):
+    # Keyword-only for GitHub; strip stop words
+    _stop = {'what','how','why','when','where','who','which','are','is','was','were',
+              'do','does','did','can','could','would','should','will','the','a','an',
+              'and','or','but','not','for','of','with','to','in','on','at','by','from',
+              'about','like','some','any','have','has','had','i','we','you','they','it',
+              'be','been','being','people','doing','trying','using','running','making',
+              'building','working','getting','looking','there','their','this','that',
+              'just','get','run','into','its','more','also','now','even'}
+    words = re.sub(r'[^\w\s]', ' ', query.lower()).split()
+    kws = [w for w in words if w not in _stop and len(w) > 2][:6]
+    gh_query = ' '.join(kws) if len(kws) >= 2 else query[:60]
+    try:
+        resp = requests.post(
+            f'{_STATS_URL}/search_github',
+            json={'query': gh_query, 'per_page': per_page},
+            timeout=15,
+        )
+        if not resp.ok:
+            return []
+        return resp.json().get('results', [])
+    except Exception as e:
+        log.warning('_fetch_github_dr error: %s', e)
+        return []
+
+
+def _dr_log_error(source, error_msg):
+    """Log a single-source failure to error_logs."""
+    try:
+        requests.post(
+            f'{_SUPABASE_URL}/rest/v1/error_logs',
+            headers={**_HEADERS, 'Prefer': 'return=minimal'},
+            json={
+                'workflow_id': 'workpad_deep_research',
+                'node_name': source,
+                'error_message': str(error_msg)[:500],
+                'resolved': False,
+            },
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def _deep_research_worker(job_id, query):
+    """Background thread: runs the full B-137 two-pass pipeline."""
+    t0 = time.monotonic()
+    token_log = {}
+
+    try:
+        os.makedirs(_RESEARCH_ARTIFACTS_DIR, exist_ok=True)
+
+        # ── Call 1: Gemini query expansion ────────────────────────────────────
+        exp_prompt = (
+            f'The user is researching: {query}\n\n'
+            'Generate optimized search queries for each source. Return JSON only:\n'
+            '{\n'
+            '  "semantic_scholar": "query for academic paper search",\n'
+            '  "arxiv": "query for preprint search — use ti: abs: notation if helpful",\n'
+            '  "guardian": "concrete news-framing query",\n'
+            '  "wikipedia": "1-3 word entity or concept name",\n'
+            '  "default": "query for Brave, Tavily, GitHub"\n'
+            '}'
+        )
+        expanded, tin, tout = _gemini_json(exp_prompt)
+        token_log['expansion'] = (tin, tout)
+        log.info('DR[%s] expansion done: %s', job_id, list(expanded.keys()))
+
+        def_q = expanded.get('default', query)
+
+        # ── Pass 1: Fire all 7 sources in parallel ────────────────────────────
+        p1_results = {
+            'semantic_scholar': [], 'arxiv': [], 'wikipedia': [],
+            'guardian': [], 'brave': [], 'tavily': [], 'github': [],
+        }
+        p1_errors = {}
+
+        def _run_source(name, fn, *args):
+            try:
+                p1_results[name] = fn(*args) or []
+            except Exception as e:
+                p1_results[name] = []
+                p1_errors[name] = str(e)
+                _dr_log_error(name, e)
+
+        p1_threads = [
+            threading.Thread(target=_run_source, args=('semantic_scholar', _fetch_semantic_scholar, expanded.get('semantic_scholar', def_q))),
+            threading.Thread(target=_run_source, args=('arxiv', _fetch_arxiv, expanded.get('arxiv', def_q))),
+            threading.Thread(target=_run_source, args=('wikipedia', _fetch_wikipedia, expanded.get('wikipedia', def_q))),
+            threading.Thread(target=_run_source, args=('guardian', _fetch_guardian, expanded.get('guardian', def_q))),
+            threading.Thread(target=_run_source, args=('brave', _fetch_brave_dr, def_q)),
+            threading.Thread(target=_run_source, args=('tavily', _fetch_tavily_dr, def_q)),
+            threading.Thread(target=_run_source, args=('github', _fetch_github_dr, def_q)),
+        ]
+        for t in p1_threads:
+            t.start()
+        for t in p1_threads:
+            t.join(timeout=30)
+        log.info('DR[%s] pass 1 done: %s results', job_id, {k: len(v) for k, v in p1_results.items()})
+
+        # Build source summary for Gemini calls
+        def _result_summary(source_name, items):
+            lines = []
+            for item in items[:5]:
+                title = item.get('title', '')
+                url = item.get('url', '')
+                snippet = item.get('snippet', '')[:200]
+                year = item.get('year', '')
+                cites = item.get('citation_count', '')
+                pub_date = item.get('publication_date', '')
+                line = f'- [{source_name}] {title} | {url}'
+                if year:
+                    line += f' | {year}'
+                if cites is not None and cites != '':
+                    line += f' | {cites} citations'
+                if pub_date:
+                    line += f' | {pub_date}'
+                if snippet:
+                    line += f'\n  {snippet}'
+                lines.append(line)
+            return '\n'.join(lines)
+
+        all_p1_text = '\n\n'.join(
+            _result_summary(src, p1_results[src])
+            for src in ['brave', 'tavily', 'github', 'semantic_scholar', 'arxiv', 'wikipedia', 'guardian']
+            if p1_results[src]
+        )
+
+        # ── Call 2: Relevance screening and clustering ────────────────────────
+        screen_prompt = (
+            f'The user is researching: {query}\n\n'
+            'Below are raw results from 7 sources. Your jobs:\n'
+            '1. Drop results that are noise, tangential, or duplicate.\n'
+            '2. Group remaining results into 3-6 topic clusters.\n'
+            '3. Identify direct factual contradictions between sources.\n'
+            '   State each as: "Source A says X. Source B says Y." Do not resolve.\n\n'
+            'Return JSON only:\n'
+            '{\n'
+            '  "clusters": [\n'
+            '    {\n'
+            '      "topic": "cluster name",\n'
+            '      "findings": [\n'
+            '        {\n'
+            '          "claim": "specific claim or finding",\n'
+            '          "source_name": "brave|tavily|github|semantic_scholar|arxiv|wikipedia|guardian",\n'
+            '          "title": "result title",\n'
+            '          "url": "url",\n'
+            '          "year": null,\n'
+            '          "citation_count": null,\n'
+            '          "is_open_access": null,\n'
+            '          "pdf_url": null,\n'
+            '          "publication_date": null\n'
+            '        }\n'
+            '      ]\n'
+            '    }\n'
+            '  ],\n'
+            '  "conflicts": [\n'
+            '    {\n'
+            '      "topic": "what the conflict is about",\n'
+            '      "source_a": {"title": "", "url": "", "claim": ""},\n'
+            '      "source_b": {"title": "", "url": "", "claim": ""}\n'
+            '    }\n'
+            '  ]\n'
+            '}\n\n'
+            f'Raw results:\n{all_p1_text}'
+        )
+        screened, tin, tout = _gemini_json(screen_prompt)
+        token_log['screening'] = (tin, tout)
+        clusters = screened.get('clusters', [])
+        conflicts = screened.get('conflicts', [])
+        log.info('DR[%s] screening done: %d clusters %d conflicts', job_id, len(clusters), len(conflicts))
+
+        # ── Call 3: Gap identification ────────────────────────────────────────
+        clusters_text = json.dumps(clusters, indent=2)
+        gap_prompt = (
+            f'The user is researching: {query}\n\n'
+            'Below are clustered pass one findings. Identify gaps, unanswered questions, '
+            'and weakly-supported claims. Return JSON only:\n'
+            '{\n'
+            '  "gaps": [\n'
+            '    {\n'
+            '      "gap": "concise description",\n'
+            '      "type": "academic | conceptual | current | technical",\n'
+            '      "priority": "high | medium | low"\n'
+            '    }\n'
+            '  ]\n'
+            '}\n\n'
+            'Type definitions:\n'
+            '- academic: needs peer-reviewed sourcing or citation evidence\n'
+            '- conceptual: needs definitional grounding or relationship clarification\n'
+            '- current: needs recent news or developments\n'
+            '- technical: needs implementation detail, code, or applied examples\n\n'
+            'If total gaps exceed 6, return only high and medium priority items.\n\n'
+            f'Clustered findings:\n{clusters_text}'
+        )
+        gap_result, tin, tout = _gemini_json(gap_prompt)
+        token_log['gaps'] = (tin, tout)
+        gaps = gap_result.get('gaps', [])
+        log.info('DR[%s] gaps done: %d gaps', job_id, len(gaps))
+
+        # ── Haiku call: gap routing ───────────────────────────────────────────
+        haiku_system = (
+            'You are a routing classifier. Assign each gap to one or more sources by type.\n'
+            'Route: academic → semantic_scholar, arxiv\n'
+            '       conceptual → wikipedia\n'
+            '       current → guardian\n'
+            '       technical → github, arxiv\n'
+            'Return the input JSON array with a "sources" field added to each item.\n'
+            'Return only the JSON array.'
+        )
+        try:
+            routed_gaps, h_in, h_out = _haiku_json(haiku_system, json.dumps(gaps))
+            token_log['haiku_routing'] = (h_in, h_out)
+        except Exception as haiku_err:
+            # Fallback: assign all gaps to all sources
+            log.warning('DR[%s] Haiku routing failed, using fallback: %s', job_id, haiku_err)
+            _dr_log_error('haiku_routing', f'JSON parse failure — using fallback: {haiku_err}')
+            all_sources = ['semantic_scholar', 'arxiv', 'wikipedia', 'guardian', 'github']
+            routed_gaps = [{**g, 'sources': all_sources} for g in gaps]
+            token_log['haiku_routing'] = (0, 0)
+        log.info('DR[%s] routing done', job_id)
+
+        # ── Pass 2: Retrieve for each gap ─────────────────────────────────────
+        _SOURCE_FETCHERS = {
+            'semantic_scholar': _fetch_semantic_scholar,
+            'arxiv': _fetch_arxiv,
+            'wikipedia': _fetch_wikipedia,
+            'guardian': _fetch_guardian,
+            'brave': _fetch_brave_dr,
+            'tavily': _fetch_tavily_dr,
+            'github': _fetch_github_dr,
+        }
+        p2_results = {}  # gap_idx → {source: [results]}
+
+        def _fetch_gap_source(gap_idx, gap_desc, source_name):
+            fetcher = _SOURCE_FETCHERS.get(source_name)
+            if not fetcher:
+                return
+            try:
+                items = fetcher(gap_desc) or []
+                p2_results.setdefault(gap_idx, {})[source_name] = items
+            except Exception as e:
+                p2_results.setdefault(gap_idx, {})[source_name] = []
+                _dr_log_error(f'p2_{source_name}', e)
+
+        p2_threads = []
+        for idx, gap in enumerate(routed_gaps):
+            gap_desc = gap.get('gap', '')
+            for src in (gap.get('sources') or []):
+                t = threading.Thread(target=_fetch_gap_source, args=(idx, gap_desc, src))
+                p2_threads.append(t)
+
+        for t in p2_threads:
+            t.start()
+        for t in p2_threads:
+            t.join(timeout=30)
+        log.info('DR[%s] pass 2 done: %d gaps addressed', job_id, len(p2_results))
+
+        # ── Build artifact ────────────────────────────────────────────────────
+        runtime = round(time.monotonic() - t0)
+        now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        p2_src_count = sum(len(v) for v in p2_results.values())
+
+        slug = re.sub(r'\s+', '-', re.sub(r'[^\w\s]', '', query.lower().strip()))[:40].rstrip('-')
+        filename = f'{datetime.now(timezone.utc).strftime("%Y-%m-%d")}-{slug}.md'
+        artifact_path = os.path.join(_RESEARCH_ARTIFACTS_DIR, filename)
+
+        def _inline_attr(item):
+            src = item.get('source', '')
+            title = item.get('title', '')
+            url = item.get('url', '')
+            year = item.get('year')
+            cites = item.get('citation_count')
+            pdf = item.get('pdf_url')
+            pub_date = item.get('publication_date', '')
+            parts = []
+            if url:
+                parts.append(f'[{title}]({url})')
+            else:
+                parts.append(title)
+            if src in ('semantic_scholar', 'arxiv'):
+                if year:
+                    parts.append(f'[{src}] [{year}]')
+                if cites is not None:
+                    parts.append(f'[{cites} citations]')
+                if pdf:
+                    parts.append(f'[[PDF]]({pdf})')
+                elif url:
+                    parts.append(f'[[Abstract]]({url})')
+            elif src == 'guardian':
+                date_str = pub_date or ''
+                parts.append(f'[Guardian, {date_str}]' if date_str else '[Guardian]')
+            elif src in ('brave', 'tavily'):
+                parts.append(f'[{src.capitalize()}]')
+            elif src == 'github':
+                parts.append('[GitHub]')
+            elif src == 'wikipedia':
+                parts.append('[Wikipedia]')
+            return ' '.join(parts)
+
+        lines = [
+            '---',
+            f'# Research: {query}',
+            f'{now_iso} | {runtime}s | 7 sources pass one | {p2_src_count} sources pass two',
+            '',
+            '## Query Expansion',
+            f'Original: {query}',
+            f'Semantic Scholar: {expanded.get("semantic_scholar", def_q)}',
+            f'arXiv: {expanded.get("arxiv", def_q)}',
+            f'Guardian: {expanded.get("guardian", def_q)}',
+            f'Wikipedia: {expanded.get("wikipedia", def_q)}',
+            f'Brave / Tavily / GitHub: {def_q}',
+            '',
+            '## Pass One Findings',
+            '',
+        ]
+
+        for cluster in clusters:
+            lines.append(f'### {cluster.get("topic", "Cluster")}')
+            for finding in cluster.get('findings', []):
+                claim = finding.get('claim', '')
+                attr = _inline_attr(finding)
+                lines.append(f'- {claim} — {attr}')
+            lines.append('')
+
+        # Gap table
+        lines += [
+            '## Gap Analysis',
+            '| Gap | Type | Priority | Sources Assigned | Pass Two Query |',
+            '|-----|------|----------|-----------------|----------------|',
+        ]
+        for idx, gap in enumerate(routed_gaps):
+            g = gap.get('gap', '')
+            t_type = gap.get('type', '')
+            priority = gap.get('priority', '')
+            sources = ', '.join(gap.get('sources') or [])
+            lines.append(f'| {g} | {t_type} | {priority} | {sources} | {g} |')
+        lines.append('')
+
+        # Pass 2 findings
+        lines.append('## Pass Two Findings')
+        lines.append('')
+        for idx, gap in enumerate(routed_gaps):
+            gap_desc = gap.get('gap', '')
+            src_results = p2_results.get(idx, {})
+            lines.append(f'### Gap: {gap_desc}')
+            queried_srcs = ', '.join(src_results.keys()) if src_results else 'none'
+            lines.append(f'Queried: {queried_srcs}')
+            any_result = False
+            for src_name, items in src_results.items():
+                for item in items:
+                    lines.append(f'- {item.get("snippet", item.get("title", ""))[:150]} — {_inline_attr(item)}')
+                    any_result = True
+            if not any_result:
+                lines.append('*No relevant results returned.*')
+            lines.append('')
+
+        # Conflicts
+        if conflicts:
+            lines.append('## Conflicts')
+            for i, c in enumerate(conflicts, 1):
+                topic = c.get('topic', '')
+                sa = c.get('source_a', {})
+                sb = c.get('source_b', {})
+                a_title = sa.get('title', 'Source A')
+                a_url = sa.get('url', '')
+                a_claim = sa.get('claim', '')
+                b_title = sb.get('title', 'Source B')
+                b_url = sb.get('url', '')
+                b_claim = sb.get('claim', '')
+                a_link = f'[{a_title}]({a_url})' if a_url else a_title
+                b_link = f'[{b_title}]({b_url})' if b_url else b_title
+                lines.append(f'{i}. **{topic}**: {a_link} says {a_claim}. {b_link} says {b_claim}.')
+            lines.append('')
+
+        # Unresolved (pass 2 returned 0 results)
+        unresolved = [
+            (routed_gaps[idx], src_results)
+            for idx, src_results in p2_results.items()
+            if all(len(v) == 0 for v in src_results.values())
+        ]
+        unresolved += [
+            (routed_gaps[idx], {})
+            for idx in range(len(routed_gaps))
+            if idx not in p2_results
+        ]
+        if unresolved:
+            lines.append('## Unresolved After Two Passes')
+            for gap, src_results in unresolved:
+                gap_desc = gap.get('gap', '')
+                lines.append(f'- **{gap_desc}**: 0 results returned.')
+            lines.append('')
+
+        # Footer
+        p1_counts = ' | '.join(f'{src} {len(p1_results[src])}' for src in
+                                ['brave', 'tavily', 'github', 'semantic_scholar', 'arxiv', 'wikipedia', 'guardian'])
+        p2_detail = ' | '.join(
+            f'{src} {sum(len(v.get(src, [])) for v in p2_results.values())}'
+            for src in ['semantic_scholar', 'arxiv', 'wikipedia', 'guardian', 'brave', 'tavily', 'github']
+        )
+
+        def _tok(key):
+            tin, tout = token_log.get(key, (0, 0))
+            return f'{tin}/{tout}tok'
+
+        lines += [
+            '---',
+            f'Query: {query} | {now_iso}',
+            f'Pass one: {p1_counts}',
+            f'Pass two: {p2_detail}',
+            f'Gemini: expansion {_tok("expansion")} | screening {_tok("screening")} | gaps {_tok("gaps")}',
+            f'Haiku: routing {_tok("haiku_routing")}',
+            '---',
+        ]
+
+        artifact_content = '\n'.join(lines)
+        with open(artifact_path, 'w') as f:
+            f.write(artifact_content)
+        log.info('DR[%s] artifact written: %s', job_id, artifact_path)
+
+        # Append to workpad_state output_entries
+        now = datetime.now(timezone.utc).isoformat()
+        entry = {
+            'action': 'deep_research',
+            'query': query,
+            'timestamp': now,
+            'artifact_path': artifact_path,
+            'artifact_content': artifact_content,
+        }
+        try:
+            r = requests.get(
+                f'{_SUPABASE_URL}/rest/v1/workpad_state',
+                headers=_HEADERS,
+                params={'select': 'output_entries', 'id': 'eq.1'},
+                timeout=10,
+            )
+            r.raise_for_status()
+            rows = r.json()
+            current = (rows[0].get('output_entries') or []) if rows else []
+            current.append(entry)
+            requests.post(
+                f'{_SUPABASE_URL}/rest/v1/workpad_state',
+                headers={**_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+                json={'id': 1, 'output_entries': current, 'updated_at': now},
+                timeout=10,
+            ).raise_for_status()
+        except Exception as wb_err:
+            log.warning('DR[%s] workpad_state write failed: %s', job_id, wb_err)
+
+        _deep_research_jobs[job_id] = {
+            'status': 'done',
+            'result': {
+                'artifact_path': artifact_path,
+                'artifact_content': artifact_content,
+                'runtime_s': runtime,
+                'query': query,
+            },
+            'error': None,
+        }
+
+    except Exception as e:
+        log.error('DR[%s] pipeline error: %s', job_id, e)
+        _deep_research_jobs[job_id] = {'status': 'error', 'result': None, 'error': str(e)}
+
+
+@anvil.server.callable
+def run_deep_research(query):
+    """Start the two-pass deep research pipeline. Returns {job_id, status} immediately."""
+    import uuid
+    query = (query or '').strip()
+    if not query:
+        raise Exception('Query is required.')
+    job_id = str(uuid.uuid4())[:8]
+    _deep_research_jobs[job_id] = {'status': 'running', 'result': None, 'error': None}
+    threading.Thread(
+        target=_deep_research_worker,
+        args=(job_id, query),
+        daemon=True,
+        name=f'deep-research-{job_id}',
+    ).start()
+    log.info('run_deep_research: job_id=%s query=%s', job_id, query[:60])
+    return {'job_id': job_id, 'status': 'running'}
+
+
+@anvil.server.callable
+def get_deep_research_status(job_id):
+    """Poll the status of a deep research job."""
+    job = _deep_research_jobs.get(job_id)
+    if not job:
+        raise Exception(f'Deep research job {job_id} not found.')
+    return job
 
 
 # ── Workpad ───────────────────────────────────────────────────────────────────
