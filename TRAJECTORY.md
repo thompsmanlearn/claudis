@@ -22,8 +22,9 @@
 
 - **2026-05-22 Bill session (pruning pass):** Sessions tab converted to export-only (removed 15-card artifact list, fixed get_sessions_bundle path sessions/lean→sessions/). bill_notes removed (dead writer/no reader). lean sessions now auto-close (removed Request Close button + flag mechanism). Thread system retirement directive written — next lean session executes it. Commits: claudis d7e7a30, 4904f15, 36bdef1, 926216c; claude-dashboard d2f9068, 7cfd8a5, 9286d37.
 - **2026-05-22 lean session (thread retirement):** Thread system fully retired. Threads tab removed from Form1 (978 lines). Thread callables removed from uplink_server.py (1049 lines — Thread callables, Extraction, Sub-question spawning, Watch state, Research charter, promote_workpad_to_thread). thread_research_agent retired in agent_registry. Dashboard now 4 tabs: Home/Workpad/Sessions/System. Commits: claudis 42f98ea, claude-dashboard c96c3a6.
+- **B-137 complete (2026-05-25):** Two-pass deep research pipeline live. "Deep Research" button in Workpad tab. 7 sources (Brave, Tavily, GitHub, Semantic Scholar, arXiv, Wikipedia, Guardian). Gemini: query expansion + relevance screening/clustering + gap identification. Haiku: gap-to-source routing. Artifacts written to ~/aadp/research_artifacts/; get_desktop_bundle() includes 3 most recent. Commits: claudis 3ec1457, claude-dashboard da0cdad.
 
-**Project arc next:** System tab pruning. Research replacement TBD — Bill wants responsive question research but thread approach retired.
+**Project arc next:** System tab pruning. Deep research pipeline is live — evaluate artifact quality on first real use.
 
 ---
 
@@ -35,11 +36,11 @@
 - **Continue:** System tab pruning — identify dead sections in the System tab, same pruning pattern.
 - **Left better:** ~2000 lines of dead thread code gone. Dashboard is leaner; uplink server has no unreachable callables.
 
-**2026-05-22 (Bill session — pruning pass):**
-- **What I was doing:** Wrote thread retirement directive to DIRECTIVES.md (commit 926216c). Lean session ready to trigger.
-- **What I learned:** bill_notes was a textbook reader-writer failure — button wrote to Supabase, nothing read it. Python slice `c[:n]` where n=-1 silently corrupts files (trims last char + grafts misplaced content). Always verify block_start != -1 before using it as a slice index.
-- **Continue:** Thread system retirement — done this session.
-- **Left better:** Dashboard pruned — 3 dead features removed (artifact list, bill_notes, Request Close). Lean sessions now self-closing.
+**2026-05-25 (lean session — B-137 deep research):**
+- **What I was doing:** Built the two-pass deep research pipeline — 7 sources, 4 AI calls (3 Gemini + 1 Haiku), background job pattern (job_id + polling), artifact to ~/aadp/research_artifacts/, "Deep Research" button in Workpad, desktop bundle updated. Commits: claudis 3ec1457, claude-dashboard da0cdad.
+- **What I learned:** Anvil's 30-second callable timeout makes any pipeline over ~25s require the background-thread + job_id + poll pattern. The existing `search_all` pushed the limit at 45s; deep research at 60-120s needed the explicit async pattern.
+- **Continue:** System tab pruning (identified as next step before B-137). Then use the deep research pipeline on a real query to evaluate artifact quality.
+- **Left better:** Research pipeline now has a reader — artifacts land in ~/aadp/research_artifacts/ and surface in Desktop Claude export bundle. Loop is closed.
 
 
 ---
