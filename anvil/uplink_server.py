@@ -3065,13 +3065,16 @@ def _fetch_semantic_scholar(query):
         return []
 
 
-def _fetch_arxiv(query):
-    """Return list of result dicts from arXiv Atom feed."""
+def _fetch_arxiv(query, cat_prefix=None):
+    """Return list of result dicts from arXiv Atom feed.
+    cat_prefix: optional arXiv category filter string, e.g. '(cat:q-bio.NC OR cat:q-bio.QM)'
+    """
     import xml.etree.ElementTree as ET
     try:
+        search_q = f'{cat_prefix} AND all:{query}' if cat_prefix else f'all:{query}'
         resp = requests.get(
             'https://export.arxiv.org/api/query',
-            params={'search_query': f'all:{query}', 'max_results': 5},
+            params={'search_query': search_q, 'max_results': 5},
             timeout=20,
         )
         resp.raise_for_status()
@@ -3100,6 +3103,19 @@ def _fetch_arxiv(query):
 
 
 _WIKIPEDIA_UA = {'User-Agent': 'AADP-Research/1.0 (thompsman@gmail.com)'}
+
+# arXiv category filters for pass two — restrict by gap type to avoid domain mismatches
+_ARXIV_CAT_PREFIX = {
+    'academic': '(cat:q-bio.NC OR cat:q-bio.QM OR cat:q-bio.PE)',
+    'technical': '(cat:cs.AI OR cat:cs.LG OR cat:eess)',
+    # 'conceptual' → not included; conceptual gaps route to Wikipedia, not arXiv
+}
+
+# Clinical terms in gap.query → skip arXiv entirely; Semantic Scholar covers these journals
+_ARXIV_CLINICAL_TERMS = {
+    'clinical trial', 'randomized controlled', 'fda',
+    'drug application', 'dosing', 'adverse effects', 'contraindication',
+}
 
 
 def _fetch_wikipedia(query):
@@ -3451,15 +3467,18 @@ def _deep_research_worker(job_id, query):
             'tavily': _fetch_tavily_dr,
             'github': _fetch_github_dr,
         }
-        p2_results = {}  # gap_idx → {source: [results]}
+        p2_results = {}       # gap_idx → {source: [results]}
+        p2_arxiv_queries = {} # gap_idx → constructed arXiv query string (for artifact table)
 
         def _fetch_gap_source(gap_idx, gap, source_name):
             fetcher = _SOURCE_FETCHERS.get(source_name)
             if not fetcher:
                 return
             try:
-                gap_desc = gap.get('gap', '')    # full natural language description
-                gap_query = gap.get('query', gap_desc)  # 3-5 keyword string for academic APIs
+                gap_desc = gap.get('gap', '')          # full natural language description
+                gap_query = gap.get('query', gap_desc) # 3-5 keyword string for academic APIs
+                gap_type = gap.get('type', '')
+
                 # Routing rule:
                 #   gap.query (short keywords) → semantic_scholar, arxiv
                 #   gap.gap   (full NL desc)   → guardian, brave, tavily, github
@@ -3471,6 +3490,32 @@ def _deep_research_worker(job_id, query):
                 else:
                     # Guardian, Brave, Tavily, GitHub: natural language gets better results
                     search_q = gap_desc
+
+                # arXiv: category filtering + clinical-only skip
+                if source_name == 'arxiv':
+                    # conceptual gaps belong to Wikipedia, not arXiv
+                    if gap_type == 'conceptual':
+                        p2_results.setdefault(gap_idx, {})[source_name] = []
+                        p2_arxiv_queries[gap_idx] = 'skipped — conceptual (use Wikipedia)'
+                        return
+                    # clinical-only queries return garbage on arXiv; Semantic Scholar covers these
+                    q_lower = search_q.lower()
+                    if any(term in q_lower for term in _ARXIV_CLINICAL_TERMS):
+                        p2_results.setdefault(gap_idx, {})[source_name] = []
+                        p2_arxiv_queries[gap_idx] = f'skipped — clinical ({search_q})'
+                        log.info('DR[%s] arXiv skipped for clinical gap: %s', job_id, search_q[:60])
+                        return
+                    # apply category filter based on gap type
+                    cat_prefix = _ARXIV_CAT_PREFIX.get(gap_type)
+                    if cat_prefix:
+                        cats = [c.split(':')[1] for c in cat_prefix.strip('()').split(' OR ')]
+                        p2_arxiv_queries[gap_idx] = f'[{", ".join(cats)}] {search_q}'
+                    else:
+                        p2_arxiv_queries[gap_idx] = search_q
+                    items = _fetch_arxiv(search_q, cat_prefix=cat_prefix) or []
+                    p2_results.setdefault(gap_idx, {})[source_name] = items
+                    return
+
                 items = fetcher(search_q) or []
                 p2_results.setdefault(gap_idx, {})[source_name] = items
             except Exception as e:
@@ -3567,7 +3612,11 @@ def _deep_research_worker(job_id, query):
             t_type = gap.get('type', '')
             priority = gap.get('priority', '')
             sources = ', '.join(gap.get('sources') or [])
-            p2_query = gap.get('query', g)  # distilled keyword query if available
+            # Show arXiv constructed query (with category prefix) if available
+            if 'arxiv' in (gap.get('sources') or []) and idx in p2_arxiv_queries:
+                p2_query = p2_arxiv_queries[idx]
+            else:
+                p2_query = gap.get('query', g)
             lines.append(f'| {g} | {t_type} | {priority} | {sources} | {p2_query} |')
         lines.append('')
 
