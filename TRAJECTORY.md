@@ -23,18 +23,13 @@
 - **2026-05-22 Bill session (pruning pass):** Sessions tab converted to export-only (removed 15-card artifact list, fixed get_sessions_bundle path sessions/lean→sessions/). bill_notes removed (dead writer/no reader). lean sessions now auto-close (removed Request Close button + flag mechanism). Thread system retirement directive written — next lean session executes it. Commits: claudis d7e7a30, 4904f15, 36bdef1, 926216c; claude-dashboard d2f9068, 7cfd8a5, 9286d37.
 - **2026-05-22 lean session (thread retirement):** Thread system fully retired. Threads tab removed from Form1 (978 lines). Thread callables removed from uplink_server.py (1049 lines — Thread callables, Extraction, Sub-question spawning, Watch state, Research charter, promote_workpad_to_thread). thread_research_agent retired in agent_registry. Dashboard now 4 tabs: Home/Workpad/Sessions/System. Commits: claudis 42f98ea, claude-dashboard c96c3a6.
 - **B-137 complete (2026-05-25):** Two-pass deep research pipeline live. "Deep Research" button in Workpad tab. 7 sources (Brave, Tavily, GitHub, Semantic Scholar, arXiv, Wikipedia, Guardian). Gemini: query expansion + relevance screening/clustering + gap identification. Haiku: gap-to-source routing. Artifacts written to ~/aadp/research_artifacts/; get_desktop_bundle() includes 3 most recent. Commits: claudis 3ec1457, claude-dashboard da0cdad.
+- **2026-05-25/28 Bill session (deep research pipeline fixes):** Four rounds of pass two fixes: (1) Wikipedia User-Agent 403 fix; (2) gap query distillation — Gemini now generates 3-5 keyword `query` field per gap; arXiv/Semantic Scholar use short keyword query, Guardian/web use full NL description; Haiku routing adds `wiki_title` for Wikipedia; (3) no abbreviations in academic queries (PAT/PTSD expansion); (4) arXiv category filtering — academic gaps use `(cat:q-bio.NC OR cat:q-bio.QM OR cat:q-bio.PE)`, technical gaps use `(cat:cs.AI OR cat:cs.LG OR cat:eess)`, clinical-only gaps skip arXiv. Fixes verified with live run 2026-05-28: category prefixes confirmed in artifact, clinical skip logged, arXiv rate-limited (IP backoff from testing — will clear). Commits: claudis 1bd29ff, 68bb2e5, 39cbe83, 0096dc7; claude-dashboard f76ea7c.
 
-**Project arc next:** System tab pruning. Deep research pipeline is live — evaluate artifact quality on first real use.
+**Project arc next:** System tab pruning. Deep research pipeline fixes verified — arXiv results will be on-topic once IP rate limit clears (test again on next use).
 
 ---
 
 ## Handoff (pick up here)
-
-**2026-05-22 (lean session — thread retirement):**
-- **What I was doing:** Retired the thread system — Threads tab (978 lines) removed from Form1, thread callables (1049 lines) removed from uplink_server.py, thread_research_agent retired. Dashboard is now 4 tabs. Commits: claudis 42f98ea, claude-dashboard c96c3a6.
-- **What I learned:** Python `str.replace` on large Anvil files is reliable for contiguous block removal; boundary markers (section headers + known successor lines) make removal robust without fragile line numbers.
-- **Continue:** System tab pruning — identify dead sections in the System tab, same pruning pattern.
-- **Left better:** ~2000 lines of dead thread code gone. Dashboard is leaner; uplink server has no unreachable callables.
 
 **2026-05-25 (lean session — B-137 deep research):**
 - **What I was doing:** Built the two-pass deep research pipeline — 7 sources, 4 AI calls (3 Gemini + 1 Haiku), background job pattern (job_id + polling), artifact to ~/aadp/research_artifacts/, "Deep Research" button in Workpad, desktop bundle updated. Commits: claudis 3ec1457, claude-dashboard da0cdad.
@@ -42,11 +37,11 @@
 - **Continue:** System tab pruning (identified as next step before B-137). Then use the deep research pipeline on a real query to evaluate artifact quality.
 - **Left better:** Research pipeline now has a reader — artifacts land in ~/aadp/research_artifacts/ and surface in Desktop Claude export bundle. Loop is closed.
 
-**2026-05-25 (Bill session — close-session ritual):**
-- **What I was doing:** Ran close-session ritual manually to complete the 3 steps the lean session deferred (Steps 6/10/final). Verified all stores in sync: ChromaDB has both lessons and session narrative, Supabase has both lessons + capability.
-- **What I learned:** Lean sessions now complete Steps 3/5/7/8/9 reliably; Steps 6 (wisdom-review cadence) and 10 (handoff) are the gap. wisdom-review is 40 days — 2 days from 42-day threshold; queue it next session if not triggered.
-- **Continue:** System tab pruning — prune dead sections from System tab (same boundary-marker pattern used for thread removal). Then fire deep research on a real query.
-- **Left better:** Close ritual fully verified; stores confirmed in sync; wisdom-review cadence tracked.
+**2026-05-28 (Bill session — deep research pipeline fixes):**
+- **What I was doing:** Fixed four pass two retrieval issues: Wikipedia User-Agent, gap query distillation (short keyword queries for academic APIs), no abbreviations in Gemini-generated queries, arXiv category filtering by gap type with clinical-only skip. Verified with live artifact — category filter confirmed working in logs and gap table.
+- **What I learned:** arXiv is sensitive to rapid IP-based bursting — test runs against it accumulate rate limit debt that blocks the actual pipeline. arXiv's q-bio category filter eliminates off-domain noise (astrophysics, food delivery, robot therapy papers) but requires the IP to be out of backoff. Clinical-term detection is a blunt but effective heuristic.
+- **Continue:** System tab pruning — same boundary-marker removal pattern used for thread retirement. Then re-test deep research after arXiv IP rate limit clears.
+- **Left better:** Deep research pipeline pass two is now structurally correct — right query types to right sources, domain-filtered arXiv, no abbreviation collisions.
 
 ---
 
