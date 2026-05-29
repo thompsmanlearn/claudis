@@ -14,7 +14,7 @@ AADP is a personal intelligence infrastructure running on a Raspberry Pi 5. The 
 
 The system extends one person's reach by operating continuously — monitoring, researching, building, and learning — while that person (Bill) directs and judges.
 
-The system accumulates real institutional knowledge from real operations. The lesson corpus contains 224+ entries as of mid-April 2026, each produced by an actual session encountering an actual problem. When a lesson surfaces that says "n8n empty-array input silently kills all downstream nodes," that came from a real silent failure in a real workflow. This is not synthetic training data. It is operational scar tissue, and it compounds — every session writes lessons, lessons improve the next session, better sessions build better agents, better agents produce better lessons.
+The system accumulates real institutional knowledge from real operations. The lesson corpus contains 290+ entries as of late May 2026, each produced by an actual session encountering an actual problem. When a lesson surfaces that says "n8n empty-array input silently kills all downstream nodes," that came from a real silent failure in a real workflow. This is not synthetic training data. It is operational scar tissue, and it compounds — every session writes lessons, lessons improve the next session, better sessions build better agents, better agents produce better lessons.
 
 The system does not have a finish line. It has a direction: keep extending what Bill can do through it. The system gets better at executing, better calibrated to Bill, and broader in what it can reach. Specific projects are current work, not destinations. Interests will change, platforms will be added and retired, creative domains will shift. The infrastructure — the lesson system, the agent fleet, the memory, the operational patterns — persists and improves underneath.
 
@@ -25,6 +25,8 @@ The current ceiling is the intention gap. The system executes well against well-
 As of 2026-04-18, the system operates in Lean Mode. Bill collaborates with a desktop AI session (typically Opus) to think through direction and write well-specified backlog cards. Claude Code executes them in focused sessions. The autonomous sentinel (8-hour timer) is stopped and disabled. This is deliberate — directed builds with tight context produce more value right now than autonomous exploration.
 
 Telegram has been deprioritized — it has been unreliable and is a poor interface for desktop work. The Anvil dashboard (see Section 4) is now the primary interface for Bill to monitor and control the system from any browser or phone.
+
+The **bill_input channel** (B-132, 2026-05-17) provides a structured input path from Bill to the system between sessions. The Home tab exposes a three-mode input panel (Question / Comment / Command). LEAN_BOOT step 4.5 checks for pending rows before reading DIRECTIVES.md: Question → answered using system knowledge; Comment → saved as a lesson; Command → written to DIRECTIVES.md and executed as the session directive.
 
 ---
 
@@ -83,7 +85,7 @@ A regular part of the workload involves Bill navigating web interfaces — creat
 
 **Desktop AI sessions (Opus or equivalent)** — Collaborate with Bill on strategy and direction. Research technical topics. Write backlog cards. Prepare resources for Claude Code (documentation, skills). Review session artifacts and system state. Do not build directly — produce cards and knowledge that Claude Code consumes.
 
-**Claude Code** — Executes backlog cards. Reads LEAN_BOOT.md at startup, which triggers the full boot sequence: git pull → PROTECTED.md → CONVENTIONS.md → DIRECTIVES.md → skill resolution via /resolve_skills → CONTEXT.md → TRAJECTORY.md → live-state ping → pending feedback → lesson retrieval. Writes code, commits, pushes. Writes session artifacts. Writes lessons to dual store (ChromaDB + Supabase). Operates within the scope boundaries defined in each card.
+**Claude Code** — Executes backlog cards. Reads LEAN_BOOT.md at startup, which triggers the full boot sequence: git pull → heartbeat → PROTECTED.md → CONVENTIONS.md → bill_input check (step 4.5) → DIRECTIVES.md → stale-card check → skill resolution via /resolve_skills → CONTEXT.md → TRAJECTORY.md → live-state ping → pending feedback → lesson retrieval. Writes code, commits, pushes. Writes session artifacts. Writes lessons to dual store (ChromaDB + Supabase). Operates within the scope boundaries defined in each card.
 
 ### Boot File Roles (B-084)
 
@@ -188,29 +190,38 @@ Either alone is a broken lesson. chromadb_id links the two records.
 ---
 
 ## 4. Current Project: Anvil Dashboard
-*Last updated: 2026-05-08*
+*Last updated: 2026-05-28*
 
 ### Status: Live and Operational
 
 The Anvil dashboard is live. B-026 through B-041 are all complete as of 2026-04-18. The app is published at https://inborn-rotating-anole.anvil.app and embedded as an iframe on the GitHub Pages site.
 
-**What's working now:**
-- System status display (CPU, RAM, disk, temp, uptime) — delegates to stats_server
-- Agent fleet detail view with descriptions, status icons, schedules, last updated
-- Activate/pause toggle per agent (active↔paused only, guards against other status changes)
-- Thumbs-up/thumbs-down feedback per agent with optional comments
-- Work queue display (non-complete tasks)
-- Inbox with approve/deny buttons
-- Write Directive — overwrites DIRECTIVES.md, commits, and pushes to claudis
-- Trigger Lean Session — fires stats_server /trigger_lean
-- Autonomous Mode toggle — enables/disables n8n autonomous_growth_scheduler and auto_cycle_enabled atomically
-- Sessions tab — live session status + recent artifact list
-- Lessons tab — browse lessons by recency or most-applied; view full content
-- Memory tab — browse ChromaDB collections; semantic search
-- Skills tab — list all skills with trigger keywords, times loaded, last loaded; view content
-- Artifacts tab — browse agent_artifacts by agent and type
-- EmbedControl form — separate lightweight form embedded on the GitHub Pages site; heartbeat, session status, direction input, start session button, autonomous mode toggle
-- Uplink connection watchdog (B-031) — watchdog hits localhost:9101/ping; systemd restarts if unhealthy
+**Dashboard tabs (current): Home / Workpad / Sessions / System**
+
+**Home tab:**
+- System status (CPU, RAM, disk, temp, uptime)
+- Live session status + boot briefing
+- Agent fleet summary with activate/pause toggle
+- Work queue and inbox (approve/deny)
+- Write Directive + Trigger Lean Session
+- Autonomous Mode toggle
+- Bill input panel (Question / Comment / Command) — queued for next boot
+- Desktop Claude export button (`get_desktop_bundle()`)
+- Research Briefing panel (most recent paper synthesis output)
+
+**Workpad tab:**
+- Quick search (`search_all` — Brave + Tavily + GitHub parallel, Gemini synthesis)
+- Deep Research button — two-pass 7-source pipeline (Brave, Tavily, GitHub, Semantic Scholar, arXiv, Wikipedia, Guardian); background job + polling; artifacts written to `~/aadp/research_artifacts/`
+
+**Sessions tab:**
+- Session artifact export bundle for Desktop Claude
+
+**System tab:**
+- Fleet management, lessons browser, memory browser, skills registry, grader reviews, capabilities, annotations, audit bundles
+
+**EmbedControl form** — separate lightweight form embedded on the GitHub Pages site; heartbeat, session status, direction input, start session button, autonomous mode toggle.
+
+**Uplink connection watchdog (B-031)** — watchdog hits localhost:9101/ping; systemd restarts if unhealthy.
 
 **Not yet done:**
 - Phone capabilities (camera, geolocation, push notifications)
@@ -246,8 +257,11 @@ A Claude Code skill reference exists at `skills/anvil/REFERENCE.md` — loaded a
 
 ### Uplink Callable Functions (current)
 
+*Last updated: 2026-05-28. Thread callables removed 2026-05-22 (thread system retired).*
+
 | Callable | Delegates to | Direction |
 |---|---|---|
+| `ping()` | uplink keepalive | Read |
 | `get_system_status()` | stats_server `/system_status` | Read |
 | `get_agent_fleet()` | Supabase `agent_registry` | Read |
 | `get_work_queue()` | Supabase `work_queue` | Read |
@@ -256,46 +270,82 @@ A Claude Code skill reference exists at `skills/anvil/REFERENCE.md` — loaded a
 | `get_session_status()` | Supabase `session_status` | Read |
 | `get_session_artifacts(limit)` | claudis `sessions/lean/` filesystem | Read |
 | `get_site_status()` | thompsmanlearn.github.io repo + Supabase | Read |
+| `get_autonomous_mode()` | n8n API + Supabase `system_config` | Read |
 | `get_lessons(filter, limit)` | Supabase `lessons_learned` | Read |
 | `get_lesson_content(lesson_id)` | Supabase `lessons_learned` | Read |
+| `search_lessons(query, limit)` | ChromaDB `lessons_learned` semantic search | Read |
+| `get_lesson_stats()` | stats_server `/lesson_stats` — utilization summary | Read |
+| `update_lesson(lesson_id, fields)` | Supabase `lessons_learned` PATCH | Write |
+| `delete_lesson(lesson_id)` | Supabase `lessons_learned` + ChromaDB DELETE | Write |
 | `get_collection_stats()` | ChromaDB `/api/v1/collections` | Read |
-| `search_memory(collection, query, limit)` | ChromaDB query | Read |
+| `browse_collection(name, limit, offset)` | ChromaDB collection GET | Read |
+| `search_collection(name, query, n_results)` | ChromaDB semantic query | Read |
+| `delete_document(collection, doc_id)` | ChromaDB DELETE | Write |
+| `get_table_rows(table, filters, limit)` | Supabase PostgREST GET (curated table allowlist) | Read |
 | `get_skills()` | Supabase `skills_registry` | Read |
-| `get_skill_content(name)` | claudis `skills/` filesystem | Read |
+| `get_skill(name)` | Supabase `skills_registry` + filesystem content | Read |
+| `get_skills_registry()` | Supabase `skills_registry` — applies_when, provides, status | Read |
 | `get_artifacts(agent_name, artifact_type, limit)` | Supabase `agent_artifacts` | Read |
-| `get_autonomous_mode()` | n8n API + Supabase `system_config` | Read |
+| `get_artifact(artifact_id)` | Supabase `agent_artifacts` | Read |
+| `rate_artifact(artifact_id, rating)` | Supabase `agent_artifacts` PATCH | Write |
+| `get_artifact_agents()` | Supabase `agent_artifacts` distinct agents + types | Read |
+| `get_research_articles(limit)` | Supabase `research_articles` ordered by retrieved_at desc | Read |
+| `get_research_counters()` | Supabase `research_articles` — total/unreviewed/new-24h | Read |
+| `get_research_run_summary()` | Supabase `research_articles` — most recent run stats | Read |
+| `get_research_bundle(agent_run_id)` | Supabase `research_articles` + `agent_feedback` — markdown export | Read |
+| `get_latest_briefing()` | Supabase `research_briefings` — most recent paper synthesis | Read |
+| `run_research_synthesis()` | stats_server `/run_research_synthesis` | Write |
+| `get_grader_reviews(limit)` | Supabase `grader_reviews` | Read |
+| `get_grader_reviews_by_type(review_type, limit)` | Supabase `grader_reviews` filtered by card or research_cycle | Read |
+| `export_grader_review(review_id)` | Supabase `grader_reviews` — markdown block for desktop analysis | Read |
+| `get_capabilities()` | Supabase `capabilities` | Read |
+| `annotate(target_type, target_id, content)` | Supabase `agent_feedback` POST; classifier enriches async | Write |
+| `get_annotations(target_type, target_id, processed)` | Supabase `agent_feedback` | Read |
+| `mark_annotation_processed(ann_id, action_summary, action_session)` | Supabase `agent_feedback` PATCH | Write |
+| `get_feedback_threads()` | Supabase `agent_feedback` — pending + recently resolved | Read |
+| `export_comment_driven_results(limit)` | Supabase `agent_feedback` — comment-driven card bundle | Read |
+| `get_comment_driven_activity()` | Supabase `agent_feedback` — recent comment-driven cards per agent | Read |
+| `run_consumer_audit()` | stats_server `/consumer_audit` | Write |
+| `get_boot_briefings(limit)` | Supabase `boot_briefings` | Read |
+| `acknowledge_boot_briefing(briefing_id)` | Supabase `boot_briefings` PATCH | Write |
+| `get_desktop_bundle()` | Filesystem + Supabase — markdown export shaped for Desktop Claude | Read |
+| `get_lessons_bundle()` | Supabase `lessons_learned` markdown export | Read |
+| `get_memory_bundle()` | ChromaDB collection stats markdown export | Read |
+| `get_sessions_bundle()` | claudis `sessions/lean/` markdown export | Read |
+| `get_fleet_bundle()` | Supabase `agent_registry` markdown export | Read |
+| `get_errors_bundle()` | Supabase `error_logs` markdown export | Read |
+| `get_skills_bundle()` | Supabase `skills_registry` markdown export | Read |
+| `get_artifacts_bundle()` | Supabase `agent_artifacts` markdown export | Read |
+| `get_working_bundle()` | Unaddressed notes, flagged artifacts, recent research — markdown | Read |
+| `get_audit_bundle()` | System snapshot for design/review sessions — markdown | Read |
+| `get_workpad_state()` | Supabase workpad state | Read |
+| `search_brave(query, count)` | Brave Search API | Read |
+| `search_all(query)` | Brave + Tavily + GitHub parallel → Gemini synthesis | Read |
+| `run_deep_research(query, topic)` | Two-pass 7-source pipeline (background) — returns `{job_id}` | Write |
+| `get_deep_research_status(job_id)` | Poll deep research job status and artifact path | Read |
+| `submit_bill_input(mode, text)` | Supabase `bill_input` POST — queues for next boot step 4.5 | Write |
+| `get_bill_input_response(id)` | Supabase `bill_input` — poll for processed response | Read |
 | `set_agent_status(agent_name, status)` | Supabase `agent_registry` PATCH | Write |
-| `submit_agent_feedback(agent_name, rating, comment)` | Supabase `agent_feedback` POST — ⚠️ predates B-054 schema; verify mapping to target_type/target_id/content | Write |
+| `invoke_agent(agent_name)` | agent webhook (fire-and-forget background thread) | Write |
 | `approve_inbox_item(item_id)` | Supabase `inbox` PATCH | Write |
 | `deny_inbox_item(item_id)` | Supabase `inbox` PATCH | Write |
 | `trigger_lean_session()` | stats_server `/trigger_lean` | Write |
 | `write_directive(text)` | claudis git → DIRECTIVES.md | Write |
 | `set_autonomous_mode(enabled)` | n8n API activate/deactivate + Supabase `system_config` | Write |
-| `invoke_agent(agent_name)` | agent webhook (fire-and-forget background thread) | Write |
-| `get_research_articles(limit)` | Supabase `research_articles` ordered by retrieved_at desc | Read |
 | `rate_research_article(article_id, rating)` | Supabase `research_articles` PATCH | Write |
 | `comment_research_article(article_id, comment)` | Supabase `research_articles` PATCH | Write |
 | `set_research_article_status(article_id, status)` | Supabase `research_articles` PATCH (new/reviewed/archived) | Write |
 | `submit_agent_feedback_v2(target_type, target_id, content)` | Supabase `agent_feedback` POST | Write |
-| `get_research_run_summary()` | Supabase `research_articles` — most recent run stats | Read |
-| `get_research_bundle(agent_run_id)` | Supabase `research_articles` + `agent_feedback` — markdown export | Read |
-| `get_research_counters()` | Supabase `research_articles` — total/unreviewed/new-24h counts | Read |
-| `create_thread(title, question)` | Supabase `threads` POST | Write |
-| `get_threads(state_filter)` | Supabase `threads` ordered by last_activity_at | Read |
-| `get_thread_entries(thread_id)` | Supabase `thread_entries` ordered by created_at | Read |
-| `get_thread_bundle(thread_id)` | Supabase `threads` + `thread_entries` — markdown export | Read |
-| `add_thread_entry(thread_id, entry_type, content, source)` | Supabase `thread_entries` POST | Write |
-| `update_thread_state(thread_id, state, close_reason)` | Supabase `threads` PATCH | Write |
-| `wire_thread_agent(thread_id, agent_name)` | Supabase `threads` PATCH | Write |
-| `trigger_thread_gather(thread_id, agent_name)` | Haiku derives queries → agent webhook → stats_server | Write |
-| `write_thread_gather_entries(thread_id, article_ids)` | Supabase `thread_entries` POST batch | Write |
-| `extract_analysis(thread_id, prose, source)` | Haiku → Supabase `thread_entries` POST (4 buckets) | Write |
-| `resolve_screening_uncertain(entry_id, thread_id, item_id, decision, reason, resolution)` | Supabase `research_articles` + `thread_entries` PATCH | Write |
-| `confirm_project_complete(project_id, notes)` | Supabase `aadp_projects` PATCH → complete | Write |
-| `reject_project_completion(project_id, reason)` | Supabase `agent_feedback` POST (rejection record) | Write |
+| `bill_override_grader_review(review_id, override, notes)` | Supabase `grader_reviews` PATCH | Write |
 | `retire_agent(agent_name, reason)` | Supabase `agent_registry` PATCH → retired | Write |
 | `retire_skill(skill_name, reason)` | Supabase `skills_registry` PATCH → retired | Write |
-| `get_lesson_stats()` | stats_server `/lesson_stats` — utilization summary | Read |
+| `confirm_project_complete(project_id, notes)` | Supabase `aadp_projects` PATCH → complete | Write |
+| `reject_project_completion(project_id, reason)` | Supabase `agent_feedback` POST (rejection record) | Write |
+| `resolve_error_log(error_id, notes)` | Supabase `error_logs` PATCH resolved=true | Write |
+| `update_site()` | Regenerate status.json + push to GitHub Pages | Write |
+| `save_workpad_input(text)` | Supabase workpad state PATCH | Write |
+| `clear_workpad()` | Supabase workpad state reset | Write |
+| `mark_audit_taken()` | Supabase `system_config` last_audit_at = now() | Write |
 
 ### Architecture Decision Record
 
@@ -312,7 +362,7 @@ These aren't UI improvements — they make the system's boundary with the physic
 ---
 
 ## 5. Capabilities Inventory
-*Last updated: 2026-05-08*
+*Last updated: 2026-05-28*
 
 This section tracks what the system as a whole can actually accomplish today. This is distinct from the skills list (what Claude Code knows how to do) and the agent fleet (what's deployed). Capabilities are end-to-end outcomes.
 
@@ -362,35 +412,26 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - Serendipity engine (Wikipedia On This Day synthesis — paused)
 
 **Research:**
-- On-demand research runs via research orchestrator (replaced `context_engineering_research` agent, retired B-106 2026-05-08). Thread-triggered research cycles via `/run_research_cycle`.
-- Article review: rate (👍/👎), comment, and status-track articles in Anvil Research tab (58 articles as of 2026-04-26)
+- On-demand research runs via research orchestrator (replaced `context_engineering_research` agent, retired B-106 2026-05-08). Research cycles via `/run_research_cycle`.
+- **Workpad quick search (B-129):** `search_all` — Brave + Tavily + GitHub parallel, Gemini synthesis. Live in Workpad tab.
+- **Deep Research pipeline (B-137):** Two-pass 7-source pipeline (Brave, Tavily, GitHub, Semantic Scholar, arXiv, Wikipedia, Guardian). Pass 1: query expansion + retrieval. Pass 2: relevance screening, clustering, gap identification (Gemini) + gap-to-source routing (Haiku). Artifacts written to `~/aadp/research_artifacts/`; surfaced in Desktop Claude export bundle. "Deep Research" button in Workpad tab.
+- **Paper synthesis (B-135):** `/run_paper_synthesis` (Gemini 2.5 Flash). Results written to `research_briefings` table; Research Briefing panel on Home tab.
+- Article review: rate (👍/👎), comment, and status-track articles in Anvil
 - Bundle export: one-click markdown export of a run (articles + ratings + pending feedback) for desktop analysis
-- Boot-time feedback pickup: both LEAN_BOOT and bootstrap surface unprocessed `agent_feedback` rows at session start
-- Thread-aware gather: when triggered from a thread, Haiku derives queries from the thread question; results tagged with thread_id; gather entries written back automatically
-
-**Thread Architecture:**
-- Create and browse threads by research question and state (active/dormant/closed)
-- Add annotations, analysis pastes, and manually triggered gathers to threads
-- Paste desktop-Claude analysis → Haiku extracts synthesis, conclusions, screening decisions, and sub-question candidates as typed entries
-- Uncertain screening decisions surface inline Confirm/Override/Reject controls; confident decisions commit to research_articles immediately
-- Standing summary: most recent `summary` entry displayed at top of thread for at-a-glance conclusions
-- Export thread as markdown bundle for offline review
+- Boot-time feedback pickup: LEAN_BOOT step 10 surfaces unprocessed `agent_feedback` rows at session start
 
 **Dashboard & Governance (Anvil + GitHub Pages):**
-- View system status, agent fleet, work queue, inbox from any browser
+- View system status, agent fleet, work queue, inbox from any browser (4 tabs: Home/Workpad/Sessions/System)
 - Activate/pause agents from dashboard
 - Approve/deny inbox items from dashboard
 - Write directives and trigger lean sessions from dashboard and site
-- Submit per-agent thumbs-up/thumbs-down feedback with comments
-- Browse sessions, lessons, memory, skills, artifacts in dashboard tabs
+- Browse sessions, lessons, memory, skills, artifacts, grader reviews from System tab
 - Toggle autonomous mode (scheduler + auto-cycle) from dashboard and site
-- Research tab: run agent, review articles, leave directional feedback for agent and UI
-- Thread architecture (B-070–B-083): browse/create threads by question and state (active/dormant/closed), collapsed cards with lazy-loaded entries
-- Thread entries: per-type rendering (annotation, gather, analysis, summary, screening, screening_uncertain, sub_question_candidate) with icons; History drawer collapses state_change entries by default
-- Thread action panel: Gather / Export / Add-as-analysis-entry primary; annotation secondary; Thread settings (state, wire agent) in collapsible drawer
-- Extraction passback: paste desktop-Claude analysis → Haiku extracts to typed entries (synthesis, conclusions, screening decisions, sub-question candidates); uncertain screening surfaces inline Confirm/Override/Reject buttons
-- Thread-aware gather: Haiku derives 3-5 queries from thread question + recent entries; articles tagged with thread_id; gather entries written back to originating thread automatically
-- Standing summary: most recent `summary` entry shown at top of thread between header and main content; filtered from chronological list
+- Workpad: quick search (Brave+Tavily+GitHub) + Deep Research (7-source two-pass pipeline)
+- Bill input panel: Question/Comment/Command queued to LEAN_BOOT step 4.5
+- Desktop Claude export: `get_desktop_bundle()` bundles active threads, recent research, session artifacts, fragilities, store counts
+- Boot briefings: stale-directive summary posted to Supabase and visible in Anvil
+- Thread system **retired 2026-05-22** — Threads tab removed, all thread callables deleted
 
 **GitHub Pages Site (https://thompsmanlearn.github.io):**
 - 6-page site generated from live Supabase data: Home, Fleet, Capabilities, Architecture, Sessions, Direction
@@ -413,6 +454,18 @@ This section tracks what the system as a whole can actually accomplish today. Th
 - **Skill resolution (B-090):** LEAN_BOOT step 6 calls /resolve_skills (Haiku).
 - **Carry documents (B-091):** CARRY_*.md auto-generated at session close.
 
+### New since Chapter 2 (B-129–B-137, 2026-05-17–2026-05-25)
+
+- **Workpad (B-129):** search_all (Brave+Tavily+GitHub parallel, Gemini synthesis) + Workpad tab in dashboard.
+- **Agent pruning (B-130):** lesson_injector and session_health_reporter retired. Fleet: 9 → 7. agent_health_monitor moved to 6h schedule.
+- **Desktop Claude export (B-131):** get_desktop_bundle() callable; "Export for Desktop Claude" button on Home tab.
+- **Bill input channel (B-132):** bill_input table; Question/Comment/Command panel on Home tab; LEAN_BOOT step 4.5.
+- **Boot path cleanup (B-133):** Dead lesson injection removed from lean_runner.sh. Boot heartbeat added (step 1.5). session_notes retired from boot chain.
+- **Paper synthesis (B-135):** /run_paper_synthesis (Gemini 2.5 Flash); research_briefings table; Research Briefing panel on Home tab.
+- **Capability delta enforcement (B-136):** close-session artifact template requires three-field Capability Delta (Before/After/Reader).
+- **Deep research pipeline (B-137):** Two-pass 7-source pipeline. "Deep Research" button in Workpad. Artifacts to ~/aadp/research_artifacts/.
+- **Thread system retired (2026-05-22):** Threads tab removed. Thread callables deleted. thread_research_agent retired. Dashboard: 4 tabs.
+
 ### New in Chapter 2 (B-094–B-101)
 
 - **Web search (B-094):** /web_search (Brave, 2k/month free) + /web_fetch (robots.txt, 200KB). external_api_usage logging.
@@ -433,17 +486,17 @@ This section tracks what the system as a whole can actually accomplish today. Th
 ---
 
 ## 6. System Health and Review
-*Last updated: 2026-05-08*
+*Last updated: 2026-05-28*
 
 ### Governance Surface
 
 The Anvil dashboard provides fleet review, feedback capture, grader reviews, and Bill override actions. CARRY_HEALTH.md (auto-generated at session close) provides a quick health snapshot for desktop sessions.
 
-**Current health (2026-05-08):**
-- 250 lessons, 0 missing chromadb_id ✅
-- 10 active agents, all Tier 1 ✅
+**Current health (2026-05-28):**
+- 290 lessons, 0 missing chromadb_id ✅
+- 7 active agents, all Tier 1 ✅
 - 0 unresolved errors ✅
-- Grader: 1 review (B-084, pause — git window issue, expected)
+- Grader: reviews accumulating; bill_override callable available for contested verdicts
 
 **What the dashboard enables:**
 - Visual fleet review, activate/pause, feedback capture
@@ -467,7 +520,7 @@ Periodically (cadence TBD — every few sessions or weekly), a desktop session s
 ---
 
 ## 7. Technical Architecture
-*Last updated: 2026-05-08*
+*Last updated: 2026-05-28*
 
 ### Services Map
 
@@ -493,7 +546,7 @@ Key infrastructure facts:
 
 ### Credentials in .env
 
-Keys present (do not expose values): CHROMADB_HOST, CHROMADB_PORT, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_MGMT_PAT, N8N_BASE_URL, N8N_API_KEY, ANTHROPIC_API_KEY, GITHUB_TOKEN, STATS_PORT (default 9100), ANVIL_UPLINK_KEY.
+Keys present (do not expose values): CHROMADB_HOST, CHROMADB_PORT, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_MGMT_PAT, N8N_BASE_URL, N8N_API_KEY, ANTHROPIC_API_KEY, GITHUB_TOKEN, STATS_PORT (default 9100), ANVIL_UPLINK_KEY, GEMINI_API_KEY.
 
 ### MCP Server Tools
 
@@ -509,7 +562,7 @@ The MCP server (`~/aadp/mcp-server/server.py`) exposes tools across these catego
 - Ideas: idea_capture, idea_list
 - Work Queue: work_queue_add, work_queue_query, work_queue_update
 - Audit Log: audit_log_query
-- Session Notes: session_notes_save, session_notes_load
+- Session Notes: session_notes_save, session_notes_load (table archived 2026-04-25 — tools present but unused)
 - DDL: supabase_exec_sql (Management API — works from Pi for DDL only)
 
 **n8n Workflows:** workflow_list, workflow_get, workflow_create, workflow_update, workflow_activate, workflow_deactivate, execution_list, execution_get. Note: workflow_execute always raises ValueError — n8n has no public execution API.
@@ -529,7 +582,7 @@ Key implementation details:
 
 ### Stats Server Endpoints
 
-The stats server (`~/aadp/stats-server/stats_server.py`, ~5700 lines, 40 endpoints, port 9100). Canonical at `~/aadp/claudis/stats-server/stats_server.py` — copy to `~/aadp/stats-server/` after edits, then `sudo systemctl restart aadp-stats`.
+The stats server (`~/aadp/stats-server/stats_server.py`, ~5800 lines, 55+ endpoints, port 9100). Canonical at `~/aadp/claudis/stats-server/stats_server.py` — copy to `~/aadp/stats-server/` after edits, then `sudo systemctl restart aadp-stats`.
 
 **Core:** /system_status, /healthz
 
@@ -599,7 +652,13 @@ Confidence thresholds: min_dist < 0.8 → high; 0.8–1.1 → medium; 1.1+ → l
 
 **lessons_learned** — id (uuid), title, category, content, confidence (float, default 0.5), times_applied (int, default 0), source (default sentinel), created_at, updated_at, chromadb_id (text). NULL chromadb_id = invisible to semantic search.
 
-**session_notes** — id (uuid), content, category (todo/observation), created_at, consumed (bool)
+**research_briefings** — id (uuid), query (text), synthesis (text), sources_used (text[]), created_at. Written by /run_paper_synthesis (Gemini 2.5 Flash). Read by get_latest_briefing() callable → Research Briefing panel on Home tab.
+
+**boot_briefings** — id (uuid), content (text), directive_seen (text), created_at. Written at boot when directive is stale. Read by get_boot_briefings() callable.
+
+**bill_input** — id (uuid), mode (text: question/comment/command), text (text), status (text: pending/processed), response (text), created_at, processed_at. Written by submit_bill_input() from Anvil. Checked at LEAN_BOOT step 4.5.
+
+**session_notes** — id (uuid), content, category (todo/observation), created_at, consumed (bool). **Archived 2026-04-25 — table exists but session_notes_save/load removed from boot chain.**
 
 **audit_log** — id (uuid), actor, action, target, details (jsonb), timestamp
 
@@ -647,7 +706,7 @@ All collections use `all-MiniLM-L6-v2` embeddings. ChromaDB v0.5.20 at localhost
 | `ag_research_data` | — | Research data (purpose unclear — do not add to routing without investigation) | excluded |
 | `thread_entries` | — | Thread entry embeddings (B-070+) | **excluded by design** |
 
-*Counts as of 2026-05-08. Run `memory_list_collections` for current counts.*
+*Counts as of 2026-05-08 — run `memory_list_collections` for current values.*
 
 **thread_entries is excluded from default boot retrieval.** LEAN_BOOT step 11 and bootstrap step 3 query specific named collections; they do not query `thread_entries`. This is enforced by absence — there is no explicit blocklist to maintain. Future cards that add in-thread semantic search will query this collection explicitly. Do not add it to default routing without a deliberate decision.
 
@@ -672,11 +731,11 @@ Store sync check (run at close-session step 7a): `SELECT COUNT(*) FROM lessons_l
 ---
 
 ## 8. Agent Fleet
-*Last updated: 2026-05-08*
+*Last updated: 2026-05-28*
 
 **Lifecycle:** `building` → `sandbox` → (behavioral_health_check + 4-Pillars evaluation) → `active` OR `retired/paused`
 
-33 agents total: 9 active, 20 paused, 4 retired. Full source at `~/aadp/claudis/agents/`.
+35 agents total: 7 active, 1 paused, 26 retired (pruned to load-bearing core). Full source at `~/aadp/claudis/agents/`.
 
 ### Protected Agents — source of truth: agent_registry
 
@@ -690,17 +749,11 @@ SELECT agent_name FROM agent_registry WHERE protected = true ORDER BY agent_name
 
 ### Paused Agents
 
-Paused 2026-04-18 (personal briefings, no active consumer):
-ai_frontier_scout, coast_intelligence, cosmos_report, daily_briefing_agent, daily_research_scout, heritage_watch, macro_pulse, serendipity_engine_prod, session_report_agent, wiki_attention_monitor
+**autonomous_growth_scheduler** — intentionally paused. Bill reactivates manually only. Never auto-reactivate.
 
-Paused 2026-04-22 (aspirations not attained — pruned to load-bearing core):
-agent_evaluator_4pillars, behavioral_health_check, feedback_agent, github_issue_tracker, processed_content_agent, resource_scout_reddit, usage_stats, weather_agent
+All other previously-paused agents (ai_frontier_scout, coast_intelligence, cosmos_report, daily_briefing_agent, daily_research_scout, heritage_watch, macro_pulse, serendipity_engine_prod, session_report_agent, wiki_attention_monitor, agent_evaluator_4pillars, behavioral_health_check, feedback_agent, github_issue_tracker, processed_content_agent, resource_scout_reddit, usage_stats, weather_agent, research_agent) have been **retired** as of 2026-05-08–2026-05-17. Source of truth: `agent_registry.status`.
 
-Also paused: autonomous_growth_scheduler (intentionally — Bill reactivates manually only), research_agent (never built — no workflow_id).
-
-**Curation candidates (B-109, 2026-05-08):** 5 paused agents flagged for retirement (no workflow_id, never built): research_agent, macro_pulse, ai_frontier_scout, coast_intelligence, heritage_watch. Annotations in Anvil attention queue. Use retire_agent() callable to act.
-
-Retired: serendipity_engine, haiku_self_critic, context_engineering_research (B-106), greeter_bot (B-109).
+Retired (26 total): agent_evaluator_4pillars, ai_frontier_scout, behavioral_health_check, coast_intelligence, context_engineering_research, cosmos_report, daily_briefing_agent, daily_research_scout, feedback_agent, github_issue_tracker, greeter_bot, haiku_self_critic, heritage_watch, lesson_injector, macro_pulse, processed_content_agent, research_agent, resource_scout_reddit, serendipity_engine, serendipity_engine_prod, session_health_reporter, session_report_agent, thread_research_agent, usage_stats, weather_agent, wiki_attention_monitor.
 
 All non-retired paused agents can be reactivated from the Anvil dashboard.
 
@@ -710,19 +763,19 @@ All non-retired paused agents can be reactivated from the Anvil dashboard.
 |---|---|---|---|
 | telegram_command_agent | kddIKvA37UDw4x6e | Telegram long-poll | Routes /commands. **PROTECTED.** |
 | morning_briefing | xt8Prqvi7iJlhrVG | daily 7AM PT | No LLM. Queue + agents + health. **PROTECTED.** |
-| agent_health_monitor | w5vypq4vb2rSrwdl | webhook | Error scan + stale scan. **PROTECTED.** |
+| agent_health_monitor | w5vypq4vb2rSrwdl | every 6h | Error scan + stale scan. **PROTECTED.** (Moved from webhook trigger B-130) |
 | research_synthesis_agent | JUBCbXJe3TwwpB2T | Sunday 14:00 UTC | Weekly synthesis of research corpus. **PROTECTED.** |
 | arxiv_aadp_pipeline | bZ35VinkRjRT7gYi | Mon/Wed/Fri 15:00 UTC | arXiv preprints → research_findings + research_papers. **PROTECTED.** |
 | architecture_review | 7mVc61pDCIObJFos | Biweekly Sunday 16:00 UTC | Research findings → design decisions → work_queue items. |
-| ~~context_engineering_research~~ | ~~gzCSocUFNxTGIzSD~~ | **RETIRED** (B-106, 2026-05-08) | n8n workflow deleted. Replaced by research orchestrator (B-096). /run_context_research endpoint deprecated but present. research_articles history preserved. |
+| claude_code_master | — | — | Registry marker only. No workflow, no trigger. **Do not pause or trigger.** |
 
 ### Platform Infrastructure Agents
 
 | agent_name | workflow_id | trigger | key behavior |
 |---|---|---|---|
-| lesson_injector | MFmk28ijs1wMig7h | webhook | Context injection before sessions. **PROTECTED.** |
-| session_health_reporter | 5x6G8gFlCxX0YKdM | webhook | Post-sentinel-session artifact to GitHub. **PROTECTED.** |
 | autonomous_growth_scheduler | Lm68vpmIyLfeFawa | every 6h (deactivated) | Queues explore/build/research tasks (autonomous mode only). Toggle via Anvil. **PROTECTED.** Bill reactivates manually — never auto-reactivate. |
+
+~~lesson_injector~~ and ~~session_health_reporter~~ **retired B-130 (2026-05-16)**. n8n workflows deleted. Context injection now handled by LEAN_BOOT step 11 direct stats_server call. Session artifacts committed by close-session skill directly.
 
 ### n8n Credential IDs
 - Telegram credential ID: y4YfKWpm20Z9sw7G
@@ -919,7 +972,7 @@ claudis/
   CONVENTIONS.md      — operational procedures
   TRAJECTORY.md       — destinations + active vectors + operational state
   DIRECTIVES.md       — Bill's standing instructions. "Run: B-NNN" pointer form.
-  BACKLOG.md          — lean session card queue. Completed cards removed as they close. B-059 is the latest completed card (2026-04-26). B-060 and B-061a are ready.
+  BACKLOG.md          — lean session card queue. Cards removed when complete. Latest completed: B-137 (2026-05-25). File is cleared and rebuilt as new cards are written.
   LEAN_BOOT.md        — lean mode startup protocol
   COLLABORATOR_BRIEF.md — card format guide
   DEEP_DIVE_BRIEF.md  — this document
@@ -949,7 +1002,7 @@ Anvil app synced via GitHub integration. **Default branch: master (not main).** 
 claude-dashboard/
   client_code/
     Form1/
-      __init__.py       — full dashboard UI (Fleet, Sessions, Lessons, Memory, Skills, Artifacts tabs)
+      __init__.py       — full dashboard UI (4 tabs: Home, Workpad, Sessions, System)
       form_template.yaml
     EmbedControl/
       __init__.py       — lightweight embed form (heartbeat, session status, direction input, autonomous toggle)
