@@ -3106,7 +3106,7 @@ _WIKIPEDIA_UA = {'User-Agent': 'AADP-Research/1.0 (thompsman@gmail.com)'}
 
 # arXiv category filters for pass two — restrict by gap type to avoid domain mismatches
 _ARXIV_CAT_PREFIX = {
-    'academic': '(cat:q-bio.NC OR cat:q-bio.QM OR cat:q-bio.PE)',
+    # 'academic' omitted — no category filter; academic gaps span all domains
     'technical': '(cat:cs.AI OR cat:cs.LG OR cat:eess)',
     # 'conceptual' → not included; conceptual gaps route to Wikipedia, not arXiv
 }
