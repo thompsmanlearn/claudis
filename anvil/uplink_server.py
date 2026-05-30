@@ -3401,7 +3401,7 @@ def _deep_research_worker(job_id, query):
             '[\n'
             '  {\n'
             '    "gap": "concise description of what is missing or unresolved",\n'
-            '    "type": "academic | conceptual | current | technical",\n'
+            '    "type": "academic | conceptual | current | technical | practitioner",\n'
             '    "priority": "high | medium | low",\n'
             '    "query": "3-5 keyword search string for academic APIs"\n'
             '  }\n'
@@ -3410,7 +3410,11 @@ def _deep_research_worker(job_id, query):
             '- academic: needs peer-reviewed sourcing or citation evidence\n'
             '- conceptual: needs definitional grounding or relationship clarification\n'
             '- current: needs recent news or developments\n'
-            '- technical: needs implementation detail, code, or applied examples\n\n'
+            '- technical: needs implementation detail, code, or applied examples\n'
+            '- practitioner: needs community knowledge, implementation patterns, or tooling\n'
+            '  comparisons from practitioners building similar systems — blogs, GitHub repos,\n'
+            '  community forums. Use for personal AI, knowledge management, workflow design,\n'
+            '  and emerging practice questions where no peer-reviewed literature exists.\n\n'
             'The "query" field must be short — 3 to 5 keywords maximum. It will be sent directly\n'
             'to arXiv and Semantic Scholar search endpoints. Do not use full sentences, question\n'
             'marks, or filler words. Extract the core topic terms only.\n\n'
@@ -3438,6 +3442,7 @@ def _deep_research_worker(job_id, query):
             '       conceptual → wikipedia\n'
             '       current → guardian\n'
             '       technical → github, arxiv\n'
+            '       practitioner → brave, github\n'
             'Return the input JSON array with a "sources" field added to each item.\n'
             'For any gap assigned to wikipedia, also return a "wiki_title" field containing\n'
             'the most likely Wikipedia article title for this concept — 1 to 3 words,\n'
@@ -3490,6 +3495,13 @@ def _deep_research_worker(job_id, query):
                 else:
                     # Guardian, Brave, Tavily, GitHub: natural language gets better results
                     search_q = gap_desc
+
+                # practitioner gaps belong to web sources; skip academic APIs regardless of routing
+                if gap_type == 'practitioner' and source_name in ('semantic_scholar', 'arxiv'):
+                    p2_results.setdefault(gap_idx, {})[source_name] = []
+                    if source_name == 'arxiv':
+                        p2_arxiv_queries[gap_idx] = 'skipped — practitioner'
+                    return
 
                 # arXiv: category filtering + clinical-only skip
                 if source_name == 'arxiv':
