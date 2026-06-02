@@ -2978,16 +2978,20 @@ _RESEARCH_ARTIFACTS_DIR = os.path.expanduser('~/aadp/research_artifacts')
 
 
 def _gemini_generate(prompt, timeout=90):
-    """Call Gemini 2.5 Flash. Returns (text, tokens_in, tokens_out)."""
+    """Call Gemini 2.5 Flash. Returns (text, tokens_in, tokens_out). Retries once on 503."""
     gemini_key = _ENV.get('GEMINI_API_KEY', '')
     if not gemini_key:
         raise Exception('GEMINI_API_KEY not set')
-    resp = requests.post(
-        f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}',
-        json={'contents': [{'parts': [{'text': prompt}]}]},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
+    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}'
+    payload = {'contents': [{'parts': [{'text': prompt}]}]}
+    for attempt in range(3):
+        resp = requests.post(url, json=payload, timeout=timeout)
+        if resp.status_code == 503 and attempt < 2:
+            log.warning('_gemini_generate: 503, retrying in %ds (attempt %d)', 10 * (attempt + 1), attempt + 1)
+            time.sleep(10 * (attempt + 1))
+            continue
+        resp.raise_for_status()
+        break
     data = resp.json()
     text = data['candidates'][0]['content']['parts'][0]['text']
     usage = data.get('usageMetadata', {})
