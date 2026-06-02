@@ -3804,7 +3804,8 @@ def get_deep_research_status(job_id):
     job = _deep_research_jobs.get(job_id)
     if not job:
         raise Exception(f'Deep research job {job_id} not found.')
-    return job
+    # Strip internal fields that aren't Anvil-serializable
+    return {k: v for k, v in job.items() if not k.startswith('_')}
 
 
 @anvil.server.callable
