@@ -3462,6 +3462,23 @@ def _deep_research_worker(job_id, query):
             token_log['haiku_routing'] = (0, 0)
         log.info('DR[%s] routing done', job_id)
 
+        # ── Plan review pause ─────────────────────────────────────────────────
+        approval_event = threading.Event()
+        _deep_research_jobs[job_id].update({
+            'status': 'awaiting_review',
+            'plan': {
+                'gaps': routed_gaps,
+                'cluster_count': len(clusters),
+                'pass1_source_counts': {k: len(v) for k, v in p1_results.items()},
+            },
+            '_approval_event': approval_event,
+        })
+        log.info('DR[%s] awaiting plan review (%d gaps)', job_id, len(routed_gaps))
+        approval_event.wait(timeout=3600)  # auto-proceed after 1 hour
+        routed_gaps = _deep_research_jobs[job_id].get('_approved_gaps', routed_gaps)
+        _deep_research_jobs[job_id]['status'] = 'running'
+        log.info('DR[%s] plan approved, proceeding to pass 2 (%d gaps)', job_id, len(routed_gaps))
+
         # ── Pass 2: Retrieve for each gap ─────────────────────────────────────
         _SOURCE_FETCHERS = {
             'semantic_scholar': _fetch_semantic_scholar,
@@ -3784,6 +3801,24 @@ def get_deep_research_status(job_id):
     if not job:
         raise Exception(f'Deep research job {job_id} not found.')
     return job
+
+
+@anvil.server.callable
+def approve_deep_research_plan(job_id, approved_gaps=None):
+    """Approve the pass-1 plan and resume pass 2. Optionally pass edited gaps list."""
+    job = _deep_research_jobs.get(job_id)
+    if not job:
+        raise Exception(f'Deep research job {job_id} not found.')
+    if job.get('status') != 'awaiting_review':
+        raise Exception(f'Job {job_id} is not awaiting review (status: {job.get("status")}).')
+    if approved_gaps is not None:
+        job['_approved_gaps'] = approved_gaps
+    event = job.get('_approval_event')
+    if event:
+        event.set()
+    log.info('approve_deep_research_plan: job_id=%s gaps=%s', job_id,
+             len(approved_gaps) if approved_gaps is not None else 'unchanged')
+    return {'ok': True}
 
 
 # ── Workpad ───────────────────────────────────────────────────────────────────
