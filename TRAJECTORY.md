@@ -37,11 +37,11 @@
 - **Continue:** System tab pruning — same boundary-marker removal pattern used for thread retirement. Then re-test deep research after arXiv IP rate limit clears.
 - **Left better:** Deep research pipeline pass two is now structurally correct — right query types to right sources, domain-filtered arXiv, no abbreviation collisions.
 
-**2026-06-25/26 (Bill session — close-session ritual x6):**
-- **What I was doing:** Six /close-session invocations across one calendar block, all administrative. No technical work. wisdom_review 71 days overdue — flagged every single close.
-- **What I learned:** Ritual is idempotent but wisdom_review is now 71 days overdue and has been noted in 6 consecutive closes. It will not happen unless it is the first thing executed — before bootstrap even finishes.
+**2026-06-25/26 (Bill session — close-session ritual x7):**
+- **What I was doing:** Seven /close-session invocations across one calendar block, all administrative. No technical work. wisdom_review 72 days overdue — flagged every single close.
+- **What I learned:** Ritual is idempotent but wisdom_review is now 72 days overdue and has been flagged in 7 consecutive closes. It will not happen unless it is the FIRST thing executed next session — before any other work is even considered.
 - **Continue:** FIRST (blocking, do not skip): Invoke /wisdom-review immediately at next session start. Then: System tab pruning. Then: re-test deep research after arXiv IP rate limit clears.
-- **Left better:** Handoff entry updated to x6 — the accumulation itself is the signal.
+- **Left better:** Handoff entry updated to x7 — the accumulation itself is the signal.
 
 ---
 
