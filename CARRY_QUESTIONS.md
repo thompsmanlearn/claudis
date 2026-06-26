@@ -1,7 +1,16 @@
 # CARRY_QUESTIONS.md
 # Auto-generated. Read at desktop session start.
-# Generated: 2026-05-23 04:10 UTC
+# Generated: 2026-06-26 02:10 UTC
 
+- **Thread question** [e0560a85]: What does the Scientist-Bench evaluation in AI-Researcher reveal quantitatively about autonomous research quality compared to human researchers or baseline systems?
+- **Thread question** [e0560a85]: What are documented examples of autonomous AI agents deployed in non-AI scientific domains (e.g., drug discovery, materials science, climate modeling) with measured impact on research output?
+- **Thread question** [e0560a85]: What specific failure modes and limitations have been documented for autonomous AI research agents in peer-reviewed evaluations or deployment reports (e.g., hallucination in literature review, flawed 
+- **Thread question** [e0560a85]: What are documented real-world deployments of AI agents for literature review and experiment design, such as systems like AI Scientist, ResearchAgent, or self-driving labs (e.g., Emerald Cloud Lab, Ar
+- **Thread question** [e0560a85]: What specific agent architectures and failure modes are documented in the full text of Lu et al. (2026) 'Towards end-to-end automation of AI research' in Nature vol. 651?
+- **Thread question** [e0560a85]: Are there additional documented agent deployments in scientific workflows—such as systems used in drug discovery, materials science, or genomics—with technical implementation details and failure mode 
+- **Thread question** [e0560a85]: What specific performance benchmarks or researcher-reported outcomes have been published for Co-Scientist and Robin, and what limitations do the original Nature papers identify?
+- **Thread question** [e0560a85]: How does AI scientist performance on Scientist-Bench compare quantitatively to human baselines, and have any AI-Researcher outputs been independently validated or published in peer-reviewed venues?
+- **Thread question** [e0560a85]: What specific real-world laboratory deployments of autonomous AI agents have been reported — particularly in chemistry (e.g., self-driving labs like Argonne's), biology, or materials science — with me
 - **Thread question** [e0560a85]: What are the documented failure modes and limitations of autonomous AI agents in scientific research, such as hallucination in literature synthesis, flawed experiment design, or data misinterpretation
 - **Thread question** [e0560a85]: What specific agentic AI systems (e.g., ChemCrow, AI Scientist, BioAgent) have been deployed in real laboratory or literature review workflows, and what empirical performance results have been publish
 - **Thread question** [e0560a85]: How do multi-agent architectures specifically divide labor across literature review, hypothesis generation, and experiment execution phases, and what coordination protocols prevent cascading errors be
@@ -18,8 +27,6 @@
 (prompted by: The framing determines what counts as useful and 
 - **Thread question** [1b3a5cd9]: What are the primary failure modes when non-engineers attempt to build or configure agents—capability mismatch, debugging opacity, integration limits, or something else?
 (prompted by: Understanding wh
-- **Thread question** [1b3a5cd9]: What no-code agent builders are non-technical users actually using, and what specific tasks do they build with them?
-(prompted by: Gap between architectural feasibility (Mahilo) and consumer accessibi
 - **Grader FAIL** [B-115-cmt]: None of the done-when criteria are met. The artifact shows no evidence of any database update to the `agents` table row for `architecture_review`. The git changes and changed files are entirely unrela
 - **Grader PAUSE** [B-071]: The session artifact describes successful completion of all substantive work (trigger, six callables, smoke test, restart, cleanup), but the git commit evidence only shows the session artifact markdow
 - **Grader PAUSE** [B-080]: The core implementation appears complete and functionally verified in components, but the commit only contains the session artifact markdown file — no uplink_server.py changes are committed to claudis
