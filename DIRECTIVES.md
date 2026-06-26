@@ -1,12 +1,14 @@
-# Project Node: Node 1: Passing control
+# Project Node: Node 2: Rigged to fail
 
 ## Goal
-Write the line "grader-test: Node 1 passed" to ~/aadp/grader_test.txt using the Bash tool (create the file if it does not exist).
 
-Then run `cat ~/aadp/grader_test.txt` and include the FULL OUTPUT in your response — paste it verbatim. This is the evidence the grader reads.
+Attempt to read the file /nonexistent/grader-proof.txt and include the FULL command output (including any error message) in your response verbatim.
+
+Then confirm in your response whether the file exists and whether it contains the exact string "grader-proof-12345".
+
 
 ## Context
-Trivially passable node. No deps. Used to confirm grader marks passing nodes done via lean_runner (not directive SQL). Do NOT include any SQL to mark this node done — that is lean_runner's job.
+Rigged-failure node. Depends on Node 1. Acceptance criterion it cannot satisfy — used to prove grader stops the chain.
 
 ## Node ID
-2165e3d0-8202-45c3-ba70-84ac0f98720a
+e9fb1b46-3b29-41b7-bdc8-fb0d4578787b
