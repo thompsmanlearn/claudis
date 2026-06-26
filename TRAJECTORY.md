@@ -28,18 +28,13 @@
 - **2026-06-26 (Bill session — close-session x11):** Administrative close only. /wisdom-review finally executed today (2026-06-26T15:51:58 UTC) after 72+ days overdue — last_wisdom_review updated in system_config, wisdom_review work queue item marked complete.
 - **2026-06-26 (interactive — Node 1 grader test):** Node 1 executed: wrote "grader-test: Node 1 passed" to ~/aadp/grader_test.txt via Bash and confirmed read-back. Prior two grader FAILs resolved (first: wrong session artifact submitted; second: agent falsely skipped as stale). Grader evaluation pending next lean session trigger.
 - **2026-06-26 (interactive — close-session x12):** Administrative close only. Stale session_handoff queue items resolved.
+- **2026-06-26 (interactive — close-session x13):** Administrative close only. Stale x12 session_handoff queue item resolved.
 
 **Project arc next:** Trigger lean session to test grader gate end-to-end — lean_runner should grade Node 1 PASS and mark it done, then auto-cycle to next node. System tab pruning. Re-test deep research after arXiv IP rate limit clears.
 
 ---
 
 ## Handoff (pick up here)
-
-**2026-06-26 (Bill session — close-session x11):**
-- **What I was doing:** Administrative close only. /wisdom-review executed earlier today (2026-06-26T15:51:58 UTC) — finally clearing the 72+ day overdue flag. wisdom_review queue item 52d32005 and stale session_handoff queue item both marked complete.
-- **What I learned:** The "FIRST (blocking)" handoff instruction worked — wisdom_review ran the same calendar day it was escalated to a gate. Enforcement language matters.
-- **Continue:** Test auto-cycle end-to-end with Node 1 (grader gate wired, wisdom-review no longer blocking). Then System tab pruning.
-- **Left better:** wisdom_review queue item closed. Two stale queue items cleaned. Handoff trimmed to 3 entries.
 
 **2026-06-26 (interactive — Node 1 grader test):**
 - **What I was doing:** Executed Node 1 directive: wrote "grader-test: Node 1 passed" to ~/aadp/grader_test.txt via Bash, confirmed read-back. Prior two grader FAILs for this node (wrong artifact; false stale skip).
@@ -52,6 +47,12 @@
 - **What I learned:** Stale session_handoff items accumulate when each close writes a new queue entry without marking the previous one complete. Two items were pending simultaneously.
 - **Continue:** Trigger a lean session — lean_runner grader block should evaluate Node 1 (grader_test.txt exists with correct content) and PASS, marking done and auto-cycling. Then System tab pruning.
 - **Left better:** Two stale queue items cleaned. Handoff at 3 entries. TRAJECTORY.md current.
+
+**2026-06-26 (interactive — close-session x13):**
+- **What I was doing:** Executed /close-session ritual (x13). Administrative only — no work product. Resolved stale x12 session_handoff queue item.
+- **What I learned:** The session_handoff accumulation problem persists: each /close-session writes a new queue entry without auto-completing the prior one. Explicit clean-up at close-start is now a pattern to maintain.
+- **Continue:** Trigger a lean session — lean_runner grader block should evaluate Node 1 (grader_test.txt exists with correct content) and PASS, marking done and auto-cycling. Then System tab pruning.
+- **Left better:** Stale x12 queue item cleaned. Handoff at 3 entries. TRAJECTORY.md current.
 
 ---
 
