@@ -25,18 +25,13 @@
 - **B-137 complete (2026-05-25):** Two-pass deep research pipeline live. "Deep Research" button in Workpad tab. 7 sources (Brave, Tavily, GitHub, Semantic Scholar, arXiv, Wikipedia, Guardian). Gemini: query expansion + relevance screening/clustering + gap identification. Haiku: gap-to-source routing. Artifacts written to ~/aadp/research_artifacts/; get_desktop_bundle() includes 3 most recent. Commits: claudis 3ec1457, claude-dashboard da0cdad.
 - **2026-05-25/28 Bill session (deep research pipeline fixes):** Four rounds of pass two fixes: (1) Wikipedia User-Agent 403 fix; (2) gap query distillation — Gemini now generates 3-5 keyword `query` field per gap; arXiv/Semantic Scholar use short keyword query, Guardian/web use full NL description; Haiku routing adds `wiki_title` for Wikipedia; (3) no abbreviations in academic queries (PAT/PTSD expansion); (4) arXiv category filtering — academic gaps use `(cat:q-bio.NC OR cat:q-bio.QM OR cat:q-bio.PE)`, technical gaps use `(cat:cs.AI OR cat:cs.LG OR cat:eess)`, clinical-only gaps skip arXiv. Fixes verified with live run 2026-05-28: category prefixes confirmed in artifact, clinical skip logged, arXiv rate-limited (IP backoff from testing — will clear). Commits: claudis 1bd29ff, 68bb2e5, 39cbe83, 0096dc7; claude-dashboard f76ea7c.
 - **2026-06-26 (lean session — grader gate):** lean_runner.sh now gates node completion on grader evaluation — NODE_ID extracted from directive, grader block executes, node auto-marked done on pass. Fixed: auto_cycle_enabled boolean→string case mismatch was silently skipping grader on every cycle. Commits: claudis 06c6f7f, 129b4ef, c10f7ae, 301187a.
+- **2026-06-26 (Bill session — close-session x11):** Administrative close only. /wisdom-review finally executed today (2026-06-26T15:51:58 UTC) after 72+ days overdue — last_wisdom_review updated in system_config, wisdom_review work queue item marked complete.
 
 **Project arc next:** Test auto-cycle end-to-end with Node 1 (grader gate now wired). System tab pruning. Re-test deep research after arXiv IP rate limit clears.
 
 ---
 
 ## Handoff (pick up here)
-
-**2026-05-28 (Bill session — deep research pipeline fixes):**
-- **What I was doing:** Fixed four pass two retrieval issues: Wikipedia User-Agent, gap query distillation (short keyword queries for academic APIs), no abbreviations in Gemini-generated queries, arXiv category filtering by gap type with clinical-only skip. Verified with live artifact — category filter confirmed working in logs and gap table.
-- **What I learned:** arXiv is sensitive to rapid IP-based bursting — test runs against it accumulate rate limit debt that blocks the actual pipeline. arXiv's q-bio category filter eliminates off-domain noise (astrophysics, food delivery, robot therapy papers) but requires the IP to be out of backoff. Clinical-term detection is a blunt but effective heuristic.
-- **Continue:** System tab pruning — same boundary-marker removal pattern used for thread retirement. Then re-test deep research after arXiv IP rate limit clears.
-- **Left better:** Deep research pipeline pass two is now structurally correct — right query types to right sources, domain-filtered arXiv, no abbreviation collisions.
 
 **2026-06-25/26 (Bill session — close-session ritual x9):**
 - **What I was doing:** Nine /close-session invocations across one calendar block, all administrative. No technical work. wisdom_review 72 days overdue — flagged every single close.
@@ -49,6 +44,12 @@
 - **What I learned:** system_config stores "true" as a string; shell `== "true"` comparison works, but bare boolean check `== true` fails silently. Silent failure in lean_runner grader path meant auto-cycle appeared to run while grader was completely bypassed the entire time.
 - **Continue:** FIRST (blocking): /wisdom-review before any other work. Then: test auto-cycle end-to-end with Node 1 now that grader gate is wired. Then: System tab pruning.
 - **Left better:** Grader gate functional end-to-end. Auto-cycle Node 1 can now be tested with real grader evaluation.
+
+**2026-06-26 (Bill session — close-session x11):**
+- **What I was doing:** Administrative close only. /wisdom-review executed earlier today (2026-06-26T15:51:58 UTC) — finally clearing the 72+ day overdue flag. wisdom_review queue item 52d32005 and stale session_handoff queue item both marked complete.
+- **What I learned:** The "FIRST (blocking)" handoff instruction worked — wisdom_review ran the same calendar day it was escalated to a gate. Enforcement language matters.
+- **Continue:** Test auto-cycle end-to-end with Node 1 (grader gate wired, wisdom-review no longer blocking). Then System tab pruning.
+- **Left better:** wisdom_review queue item closed. Two stale queue items cleaned. Handoff trimmed to 3 entries.
 
 ---
 
