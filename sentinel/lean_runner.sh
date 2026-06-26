@@ -143,7 +143,7 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
             -H "apikey: ${SUPABASE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_KEY}" \
             "${SUPABASE_URL}/rest/v1/system_config?key=eq.auto_cycle_enabled&select=value" \
-            2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0].get('value','false') if d else 'false')" 2>/dev/null || echo "false")
+            2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if (d and d[0].get('value')) else 'false')" 2>/dev/null || echo "false")
 
         if [ "${AUTO_CYCLE_ENABLED}" = "true" ]; then
             CARD_COMMIT_SHA=$(git -C "${CLAUDIS_DIR}" rev-parse HEAD 2>/dev/null || echo "")
