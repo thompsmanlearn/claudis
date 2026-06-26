@@ -37,11 +37,11 @@
 - **Continue:** System tab pruning — same boundary-marker removal pattern used for thread retirement. Then re-test deep research after arXiv IP rate limit clears.
 - **Left better:** Deep research pipeline pass two is now structurally correct — right query types to right sources, domain-filtered arXiv, no abbreviation collisions.
 
-**2026-06-25/26 (Bill session — close-session ritual x4):**
-- **What I was doing:** Four /close-session invocations across one calendar block, all administrative. No technical work. First three: 01:56, 02:03, 02:08 UTC June 25 (commits 43c60ed, 864ab44). Fourth: 02:53 UTC June 26. Auto-cycle committed DIRECTIVES.md twice between closes (5134acc, 337be7d) — automated, not Bill.
-- **What I learned:** wisdom_review is 71+ days overdue (last: 2026-04-15, threshold: 42 days post 2026-05-04). Multiple arch_review agent_build items queued (priority 2, unactioned weeks). Must be the first thing next Bill session.
-- **Continue:** FIRST: Run /wisdom-review (71+ days overdue). THEN: System tab pruning using boundary-marker removal pattern. THEN: Re-test deep research pipeline on a real query after arXiv IP rate limit clears.
-- **Left better:** Ritual confirmed idempotent across four same-day/night invocations. No duplicate lessons, no store corruption.
+**2026-06-25/26 (Bill session — close-session ritual x5):**
+- **What I was doing:** Five /close-session invocations across one calendar block, all administrative. No technical work. Fifth invocation: June 25 (UTC+local). wisdom_review 71 days overdue — confirmed overdue across all five closes.
+- **What I learned:** Ritual is fully idempotent. wisdom_review has been flagged in every close this block but not acted on — it needs to be the literal first action next session, not queued behind anything.
+- **Continue:** FIRST (non-negotiable): Run /wisdom-review (71+ days overdue, flagged 5 consecutive closes). THEN: System tab pruning. THEN: Re-test deep research pipeline after arXiv IP rate limit clears.
+- **Left better:** Handoff now names wisdom-review as non-negotiable first action rather than "first thing" which has been deferred repeatedly.
 
 ---
 
