@@ -157,13 +157,13 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
                 STOP_TYPE="card"
                 log "GRADER: grading ${CARD_ID} artifact=${ARTIFACT_NAME} sha=${CARD_COMMIT_SHA:0:8}"
             else
-                # Node path: find most recent session artifact (close-session just committed it)
-                ARTIFACT=$(ls -t "${CLAUDIS_DIR}/sessions/lean/"*.md 2>/dev/null | head -1)
-                ARTIFACT_NAME=$(basename "${ARTIFACT}" 2>/dev/null || echo "")
+                # Node path: use the session log file as the artifact — it contains Claude's full
+                # output and is always present. _read_session_artifact handles absolute paths.
+                ARTIFACT_NAME="${LOG_FILE}"
                 GRADE_BODY="{\"node_id\": \"${NODE_ID}\", \"session_artifact_path\": \"${ARTIFACT_NAME}\", \"commit_sha\": \"${CARD_COMMIT_SHA}\"}"
                 STOP_TARGET="${NODE_ID}"
                 STOP_TYPE="project_node"
-                log "GRADER: grading node ${NODE_ID} artifact=${ARTIFACT_NAME} sha=${CARD_COMMIT_SHA:0:8}"
+                log "GRADER: grading node ${NODE_ID} artifact=LOG_FILE sha=${CARD_COMMIT_SHA:0:8}"
             fi
 
             GRADE_RESULT=$(curl -s --max-time 90 -X POST "http://localhost:9100/grade_card" \
