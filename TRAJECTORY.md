@@ -31,17 +31,17 @@
 
 ## Handoff (pick up here)
 
-**2026-05-25 (lean session — B-137 deep research):**
-- **What I was doing:** Built the two-pass deep research pipeline — 7 sources, 4 AI calls (3 Gemini + 1 Haiku), background job pattern (job_id + polling), artifact to ~/aadp/research_artifacts/, "Deep Research" button in Workpad, desktop bundle updated. Commits: claudis 3ec1457, claude-dashboard da0cdad.
-- **What I learned:** Anvil's 30-second callable timeout makes any pipeline over ~25s require the background-thread + job_id + poll pattern. The existing `search_all` pushed the limit at 45s; deep research at 60-120s needed the explicit async pattern.
-- **Continue:** System tab pruning (identified as next step before B-137). Then use the deep research pipeline on a real query to evaluate artifact quality.
-- **Left better:** Research pipeline now has a reader — artifacts land in ~/aadp/research_artifacts/ and surface in Desktop Claude export bundle. Loop is closed.
-
 **2026-05-28 (Bill session — deep research pipeline fixes):**
 - **What I was doing:** Fixed four pass two retrieval issues: Wikipedia User-Agent, gap query distillation (short keyword queries for academic APIs), no abbreviations in Gemini-generated queries, arXiv category filtering by gap type with clinical-only skip. Verified with live artifact — category filter confirmed working in logs and gap table.
 - **What I learned:** arXiv is sensitive to rapid IP-based bursting — test runs against it accumulate rate limit debt that blocks the actual pipeline. arXiv's q-bio category filter eliminates off-domain noise (astrophysics, food delivery, robot therapy papers) but requires the IP to be out of backoff. Clinical-term detection is a blunt but effective heuristic.
 - **Continue:** System tab pruning — same boundary-marker removal pattern used for thread retirement. Then re-test deep research after arXiv IP rate limit clears.
 - **Left better:** Deep research pipeline pass two is now structurally correct — right query types to right sources, domain-filtered arXiv, no abbreviation collisions.
+
+**2026-06-25 (Bill session — close-session ritual only):**
+- **What I was doing:** Executed close-session ritual as a standalone administrative session. No technical work done. Confirmed ritual completes cleanly with zero-work content.
+- **What I learned:** wisdom_review is 71 days overdue (last: 2026-04-15, threshold: 42 days). work_queue item exists (created 2026-05-28) but has not been actioned. This is the priority maintenance item.
+- **Continue:** System tab pruning (same boundary-marker pattern as thread retirement). Then re-test deep research pipeline on a real query after arXiv IP rate limit clears. Run wisdom_review — already queued, 71 days overdue.
+- **Left better:** Handoff note updated; ritual state current.
 
 ---
 
