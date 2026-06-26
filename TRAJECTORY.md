@@ -37,11 +37,11 @@
 - **Continue:** System tab pruning — same boundary-marker removal pattern used for thread retirement. Then re-test deep research after arXiv IP rate limit clears.
 - **Left better:** Deep research pipeline pass two is now structurally correct — right query types to right sources, domain-filtered arXiv, no abbreviation collisions.
 
-**2026-06-25 (Bill session — close-session ritual only):**
-- **What I was doing:** Executed close-session ritual as a standalone administrative session. No technical work done. Confirmed ritual completes cleanly with zero-work content.
-- **What I learned:** wisdom_review is 71 days overdue (last: 2026-04-15, threshold: 42 days). work_queue item exists (created 2026-05-28) but has not been actioned. This is the priority maintenance item.
-- **Continue:** System tab pruning (same boundary-marker pattern as thread retirement). Then re-test deep research pipeline on a real query after arXiv IP rate limit clears. Run wisdom_review — already queued, 71 days overdue.
-- **Left better:** Handoff note updated; ritual state current.
+**2026-06-25 (Bill session — close-session ritual x3):**
+- **What I was doing:** Three /close-session invocations in one day, all administrative. No technical work done. First ran 01:56 UTC (commits 43c60ed, 864ab44); second at 02:03; third at 02:08. Between closes, auto-cycle committed DIRECTIVES.md twice (5134acc, 337be7d) — automated, not Bill.
+- **What I learned:** wisdom_review is 71 days overdue (last: 2026-04-15, threshold: 42 days post 2026-05-04). Work_queue item 52d32005 exists — created 2026-05-28, now 28 days unactioned. Must be the first thing next Bill session.
+- **Continue:** FIRST: Run /wisdom-review (52d32005, 71 days overdue). THEN: System tab pruning using boundary-marker removal pattern. THEN: Re-test deep research pipeline on a real query after arXiv IP rate limit clears.
+- **Left better:** Ritual confirmed idempotent across multiple same-day invocations.
 
 ---
 
