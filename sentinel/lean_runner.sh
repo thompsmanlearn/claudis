@@ -75,7 +75,13 @@ if echo "${DIRECTIVE_RAW}" | grep -qE '^Run: B-[0-9]+$'; then
     CARD_ID=$(echo "${DIRECTIVE_RAW}" | grep -oE 'B-[0-9]+')
 fi
 
-write_phase "started" "booting: ${CARD_ID:-directive}"
+# Extract NODE_ID if DIRECTIVES.md is a project-node directive ("## Node ID" section)
+NODE_ID=""
+if echo "${DIRECTIVE_RAW}" | grep -q "^## Node ID"; then
+    NODE_ID=$(printf '%s\n' "${DIRECTIVE_RAW}" | grep -A1 "^## Node ID" | tail -1 | tr -d '[:space:]')
+fi
+
+write_phase "started" "booting: ${CARD_ID:-${NODE_ID:-directive}}"
 log "STATUS: wrote started phase to session_status"
 
 
@@ -91,7 +97,7 @@ echo "Read ${LEAN_BOOT}" >> "${PROMPT_FILE}"
 source "${VENV_DIR}/bin/activate"
 cd "${MCP_DIR}"
 
-write_phase "executing" "running ${CARD_ID:-directive}"
+write_phase "executing" "running ${CARD_ID:-${NODE_ID:-directive}}"
 log "CLAUDE: starting"
 EXIT_CODE=0
 timeout "${TIMEOUT_SECS}" "${CLAUDE_BIN}" -p \
@@ -127,11 +133,12 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
         < "${CLOSE_PROMPT}" \
         >> "${LOG_FILE}" 2>&1 || log "CLOSE: close-session exited with non-zero (non-fatal)"
     rm -f "${CLOSE_PROMPT}"
-    send_telegram "🔒 Close-session complete after ${CARD_ID:-session} (${MINS}m work + close)."
+    send_telegram "🔒 Close-session complete after ${CARD_ID:-${NODE_ID:-session}} (${MINS}m work + close)."
 
-    # GRADER: grade the completed card if auto_cycle is enabled and CARD_ID is known (B-087)
-    # Only auto-cycle sessions get graded — manual single-card sessions skip this.
-    if [ -n "${CARD_ID}" ]; then
+    # GRADER: grade the completed card or project node when auto_cycle is enabled.
+    # Card path (CARD_ID set): Run: B-NNN directive — unchanged from prior behaviour.
+    # Node path (NODE_ID set): # Project Node: directive — lean_runner owns done-marking on pass.
+    if [ -n "${CARD_ID}" ] || [ -n "${NODE_ID}" ]; then
         AUTO_CYCLE_ENABLED=$(curl -s \
             -H "apikey: ${SUPABASE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_KEY}" \
@@ -139,22 +146,60 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
             2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0].get('value','false') if d else 'false')" 2>/dev/null || echo "false")
 
         if [ "${AUTO_CYCLE_ENABLED}" = "true" ]; then
-            # Find most recent session artifact for this card
-            ARTIFACT=$(ls -t "${CLAUDIS_DIR}/sessions/lean/"*"${CARD_ID}"*.md 2>/dev/null | head -1)
-            ARTIFACT_NAME=$(basename "${ARTIFACT}" 2>/dev/null || echo "")
-            # Capture HEAD SHA immediately after card commit (B-104)
             CARD_COMMIT_SHA=$(git -C "${CLAUDIS_DIR}" rev-parse HEAD 2>/dev/null || echo "")
-            log "GRADER: grading ${CARD_ID} artifact=${ARTIFACT_NAME} sha=${CARD_COMMIT_SHA:0:8}"
+
+            if [ -n "${CARD_ID}" ]; then
+                # Card path (unchanged): find artifact by card_id pattern in filename
+                ARTIFACT=$(ls -t "${CLAUDIS_DIR}/sessions/lean/"*"${CARD_ID}"*.md 2>/dev/null | head -1)
+                ARTIFACT_NAME=$(basename "${ARTIFACT}" 2>/dev/null || echo "")
+                GRADE_BODY="{\"card_id\": \"${CARD_ID}\", \"session_artifact_path\": \"${ARTIFACT_NAME}\", \"commit_sha\": \"${CARD_COMMIT_SHA}\"}"
+                STOP_TARGET="${CARD_ID}"
+                STOP_TYPE="card"
+                log "GRADER: grading ${CARD_ID} artifact=${ARTIFACT_NAME} sha=${CARD_COMMIT_SHA:0:8}"
+            else
+                # Node path: find most recent session artifact (close-session just committed it)
+                ARTIFACT=$(ls -t "${CLAUDIS_DIR}/sessions/lean/"*.md 2>/dev/null | head -1)
+                ARTIFACT_NAME=$(basename "${ARTIFACT}" 2>/dev/null || echo "")
+                GRADE_BODY="{\"node_id\": \"${NODE_ID}\", \"session_artifact_path\": \"${ARTIFACT_NAME}\", \"commit_sha\": \"${CARD_COMMIT_SHA}\"}"
+                STOP_TARGET="${NODE_ID}"
+                STOP_TYPE="project_node"
+                log "GRADER: grading node ${NODE_ID} artifact=${ARTIFACT_NAME} sha=${CARD_COMMIT_SHA:0:8}"
+            fi
 
             GRADE_RESULT=$(curl -s --max-time 90 -X POST "http://localhost:9100/grade_card" \
                 -H "Content-Type: application/json" \
-                -d "{\"card_id\": \"${CARD_ID}\", \"session_artifact_path\": \"${ARTIFACT_NAME}\", \"commit_sha\": \"${CARD_COMMIT_SHA}\"}" \
+                -d "${GRADE_BODY}" \
                 2>/dev/null)
             VERDICT=$(echo "${GRADE_RESULT}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('verdict','pause'))" 2>/dev/null || echo "pause")
             log "GRADER: verdict=${VERDICT}"
 
             if [ "${VERDICT}" = "pass" ]; then
                 log "GRADER: pass — auto-cycle may proceed"
+                if [ -n "${NODE_ID}" ]; then
+                    # Node path: lean_runner marks the node done (not the directive)
+                    MARK_DONE=$(mktemp /tmp/mark_done_XXXXXX.py)
+                    cat > "${MARK_DONE}" << PYEOF
+import os, json, urllib.request, datetime
+node_id = '${NODE_ID}'
+url = os.environ.get('SUPABASE_URL', '')
+key = os.environ.get('SUPABASE_KEY', '')
+headers = {'apikey': key, 'Authorization': 'Bearer ' + key,
+           'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+req = urllib.request.Request(
+    url + '/rest/v1/aadp_project_nodes?id=eq.' + node_id,
+    data=json.dumps({'status': 'done',
+                     'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}).encode(),
+    headers=headers, method='PATCH'
+)
+with urllib.request.urlopen(req, timeout=10):
+    pass
+PYEOF
+                    export SUPABASE_URL SUPABASE_KEY
+                    python3 "${MARK_DONE}" >> "${LOG_FILE}" 2>&1 \
+                        && log "GRADER: node ${NODE_ID} marked done" \
+                        || log "GRADER: WARNING — failed to mark node done"
+                    rm -f "${MARK_DONE}"
+                fi
             else
                 # pause or fail: file annotation, stop chain
                 RATIONALE=$(echo "${GRADE_RESULT}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('rationale','')[:400])" 2>/dev/null || echo "")
@@ -163,10 +208,10 @@ if [ "${EXIT_CODE}" -eq 0 ]; then
                     -H "Authorization: Bearer ${SUPABASE_KEY}" \
                     -H "Content-Type: application/json" \
                     -H "Prefer: return=minimal" \
-                    -d "{\"target_type\": \"card\", \"target_id\": \"${CARD_ID}\", \"content\": \"Grader verdict: ${VERDICT}. ${RATIONALE}\", \"action_session\": \"lean_runner_grader\"}" \
+                    -d "{\"target_type\": \"${STOP_TYPE}\", \"target_id\": \"${STOP_TARGET}\", \"content\": \"Grader verdict: ${VERDICT}. ${RATIONALE}\", \"action_session\": \"lean_runner_grader\"}" \
                     >> "${LOG_FILE}" 2>&1
-                send_telegram "⚠️ Grader: ${CARD_ID} verdict=${VERDICT}. Auto-cycle stopped. Review grader_reviews in Anvil."
-                log "GRADER: chain stopped at ${CARD_ID} — ${VERDICT}"
+                send_telegram "⚠️ Grader: ${STOP_TARGET} verdict=${VERDICT}. Auto-cycle stopped. Review grader_reviews in Anvil."
+                log "GRADER: chain stopped at ${STOP_TARGET} — ${VERDICT}"
                 exit 0
             fi
         else
