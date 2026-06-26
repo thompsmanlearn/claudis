@@ -27,18 +27,13 @@
 - **2026-06-26 (lean session — grader gate):** lean_runner.sh now gates node completion on grader evaluation — NODE_ID extracted from directive, grader block executes, node auto-marked done on pass. Fixed: auto_cycle_enabled boolean→string case mismatch was silently skipping grader on every cycle. Commits: claudis 06c6f7f, 129b4ef, c10f7ae, 301187a.
 - **2026-06-26 (Bill session — close-session x11):** Administrative close only. /wisdom-review finally executed today (2026-06-26T15:51:58 UTC) after 72+ days overdue — last_wisdom_review updated in system_config, wisdom_review work queue item marked complete.
 - **2026-06-26 (interactive — Node 1 grader test):** Node 1 executed: wrote "grader-test: Node 1 passed" to ~/aadp/grader_test.txt via Bash and confirmed read-back. Prior two grader FAILs resolved (first: wrong session artifact submitted; second: agent falsely skipped as stale). Grader evaluation pending next lean session trigger.
+- **2026-06-26 (interactive — close-session x12):** Administrative close only. Stale session_handoff queue items resolved.
 
 **Project arc next:** Trigger lean session to test grader gate end-to-end — lean_runner should grade Node 1 PASS and mark it done, then auto-cycle to next node. System tab pruning. Re-test deep research after arXiv IP rate limit clears.
 
 ---
 
 ## Handoff (pick up here)
-
-**2026-06-26 (lean session — grader gate + close x10):**
-- **What I was doing:** Built grader-gated node completion into lean_runner.sh: NODE_ID extraction, node path in grader block, lean_runner marks node done on pass. Fixed auto_cycle_enabled boolean→string comparison (was silently always-false — grader never ran). Then /close-session x10.
-- **What I learned:** system_config stores "true" as a string; shell `== "true"` comparison works, but bare boolean check `== true` fails silently. Silent failure in lean_runner grader path meant auto-cycle appeared to run while grader was completely bypassed the entire time.
-- **Continue:** FIRST (blocking): /wisdom-review before any other work. Then: test auto-cycle end-to-end with Node 1 now that grader gate is wired. Then: System tab pruning.
-- **Left better:** Grader gate functional end-to-end. Auto-cycle Node 1 can now be tested with real grader evaluation.
 
 **2026-06-26 (Bill session — close-session x11):**
 - **What I was doing:** Administrative close only. /wisdom-review executed earlier today (2026-06-26T15:51:58 UTC) — finally clearing the 72+ day overdue flag. wisdom_review queue item 52d32005 and stale session_handoff queue item both marked complete.
@@ -51,6 +46,12 @@
 - **What I learned:** Grader reads the session artifact, which is built from in-session tool calls. If the required Bash command never appears in the session, the artifact has no evidence — grader FAILs even if the file exists elsewhere. The action must appear in this session's tool calls.
 - **Continue:** Trigger a lean session so lean_runner's grader block evaluates Node 1 (grader_test.txt now exists with correct content) — should PASS and mark node done, then auto-cycle to next node. Then System tab pruning.
 - **Left better:** Node 1 file written with proper session evidence. Three prior attempts resolved.
+
+**2026-06-26 (interactive — close-session x12):**
+- **What I was doing:** Executed /close-session ritual (x12). Administrative only — no work product. Resolved two stale session_handoff queue items left pending from prior closes.
+- **What I learned:** Stale session_handoff items accumulate when each close writes a new queue entry without marking the previous one complete. Two items were pending simultaneously.
+- **Continue:** Trigger a lean session — lean_runner grader block should evaluate Node 1 (grader_test.txt exists with correct content) and PASS, marking done and auto-cycling. Then System tab pruning.
+- **Left better:** Two stale queue items cleaned. Handoff at 3 entries. TRAJECTORY.md current.
 
 ---
 
