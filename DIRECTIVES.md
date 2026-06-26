@@ -1,8 +1,8 @@
-# Project Node: Node 1: Boot-chain docs
+# Project Node: Node 3: State/process docs
 
 ## Goal
 
-Perform a reader audit for 6 boot-chain documents in ~/aadp/claudis/.
+Perform a reader audit for 5 state/process documents in ~/aadp/claudis/.
 
 For each document, grep the following files for the document filename (case-insensitive):
   ~/aadp/claudis/sentinel/lean_runner.sh
@@ -18,22 +18,22 @@ Classify each as:
   NO READER FOUND — nothing references it
 
 Documents to classify:
-  1. CONTEXT.md
-  2. CONVENTIONS.md
-  3. TRAJECTORY.md
-  4. DIRECTIVES.md
-  5. BACKLOG.md
-  6. LEAN_BOOT.md
+  1. PROJECT_STATE.md  (~/aadp/claudis/PROJECT_STATE.md — the file being classified, not the grep targets)
+  2. INQUIRIES.md
+  3. USERS_MANUAL.md
+  4. bootstrap.md  (~/aadp/claudis/bootstrap.md — the root-level file; the skill bootstrap.md at mcp-server/.claude/skills/ is a grep target, not this file)
+  5. anvil-redesign-principles-and-plan.md
 
 Run: mkdir -p ~/aadp/root_doc_audit
-Write findings to ~/aadp/root_doc_audit/node1.md. Include grep evidence per file (which grep targets matched).
+Write findings to ~/aadp/root_doc_audit/node3.md. Include grep evidence per file.
 
 REQUIRED FINAL STEP — mark this node done. Run mcp__aadp__supabase_exec_sql with this SQL:
-UPDATE aadp_project_nodes SET status='done', updated_at=NOW() WHERE id='8be3f7b3-50e0-4331-bf93-d9410c5e8091';
+UPDATE aadp_project_nodes SET status='done', updated_at=NOW() WHERE id='1e580d20-2f25-497c-8a67-4cde0ebc4413';
 Confirm result shows status: ok before this session closes.
 
+
 ## Context
-Classify 6 boot-chain docs: CONTEXT, CONVENTIONS, TRAJECTORY, DIRECTIVES, BACKLOG, LEAN_BOOT. No deps — runs in parallel with nodes 2/3/4.
+Classify 5 state/process docs: PROJECT_STATE, INQUIRIES, USERS_MANUAL, bootstrap, anvil-redesign-principles-and-plan. No deps — runs in parallel with nodes 1/2/4.
 
 ## Node ID
-8be3f7b3-50e0-4331-bf93-d9410c5e8091
+1e580d20-2f25-497c-8a67-4cde0ebc4413
