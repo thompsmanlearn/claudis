@@ -31,24 +31,25 @@
 - **2026-06-26 (interactive — close-session x13):** Administrative close only. Stale x12 session_handoff queue item resolved.
 - **2026-06-26 (interactive — close-session x14):** Administrative close only. Stale x13 session_handoff queue item resolved. Accumulation pattern: each /close-session must explicitly complete the prior session_handoff at ritual start.
 - **2026-06-27 (lean — B-138):** `set_auto_cycle_only(enabled)` callable added to uplink_server.py. Patches `system_config.auto_cycle_enabled` only — no n8n side effect. Verified both directions; n8n scheduler state unchanged. Commit 536ab03.
+- **2026-06-27 (interactive — B-140 + B-141):** Projects tab live. Dashboard now 4 tabs: Home/Workpad/Projects/System. Four new callables: `get_project_progress`, `get_active_project`, `start_project`, `abandon_project`. B-141 structure verified against Grader-Gated Node Completion Test project. Commits: claudis 8433bc7, claude-dashboard 52d4b57.
 
-**Project arc next:** B-139 (decompose_goal callable) or B-140 (Projects tab UI) are the next cards. Grader gate end-to-end test still pending (Node 1 grader_test.txt exists). System tab pruning. Re-test deep research after arXiv IP rate limit clears.
+**Project arc next:** B-139 (decompose_goal) is done (already existed from prior session). B-140 + B-141 done this session. Grader gate end-to-end test still pending lean session trigger. System tab pruning. Next backlog card is B-142 or higher.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-06-26 (interactive — close-session x14):**
-- **What I was doing:** Executed /close-session ritual (x14). Administrative only — no work product. Resolved stale x13 session_handoff queue item at ritual start per established pattern.
-- **What I learned:** The close-session ritual must explicitly complete the prior session_handoff queue item at Step 1, otherwise they accumulate. Pattern is now explicit.
-- **Continue:** Trigger a lean session — lean_runner grader block should evaluate Node 1 (grader_test.txt exists with correct content) and PASS, marking done and auto-cycling. Then System tab pruning.
-- **Left better:** Stale x13 queue item cleaned.
-
 **2026-06-27 (lean — B-138):**
-- **What I was doing:** Added `set_auto_cycle_only(enabled)` callable to uplink_server.py. Verified both directions and confirmed n8n scheduler untouched. Commit 536ab03.
-- **What I learned:** The Projects tab (B-140) needs to toggle auto_cycle independently of the growth scheduler — this callable is the missing piece for that wiring.
-- **Continue:** B-139 (decompose_goal) or B-140 (Projects tab) are the next cards per backlog order. Node 1 grader test still pending a lean session trigger.
+- **What I was doing:** Added `set_auto_cycle_only(enabled)` callable to uplink_server.py.
+- **What I learned:** The Projects tab (B-140) needs to toggle auto_cycle independently of the growth scheduler.
+- **Continue:** B-140 (Projects tab) is the next card per backlog order.
 - **Left better:** `set_auto_cycle_only` callable live on main; Anvil service restarted and connected.
+
+**2026-06-27 (interactive — B-140 + B-141):**
+- **What I was doing:** Built Projects tab (3-state Anvil UI) + 4 new uplink callables. Design-review gate fired at boot — proceeded with Bill's explicit approval.
+- **What I learned:** `grader_reviews.card_id` holds the project node UUID (not `target_id`). The Projects tab design-review marker is missing but Bill waived it — worth adding retroactively if a second pass occurs.
+- **Continue:** Trigger a lean session for grader gate end-to-end test. Then System tab pruning (pending backlog). Node 1 grader_test.txt still exists and is ready.
+- **Left better:** Projects tab live; `get_project_progress` verified against test project with correct Node 1/2/3 verdicts.
 
 ---
 
