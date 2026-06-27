@@ -1,10 +1,10 @@
-# Project Node: Define error log data schema and query
+# Project Node: Verify error data source returns expected results
 
 ## Goal
-Write spec doc to file defining the query for unresolved error count and recent 3 errors. Print full file contents and the exact SQL/MCP query used.
+Run the count query and recent-3 query against the live data source. Print verbatim tool output showing the returned count value and the 3 most recent error message rows.
 
 ## Context
-Need a structured spec for fetching unresolved error count and 3 most recent messages from the data source before building UI.
+Confirm the query from the spec actually returns count and recent errors from Supabase/error store before wiring UI.
 
 ## Node ID
-5939bc2b-ae52-42b0-b984-1e5fff6668be
+5a4ddc74-5730-46f5-94a2-32a7f7eb367e
