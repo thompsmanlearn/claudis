@@ -451,6 +451,123 @@ def set_auto_cycle_only(enabled):
 
 
 @anvil.server.callable
+def decompose_goal(goal, revision_notes='', prior_project_id=None):
+    """Use Opus 4.8 to decompose a goal into a draft aadp_project with linear nodes."""
+    prior_context = ''
+    if revision_notes and prior_project_id:
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/aadp_project_nodes',
+            headers=_HEADERS,
+            params={
+                'project_id': f'eq.{prior_project_id}',
+                'order': 'created_at.asc',
+                'select': 'name,type,context,acceptance_criteria',
+            },
+            timeout=5,
+        )
+        if r.ok and r.json():
+            node_list = '\n'.join(
+                f'{i+1}. [{n["type"]}] {n["name"]}: {n["acceptance_criteria"]}'
+                for i, n in enumerate(r.json())
+            )
+            prior_context = (
+                f'\n\nPrior decomposition:\n{node_list}'
+                f'\n\nRevision notes: {revision_notes}'
+                '\nRevise the plan based on the notes. This will create a NEW project.'
+            )
+        else:
+            prior_context = f'\n\nRevision notes: {revision_notes}'
+    elif revision_notes:
+        prior_context = f'\n\nRevision notes: {revision_notes}'
+
+    system_prompt = (
+        'You are a planning assistant for the AADP autonomous system. '
+        'The system runs lean sessions where Claude Code executes directive cards. '
+        'Each session can use: Bash commands, MCP tools (Supabase queries/writes, '
+        'memory search, system status, work queue management), file writes and reads, '
+        'and Python scripts.\n\n'
+        'Node types:\n'
+        '- write: produce a document, plan, or structured data artifact\n'
+        '- build: implement code, callables, or database changes\n'
+        '- polish: review, test, verify, or clean up prior work\n\n'
+        'Acceptance criteria convention: every node\'s acceptance_criteria MUST instruct '
+        'Claude to print verbatim evidence in its session response (tool outputs, file '
+        'contents, command results). The grader evaluates solely on what appears in the '
+        'log — "did the action" is insufficient.\n\n'
+        'Respond with ONLY valid JSON, no markdown fences, no explanation:\n'
+        '{"project_name":"short title ≤50 chars","nodes":[{"name":"≤60 chars",'
+        '"type":"write|build|polish","context":"why this step and its inputs ≤200 chars",'
+        '"acceptance_criteria":"what to do AND what to print as evidence ≤300 chars"}]}'
+    )
+
+    user_content = f'Goal: {goal}{prior_context}\n\nDecompose into 3–7 linear nodes.'
+
+    client = anthropic.Anthropic(api_key=_ENV.get('ANTHROPIC_API_KEY', ''))
+    with client.messages.stream(
+        model='claude-opus-4-8',
+        max_tokens=4096,
+        thinking={'type': 'adaptive'},
+        system=system_prompt,
+        messages=[{'role': 'user', 'content': user_content}],
+    ) as stream:
+        msg = stream.get_final_message()
+
+    text = next((b.text for b in msg.content if b.type == 'text'), '')
+    stripped = re.sub(r'^```(?:json)?\s*\n?', '', text.strip())
+    stripped = re.sub(r'\n?```\s*$', '', stripped.strip())
+    try:
+        plan = json.loads(stripped)
+    except json.JSONDecodeError as e:
+        raise Exception(f'Opus JSON parse failure: {e}\nRaw: {text[:300]}')
+
+    project_name = plan.get('project_name', goal[:50])
+    nodes = plan.get('nodes', [])
+    if not nodes:
+        raise Exception('Opus returned no nodes')
+
+    r = requests.post(
+        f'{_SUPABASE_URL}/rest/v1/aadp_projects',
+        headers={**_HEADERS, 'Prefer': 'return=representation'},
+        json={'name': project_name, 'goal': goal, 'status': 'draft'},
+        timeout=5,
+    )
+    r.raise_for_status()
+    project_id = r.json()[0]['id']
+
+    inserted_nodes = []
+    prev_id = None
+    for node in nodes:
+        payload = {
+            'project_id': project_id,
+            'name': node['name'],
+            'type': node['type'],
+            'context': node.get('context', ''),
+            'acceptance_criteria': node.get('acceptance_criteria', ''),
+            'status': 'pending',
+            'dependencies': [prev_id] if prev_id else [],
+        }
+        r = requests.post(
+            f'{_SUPABASE_URL}/rest/v1/aadp_project_nodes',
+            headers={**_HEADERS, 'Prefer': 'return=representation'},
+            json=payload,
+            timeout=5,
+        )
+        r.raise_for_status()
+        node_id = r.json()[0]['id']
+        inserted_nodes.append({
+            'id': node_id,
+            'name': node['name'],
+            'type': node['type'],
+            'context': node.get('context', ''),
+            'acceptance_criteria': node.get('acceptance_criteria', ''),
+        })
+        prev_id = node_id
+
+    log.info('decompose_goal: project %s (%s), %d nodes', project_id, project_name, len(inserted_nodes))
+    return {'project_id': project_id, 'project_name': project_name, 'nodes': inserted_nodes}
+
+
+@anvil.server.callable
 def retire_agent(agent_name, reason=''):
     """Retire an agent: set status=retired in agent_registry, write annotation."""
     r = requests.patch(
