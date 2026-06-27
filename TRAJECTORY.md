@@ -34,12 +34,19 @@
 - **2026-06-27 (interactive — B-140 + B-141):** Projects tab live. Dashboard now 4 tabs: Home/Workpad/Projects/System. Four new callables: `get_project_progress`, `get_active_project`, `start_project`, `abandon_project`. B-141 structure verified against Grader-Gated Node Completion Test project. Commits: claudis 8433bc7, claude-dashboard 52d4b57.
 - **2026-06-27 (lean — Home Tab Error Log Indicator, Node 1):** Wrote `architecture/specs/error-log-query-spec.md` — schema, count query, recent-3 query, UI contract for unresolved error badge. Both SQL queries verified live against `error_logs`. Commit d325dc1.
 - **2026-06-27 (interactive — close-session x15):** Administrative close only.
+- **2026-06-27 (interactive — close-session x16):** Administrative close only. Prior B-140 session_handoff work_queue item resolved. Two stale grader-FAIL feedback items marked deferred.
 
-**Project arc next:** Grader gate end-to-end test pending lean session trigger. Node 2 of Home Tab Error Log Indicator (build uplink callable). System tab pruning. Next backlog card is B-142 or higher.
+**Project arc next:** Grader gate end-to-end test pending lean session trigger. Node 2 of Home Tab Error Log Indicator (build uplink callable in uplink_server.py wrapping both SQL queries from architecture/specs/error-log-query-spec.md). System tab pruning. Next backlog card is B-142 or higher.
 
 ---
 
 ## Handoff (pick up here)
+
+**2026-06-27 (interactive — close-session x16):**
+- **What I was doing:** Administrative close ritual only — no code work.
+- **What I learned:** Nothing new this session.
+- **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable in uplink_server.py that wraps both SQL queries from architecture/specs/error-log-query-spec.md (unresolved count + recent 3 errors). Grader will evaluate this node on next lean trigger.
+- **Left better:** TRAJECTORY.md updated, session artifact committed, stale work_queue items cleared.
 
 **2026-06-27 (interactive — close-session x15):**
 - **What I was doing:** Administrative close ritual only — no code work.
