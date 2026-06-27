@@ -435,6 +435,22 @@ def set_autonomous_mode(enabled):
 
 
 @anvil.server.callable
+def set_auto_cycle_only(enabled):
+    """Set auto_cycle_enabled in system_config without touching the growth scheduler."""
+    enabled = bool(enabled)
+    r = requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/system_config',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'key': 'eq.auto_cycle_enabled'},
+        json={'value': enabled},
+        timeout=5,
+    )
+    r.raise_for_status()
+    log.info('auto_cycle_only set to %s', enabled)
+    return {'enabled': enabled}
+
+
+@anvil.server.callable
 def retire_agent(agent_name, reason=''):
     """Retire an agent: set status=retired in agent_registry, write annotation."""
     r = requests.patch(
