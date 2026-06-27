@@ -30,24 +30,25 @@
 - **2026-06-26 (interactive — close-session x12):** Administrative close only. Stale session_handoff queue items resolved.
 - **2026-06-26 (interactive — close-session x13):** Administrative close only. Stale x12 session_handoff queue item resolved.
 - **2026-06-26 (interactive — close-session x14):** Administrative close only. Stale x13 session_handoff queue item resolved. Accumulation pattern: each /close-session must explicitly complete the prior session_handoff at ritual start.
+- **2026-06-27 (lean — B-138):** `set_auto_cycle_only(enabled)` callable added to uplink_server.py. Patches `system_config.auto_cycle_enabled` only — no n8n side effect. Verified both directions; n8n scheduler state unchanged. Commit 536ab03.
 
-**Project arc next:** Trigger lean session to test grader gate end-to-end — lean_runner should grade Node 1 PASS and mark it done, then auto-cycle to next node. System tab pruning. Re-test deep research after arXiv IP rate limit clears.
+**Project arc next:** B-139 (decompose_goal callable) or B-140 (Projects tab UI) are the next cards. Grader gate end-to-end test still pending (Node 1 grader_test.txt exists). System tab pruning. Re-test deep research after arXiv IP rate limit clears.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-06-26 (interactive — Node 1 grader test):**
-- **What I was doing:** Executed Node 1 directive: wrote "grader-test: Node 1 passed" to ~/aadp/grader_test.txt via Bash, confirmed read-back. Prior two grader FAILs for this node (wrong artifact; false stale skip).
-- **What I learned:** Grader reads the session artifact, which is built from in-session tool calls. If the required Bash command never appears in the session, the artifact has no evidence — grader FAILs even if the file exists elsewhere. The action must appear in this session's tool calls.
-- **Continue:** Trigger a lean session so lean_runner's grader block evaluates Node 1 (grader_test.txt now exists with correct content) — should PASS and mark node done, then auto-cycle to next node. Then System tab pruning.
-- **Left better:** Node 1 file written with proper session evidence. Three prior attempts resolved.
-
 **2026-06-26 (interactive — close-session x14):**
 - **What I was doing:** Executed /close-session ritual (x14). Administrative only — no work product. Resolved stale x13 session_handoff queue item at ritual start per established pattern.
 - **What I learned:** The close-session ritual must explicitly complete the prior session_handoff queue item at Step 1, otherwise they accumulate. Pattern is now explicit.
 - **Continue:** Trigger a lean session — lean_runner grader block should evaluate Node 1 (grader_test.txt exists with correct content) and PASS, marking done and auto-cycling. Then System tab pruning.
-- **Left better:** Stale x13 queue item cleaned. Handoff consolidated to 2 entries (trimmed repetitive x12/x13 admin notes). TRAJECTORY.md current.
+- **Left better:** Stale x13 queue item cleaned.
+
+**2026-06-27 (lean — B-138):**
+- **What I was doing:** Added `set_auto_cycle_only(enabled)` callable to uplink_server.py. Verified both directions and confirmed n8n scheduler untouched. Commit 536ab03.
+- **What I learned:** The Projects tab (B-140) needs to toggle auto_cycle independently of the growth scheduler — this callable is the missing piece for that wiring.
+- **Continue:** B-139 (decompose_goal) or B-140 (Projects tab) are the next cards per backlog order. Node 1 grader test still pending a lean session trigger.
+- **Left better:** `set_auto_cycle_only` callable live on main; Anvil service restarted and connected.
 
 ---
 
