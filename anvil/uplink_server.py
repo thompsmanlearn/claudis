@@ -4535,12 +4535,12 @@ def start_project(project_id):
         raise Exception('No nodes found for project')
     node = nodes[0]
 
-    directive = (
-        f'# Project Node: {node["name"]}\n'
-        f'Type: {node["type"]}\n'
-        f'Node ID: {node["id"]}\n'
-        f'Acceptance criteria: {node["acceptance_criteria"]}\n'
-    )
+    directive = '\n'.join([
+        f'# Project Node: {node["name"]}', '',
+        '## Goal', node.get('acceptance_criteria', ''), '',
+        '## Context', node.get('context', ''), '',
+        '## Node ID', node['id'], '',
+    ])
     directives_path = os.path.expanduser('~/aadp/claudis/DIRECTIVES.md')
     with open(directives_path, 'w') as f:
         f.write(directive)
