@@ -33,6 +33,7 @@
 - **2026-06-27 (lean — B-138):** `set_auto_cycle_only(enabled)` callable added to uplink_server.py. Patches `system_config.auto_cycle_enabled` only — no n8n side effect. Verified both directions; n8n scheduler state unchanged. Commit 536ab03.
 - **2026-06-27 (interactive — B-140 + B-141):** Projects tab live. Dashboard now 4 tabs: Home/Workpad/Projects/System. Four new callables: `get_project_progress`, `get_active_project`, `start_project`, `abandon_project`. B-141 structure verified against Grader-Gated Node Completion Test project. Commits: claudis 8433bc7, claude-dashboard 52d4b57.
 - **2026-06-27 (lean — Home Tab Error Log Indicator, Node 1):** Wrote `architecture/specs/error-log-query-spec.md` — schema, count query, recent-3 query, UI contract for unresolved error badge. Both SQL queries verified live against `error_logs`. Commit d325dc1.
+- **2026-06-27 (interactive — close-session x15):** Administrative close only.
 
 **Project arc next:** Grader gate end-to-end test pending lean session trigger. Node 2 of Home Tab Error Log Indicator (build uplink callable). System tab pruning. Next backlog card is B-142 or higher.
 
@@ -40,11 +41,11 @@
 
 ## Handoff (pick up here)
 
-**2026-06-27 (lean — Home Tab Error Log Indicator, Node 1):**
-- **What I was doing:** Wrote error log query spec doc (architecture/specs/error-log-query-spec.md) for the Home Tab Error Log Indicator project.
-- **What I learned:** The project management tables are `aadp_projects` / `aadp_project_nodes`, not `projects` / `project_nodes` — wrong table name returns empty rather than error.
-- **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable that wraps both SQL queries. Grader will evaluate this node on next lean trigger.
-- **Left better:** Spec doc committed on main (d325dc1); both queries verified live.
+**2026-06-27 (interactive — close-session x15):**
+- **What I was doing:** Administrative close ritual only — no code work.
+- **What I learned:** Nothing new this session.
+- **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable that wraps both SQL queries from the spec doc (architecture/specs/error-log-query-spec.md). Grader will evaluate this node on next lean trigger.
+- **Left better:** TRAJECTORY.md updated and session artifact committed.
 
 ---
 
