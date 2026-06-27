@@ -32,24 +32,19 @@
 - **2026-06-26 (interactive — close-session x14):** Administrative close only. Stale x13 session_handoff queue item resolved. Accumulation pattern: each /close-session must explicitly complete the prior session_handoff at ritual start.
 - **2026-06-27 (lean — B-138):** `set_auto_cycle_only(enabled)` callable added to uplink_server.py. Patches `system_config.auto_cycle_enabled` only — no n8n side effect. Verified both directions; n8n scheduler state unchanged. Commit 536ab03.
 - **2026-06-27 (interactive — B-140 + B-141):** Projects tab live. Dashboard now 4 tabs: Home/Workpad/Projects/System. Four new callables: `get_project_progress`, `get_active_project`, `start_project`, `abandon_project`. B-141 structure verified against Grader-Gated Node Completion Test project. Commits: claudis 8433bc7, claude-dashboard 52d4b57.
+- **2026-06-27 (lean — Home Tab Error Log Indicator, Node 1):** Wrote `architecture/specs/error-log-query-spec.md` — schema, count query, recent-3 query, UI contract for unresolved error badge. Both SQL queries verified live against `error_logs`. Commit d325dc1.
 
-**Project arc next:** B-139 (decompose_goal) is done (already existed from prior session). B-140 + B-141 done this session. Grader gate end-to-end test still pending lean session trigger. System tab pruning. Next backlog card is B-142 or higher.
+**Project arc next:** Grader gate end-to-end test pending lean session trigger. Node 2 of Home Tab Error Log Indicator (build uplink callable). System tab pruning. Next backlog card is B-142 or higher.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-06-27 (lean — B-138):**
-- **What I was doing:** Added `set_auto_cycle_only(enabled)` callable to uplink_server.py.
-- **What I learned:** The Projects tab (B-140) needs to toggle auto_cycle independently of the growth scheduler.
-- **Continue:** B-140 (Projects tab) is the next card per backlog order.
-- **Left better:** `set_auto_cycle_only` callable live on main; Anvil service restarted and connected.
-
-**2026-06-27 (interactive — B-140 + B-141):**
-- **What I was doing:** Built Projects tab (3-state Anvil UI) + 4 new uplink callables. Design-review gate fired at boot — proceeded with Bill's explicit approval.
-- **What I learned:** `grader_reviews.card_id` holds the project node UUID (not `target_id`). The Projects tab design-review marker is missing but Bill waived it — worth adding retroactively if a second pass occurs.
-- **Continue:** Trigger a lean session for grader gate end-to-end test. Then System tab pruning (pending backlog). Node 1 grader_test.txt still exists and is ready.
-- **Left better:** Projects tab live; `get_project_progress` verified against test project with correct Node 1/2/3 verdicts.
+**2026-06-27 (lean — Home Tab Error Log Indicator, Node 1):**
+- **What I was doing:** Wrote error log query spec doc (architecture/specs/error-log-query-spec.md) for the Home Tab Error Log Indicator project.
+- **What I learned:** The project management tables are `aadp_projects` / `aadp_project_nodes`, not `projects` / `project_nodes` — wrong table name returns empty rather than error.
+- **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable that wraps both SQL queries. Grader will evaluate this node on next lean trigger.
+- **Left better:** Spec doc committed on main (d325dc1); both queries verified live.
 
 ---
 
