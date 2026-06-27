@@ -4404,7 +4404,7 @@ def get_project_progress(project_id):
         f'{_SUPABASE_URL}/rest/v1/aadp_projects',
         headers=_HEADERS,
         params={'id': f'eq.{project_id}', 'select': 'id,name,goal,status'},
-        timeout=5,
+        timeout=10,
     )
     r.raise_for_status()
     rows = r.json()
