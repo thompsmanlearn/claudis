@@ -4397,6 +4397,182 @@ def get_bill_input_response():
     }
 
 
+@anvil.server.callable
+def get_project_progress(project_id):
+    """Return project, nodes with grader info, session status, and auto_cycle_enabled."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/aadp_projects',
+        headers=_HEADERS,
+        params={'id': f'eq.{project_id}', 'select': 'id,name,goal,status'},
+        timeout=5,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows:
+        raise Exception(f'Project {project_id} not found')
+    project = rows[0]
+
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/aadp_project_nodes',
+        headers=_HEADERS,
+        params={
+            'project_id': f'eq.{project_id}',
+            'select': 'id,name,type,status,dependencies,acceptance_criteria,created_at',
+            'order': 'created_at.asc',
+        },
+        timeout=5,
+    )
+    r.raise_for_status()
+    nodes = r.json()
+
+    grader_by_node = {}
+    if nodes:
+        node_ids_csv = ','.join(n['id'] for n in nodes)
+        r = requests.get(
+            f'{_SUPABASE_URL}/rest/v1/grader_reviews',
+            headers=_HEADERS,
+            params={
+                'card_id': f'in.({node_ids_csv})',
+                'select': 'card_id,verdict,rationale',
+                'order': 'created_at.desc',
+            },
+            timeout=5,
+        )
+        r.raise_for_status()
+        for gr in r.json():
+            cid = gr['card_id']
+            if cid not in grader_by_node:
+                grader_by_node[cid] = gr
+
+    for n in nodes:
+        gr = grader_by_node.get(n['id'])
+        n['grader_verdict'] = gr['verdict'] if gr else None
+        n['grader_rationale'] = gr['rationale'] if gr and gr['verdict'] in ('fail', 'pause') else None
+        n.pop('created_at', None)
+
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/session_status',
+        headers=_HEADERS,
+        params={'order': 'updated_at.desc', 'limit': '1'},
+        timeout=5,
+    )
+    r.raise_for_status()
+    ss_rows = r.json()
+    session = None
+    if ss_rows:
+        ss = ss_rows[0]
+        session = {
+            'phase': ss.get('phase'),
+            'current_action': ss.get('current_action'),
+            'updated_at': ss.get('updated_at'),
+        }
+
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/system_config',
+        headers=_HEADERS,
+        params={'key': 'eq.auto_cycle_enabled', 'select': 'value'},
+        timeout=5,
+    )
+    r.raise_for_status()
+    cfg_rows = r.json()
+    auto_cycle = False
+    if cfg_rows:
+        val = cfg_rows[0].get('value')
+        if isinstance(val, bool):
+            auto_cycle = val
+        elif isinstance(val, str):
+            auto_cycle = val.lower() == 'true'
+
+    log.info('get_project_progress: project=%s nodes=%d auto_cycle=%s', project_id, len(nodes), auto_cycle)
+    return {'project': project, 'nodes': nodes, 'session': session, 'auto_cycle_enabled': auto_cycle}
+
+
+@anvil.server.callable
+def abandon_project(project_id):
+    """Set an aadp_project status to abandoned."""
+    requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/aadp_projects',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{project_id}'},
+        json={'status': 'abandoned'},
+        timeout=5,
+    ).raise_for_status()
+    log.info('abandon_project: %s', project_id)
+    return {'abandoned': True}
+
+
+@anvil.server.callable
+def get_active_project():
+    """Return the first active aadp_project, or None."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/aadp_projects',
+        headers=_HEADERS,
+        params={'status': 'eq.active', 'select': 'id,name,goal,status', 'limit': '1'},
+        timeout=5,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    return rows[0] if rows else None
+
+
+@anvil.server.callable
+def start_project(project_id):
+    """Write node 1 to DIRECTIVES.md, commit+push, set project active, trigger lean."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/aadp_project_nodes',
+        headers=_HEADERS,
+        params={
+            'project_id': f'eq.{project_id}',
+            'select': 'id,name,type,acceptance_criteria',
+            'order': 'created_at.asc',
+            'limit': '1',
+        },
+        timeout=5,
+    )
+    r.raise_for_status()
+    nodes = r.json()
+    if not nodes:
+        raise Exception('No nodes found for project')
+    node = nodes[0]
+
+    directive = (
+        f'# Project Node: {node["name"]}\n'
+        f'Type: {node["type"]}\n'
+        f'Node ID: {node["id"]}\n'
+        f'Acceptance criteria: {node["acceptance_criteria"]}\n'
+    )
+    directives_path = os.path.expanduser('~/aadp/claudis/DIRECTIVES.md')
+    with open(directives_path, 'w') as f:
+        f.write(directive)
+
+    claudis_dir = os.path.expanduser('~/aadp/claudis')
+    for cmd in [
+        ['git', '-C', claudis_dir, 'add', 'DIRECTIVES.md'],
+        ['git', '-C', claudis_dir, 'commit', '-m', f'start_project: node 1 of {project_id[:8]}'],
+        ['git', '-C', claudis_dir, 'push'],
+    ]:
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise Exception(f'{cmd[2]} failed: {res.stderr}')
+
+    requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/aadp_projects',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'id': f'eq.{project_id}'},
+        json={'status': 'active'},
+        timeout=5,
+    ).raise_for_status()
+
+    triggered = False
+    try:
+        triggered = requests.post('http://localhost:9100/trigger_lean', timeout=10).ok
+    except Exception:
+        pass
+
+    log.info('start_project: project=%s node=%s triggered=%s', project_id, node['id'], triggered)
+    return {'started': True, 'node_id': node['id'], 'triggered': triggered}
+
+
 log.info('Connecting to Anvil uplink...')
 anvil.server.connect(_ENV['ANVIL_UPLINK_KEY'])
 log.info('Uplink connected — waiting for calls.')
