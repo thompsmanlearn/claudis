@@ -1,6 +1,6 @@
 # CARRY_QUESTIONS.md
 # Auto-generated. Read at desktop session start.
-# Generated: 2026-06-26 02:10 UTC
+# Generated: 2026-06-27 19:23 UTC
 
 - **Thread question** [e0560a85]: What does the Scientist-Bench evaluation in AI-Researcher reveal quantitatively about autonomous research quality compared to human researchers or baseline systems?
 - **Thread question** [e0560a85]: What are documented examples of autonomous AI agents deployed in non-AI scientific domains (e.g., drug discovery, materials science, climate modeling) with measured impact on research output?
@@ -27,13 +27,13 @@
 (prompted by: The framing determines what counts as useful and 
 - **Thread question** [1b3a5cd9]: What are the primary failure modes when non-engineers attempt to build or configure agents—capability mismatch, debugging opacity, integration limits, or something else?
 (prompted by: Understanding wh
+- **Grader FAIL** [e9fb1b46-3b29-41b7-bdc8-fb0d4578787b]: The task required including the FULL command output verbatim from attempting to read /nonexistent/grader-proof.txt, but the artifact never shows the actual command being run or its raw output. The age
+- **Grader FAIL** [2165e3d0-8202-45c3-ba70-84ac0f98720a]: The session artifact describes writing the file and confirms a read-back in narrative prose, but provides no actual Bash tool output, no file contents, and no concrete evidence that the file was creat
+- **Grader FAIL** [2165e3d0-8202-45c3-ba70-84ac0f98720a]: The session artifact shows the agent treated the card as 'stale' and skipped executing it, citing that the file was 'already written.' There is no evidence in the artifact that the Bash tool was used 
+- **Grader FAIL** [2165e3d0-8202-45c3-ba70-84ac0f98720a]: The done-when criterion required actually executing a Bash tool command to write 'grader-test: Node 1 passed' to ~/aadp/grader_test.txt and confirming by reading it back. The session artifact contains
 - **Grader FAIL** [B-115-cmt]: None of the done-when criteria are met. The artifact shows no evidence of any database update to the `agents` table row for `architecture_review`. The git changes and changed files are entirely unrela
 - **Grader PAUSE** [B-071]: The session artifact describes successful completion of all substantive work (trigger, six callables, smoke test, restart, cleanup), but the git commit evidence only shows the session artifact markdow
 - **Grader PAUSE** [B-080]: The core implementation appears complete and functionally verified in components, but the commit only contains the session artifact markdown file — no uplink_server.py changes are committed to claudis
 - **Grader PAUSE** [B-073]: The session artifact describes completing all major implementation tasks (callables, UI affordances, branch/merge), but the artifact available for grading is only the session markdown log — no actual 
 - **Grader PAUSE** [B-079]: The session artifact describes the work comprehensively and the logic is sound, but the git commit evidence is critically weak: the only committed file is the session artifact markdown itself. There i
 - **Grader FAIL** [B-078]: The session artifact describes work that was done, but the git evidence shows only a single commit adding the session markdown file itself — no commits to Form1/__init__.py, uplink_server.py, or anvil
-- **Grader PAUSE** [B-082]: The core implementation work (fetcher function, configuration constant, wiring, smoke test, documentation, deployment) is well-evidenced in the session artifact, but the git commit cited in the artifa
-- **Grader FAIL** [B-083]: The session artifact describes the correct implementation approach, but the git evidence shows only a session artifact markdown file was committed — no changes to Form1/__init__.py were pushed. The co
-- **Grader PAUSE** [B-084]: The work is substantively correct and all structural goals were achieved, but two criteria are definitively not met: LEAN_BOOT.md is 96 lines (not under 60), and the pointer line format does not exact
-- **Grader PAUSE** [B-080]: The core implementation is substantive and well-documented, with DDL, uplink callable, HTTP endpoint, n8n workflow update, and idempotency all confirmed in the artifact. However, the git commit contai
