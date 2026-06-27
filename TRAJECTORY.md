@@ -35,6 +35,7 @@
 - **2026-06-27 (lean — Home Tab Error Log Indicator, Node 1):** Wrote `architecture/specs/error-log-query-spec.md` — schema, count query, recent-3 query, UI contract for unresolved error badge. Both SQL queries verified live against `error_logs`. Commit d325dc1.
 - **2026-06-27 (interactive — close-session x15):** Administrative close only.
 - **2026-06-27 (interactive — close-session x16):** Administrative close only. Prior B-140 session_handoff work_queue item resolved. Two stale grader-FAIL feedback items marked deferred.
+- **2026-06-27 (interactive — close-session x17):** Administrative close only. No session_handoff items pending at open. wisdom-review cadence confirmed current (2026-06-26).
 
 **Project arc next:** Grader gate end-to-end test pending lean session trigger. Node 2 of Home Tab Error Log Indicator (build uplink callable in uplink_server.py wrapping both SQL queries from architecture/specs/error-log-query-spec.md). System tab pruning. Next backlog card is B-142 or higher.
 
@@ -42,17 +43,17 @@
 
 ## Handoff (pick up here)
 
+**2026-06-27 (interactive — close-session x17):**
+- **What I was doing:** Administrative close ritual only — no code work.
+- **What I learned:** Nothing new this session.
+- **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable in uplink_server.py that wraps both SQL queries from architecture/specs/error-log-query-spec.md (unresolved count + recent 3 errors). Grader will evaluate this node on next lean trigger.
+- **Left better:** TRAJECTORY.md updated and session artifact committed.
+
 **2026-06-27 (interactive — close-session x16):**
 - **What I was doing:** Administrative close ritual only — no code work.
 - **What I learned:** Nothing new this session.
 - **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable in uplink_server.py that wraps both SQL queries from architecture/specs/error-log-query-spec.md (unresolved count + recent 3 errors). Grader will evaluate this node on next lean trigger.
 - **Left better:** TRAJECTORY.md updated, session artifact committed, stale work_queue items cleared.
-
-**2026-06-27 (interactive — close-session x15):**
-- **What I was doing:** Administrative close ritual only — no code work.
-- **What I learned:** Nothing new this session.
-- **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable that wraps both SQL queries from the spec doc (architecture/specs/error-log-query-spec.md). Grader will evaluate this node on next lean trigger.
-- **Left better:** TRAJECTORY.md updated and session artifact committed.
 
 ---
 
