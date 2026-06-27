@@ -4563,6 +4563,14 @@ def start_project(project_id):
         timeout=5,
     ).raise_for_status()
 
+    requests.patch(
+        f'{_SUPABASE_URL}/rest/v1/system_config',
+        headers={**_HEADERS, 'Prefer': 'return=minimal'},
+        params={'key': 'eq.auto_cycle_enabled'},
+        json={'value': True},
+        timeout=5,
+    ).raise_for_status()
+
     triggered = False
     try:
         triggered = requests.post('http://localhost:9100/trigger_lean', timeout=10).ok
