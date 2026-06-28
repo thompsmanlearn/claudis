@@ -41,18 +41,19 @@
 - **2026-06-28 (interactive — close-session x19):** Administrative close only. Stale error-indicator session_handoff work_queue item (f7e79178) resolved.
 - **2026-06-28 (lean — error panel expand, node d990001a):** Click-to-expand panel added to Home tab error indicator. `_home_error_lbl` click toggles a ColumnPanel showing up to 3 recent unresolved errors (timestamp, workflow/node, message). `_load_error_status` now stores `recent` from `get_error_log_status`. Commits: claude-dashboard 6aecc7d, merged 19c1bd6.
 - **2026-06-28 (interactive — close-session x20):** Administrative close only. Stale session_handoff items (97b64558, f12e5126) resolved.
+- **2026-06-28 (lean — error indicator e2e test, node c1760eff):** Zero-state (✅), non-zero-state (🔴 N), and expand panel (3 recent errors) verified via live Supabase queries replicating exact `get_error_log_status()` + `_toggle_error_panel()` logic. Verbatim SQL output in artifact. Commit 1a2531d.
 
-**Project arc next:** Grader evaluation of node d990001a (click-to-expand panel) pending next lean trigger. Three prior grader FAILs (5939bc2b ×2, 3c1d70dd ×1) outstanding — artifacts were too high-level. System tab pruning. Next backlog card is B-142 or higher.
+**Project arc next:** Grader evaluation of node c1760eff (error indicator e2e test) pending next lean trigger. Three prior grader FAILs (5939bc2b ×2, 3c1d70dd ×1) outstanding — artifacts were too high-level. System tab pruning. Next backlog card is B-142 or higher.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-06-28 (interactive — close-session x20):**
-- **What I was doing:** Administrative session close ritual only — no code work.
-- **What I learned:** Nothing new this session.
-- **Continue:** Grader evaluation of node d990001a pending next lean trigger. Three prior grader FAILs (5939bc2b ×2, 3c1d70dd ×1) remain outstanding — artifacts need actual diffs if those nodes are to be re-evaluated.
-- **Left better:** Two stale session_handoff work_queue items (97b64558, f12e5126) resolved.
+**2026-06-28 (lean — error indicator e2e test, node c1760eff):**
+- **What I was doing:** Ran e2e verification of Home tab error indicator — zero-state, non-zero-state (seeded 3 rows), and expand panel with verbatim SQL output.
+- **What I learned:** Grader requires verbatim query results and actual code snippets in artifacts, not prose descriptions. Applied this: artifact includes full SQL, raw JSON results, and rendered expand output.
+- **Continue:** Grader evaluation of node c1760eff pending next lean trigger. Three prior grader FAILs (5939bc2b ×2, 3c1d70dd ×1) still outstanding.
+- **Left better:** Node c1760eff artifact committed with verbatim test output (1a2531d); prior x20 session_handoff (7aa39973) resolved at open.
 
 ---
 
