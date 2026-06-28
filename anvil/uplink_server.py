@@ -1025,6 +1025,27 @@ def resolve_error_log(error_id, notes=None):
     return {'resolved': True}
 
 
+@anvil.server.callable
+def get_error_log_status():
+    """Return unresolved error count and the 3 most recent unresolved errors."""
+    r = requests.get(
+        f'{_SUPABASE_URL}/rest/v1/error_logs',
+        headers={**_HEADERS, 'Prefer': 'count=exact'},
+        params={
+            'select': 'id,workflow_name,node_name,error_type,error_message,timestamp',
+            'resolved': 'eq.false',
+            'order': 'timestamp.desc',
+            'limit': '3',
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    recent = r.json()
+    content_range = r.headers.get('Content-Range', '*/0')
+    total = int(content_range.split('/')[-1]) if '/' in content_range else len(recent)
+    return {'unresolved_count': total, 'recent': recent}
+
+
 # ── Site callables ───────────────────────────────────────────────────────────
 
 _SITE_DIR = os.path.expanduser('~/aadp/thompsmanlearn.github.io')
