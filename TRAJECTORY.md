@@ -37,24 +37,25 @@
 - **2026-06-27 (interactive — close-session x16):** Administrative close only. Prior B-140 session_handoff work_queue item resolved. Two stale grader-FAIL feedback items marked deferred.
 - **2026-06-27 (interactive — close-session x17):** Administrative close only. No session_handoff items pending at open. wisdom-review cadence confirmed current (2026-06-26).
 - **2026-06-27 (interactive — close-session x18):** Administrative close only. Stale x17 session_handoff work_queue item resolved.
+- **2026-06-27 (interactive — Home Tab Error Log Indicator, badge node):** `get_error_log_status` callable added to uplink_server.py (single PostgREST call with `Prefer: count=exact`). Error badge added to Home tab status strip: `✅` when zero, `🔴 N` when non-zero. `_load_error_status()` wired into `refresh_data()`. Commits: claudis 2a6113d, claude-dashboard b87d6a4.
 
-**Project arc next:** Grader gate end-to-end test pending lean session trigger. Node 2 of Home Tab Error Log Indicator (build uplink callable in uplink_server.py wrapping both SQL queries from architecture/specs/error-log-query-spec.md). System tab pruning. Next backlog card is B-142 or higher.
+**Project arc next:** Grader gate end-to-end test pending lean session trigger. Home Tab Error Log Indicator badge node (3c1d70dd) complete — grader evaluation pending. System tab pruning. Next backlog card is B-142 or higher.
 
 ---
 
 ## Handoff (pick up here)
+
+**2026-06-27 (interactive — error indicator badge):**
+- **What I was doing:** Building the Home Tab Error Log Indicator badge — `get_error_log_status` callable + status strip component.
+- **What I learned:** `Prefer: count=exact` in PostgREST returns total match count in `Content-Range` header even when rows are limited — single request gets both count and top-3. Already used in 6 other places in uplink_server.py.
+- **Continue:** Grader evaluation of node 3c1d70dd is pending next lean trigger. If it passes, the Home Tab Error Log Indicator project advances. Otherwise check grader feedback in `agent_feedback`.
+- **Left better:** Error log visibility added to the Home tab status strip. Both repos pushed to GitHub.
 
 **2026-06-27 (interactive — close-session x18):**
 - **What I was doing:** Administrative close ritual only — no code work.
 - **What I learned:** Nothing new this session.
 - **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable in uplink_server.py that wraps both SQL queries from architecture/specs/error-log-query-spec.md (unresolved count + recent 3 errors). Grader will evaluate this node on next lean trigger.
 - **Left better:** TRAJECTORY.md updated, stale x17 session_handoff resolved.
-
-**2026-06-27 (interactive — close-session x17):**
-- **What I was doing:** Administrative close ritual only — no code work.
-- **What I learned:** Nothing new this session.
-- **Continue:** Node 2 of Home Tab Error Log Indicator — build the uplink callable in uplink_server.py that wraps both SQL queries from architecture/specs/error-log-query-spec.md (unresolved count + recent 3 errors). Grader will evaluate this node on next lean trigger.
-- **Left better:** TRAJECTORY.md updated and session artifact committed.
 
 ---
 
