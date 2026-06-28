@@ -1,10 +1,10 @@
-# Project Node: Implement click-to-expand recent errors panel
+# Project Node: Test and verify indicator behavior end-to-end
 
 ## Goal
-Write/modify code adding click handler and expandable panel listing 3 recent errors. Print full file contents/diff of the handler and panel markup.
+Run tests or render checks for zero-state (green check) and non-zero-state (red badge + count) plus expand. Print verbatim test output/render results confirming each state and the 3 listed messages.
 
 ## Context
-Add interaction so clicking the indicator expands a panel showing the 3 most recent error messages.
+Verify both zero and non-zero states render correctly and expansion shows the 3 recent errors using real or seeded data.
 
 ## Node ID
-d990001a-7b2c-4314-878a-3f1014a646ce
+c1760eff-3104-4336-a1be-c07decc94cd1
