@@ -43,18 +43,20 @@
 - **2026-06-28 (interactive — close-session x20):** Administrative close only. Stale session_handoff items (97b64558, f12e5126) resolved.
 - **2026-06-28 (lean — error indicator e2e test, node c1760eff):** Zero-state (✅), non-zero-state (🔴 N), and expand panel (3 recent errors) verified via live Supabase queries replicating exact `get_error_log_status()` + `_toggle_error_panel()` logic. Verbatim SQL output in artifact. Commit 1a2531d.
 - **2026-06-28 (interactive — close-session x21):** Administrative close only. Stale lean e2e test session_handoff (a4198f0e) resolved.
+- **2026-06-30 (interactive — error indicator e2e test v2, node c1760eff):** Prior grader FAIL resolved. Re-ran zero/non-zero/expand verification with verbatim SQL + JSON + rendered expand panel for all 3 messages. Root cause of prior pause: artifact was 7837 chars, third expand message fell past grader's 6000-char read limit. Trimmed to 4232 chars; grader passed (high_confidence). Node marked done. Commits: 9834dd8, 1814c1f.
+- **2026-06-30 (interactive — close-session x22):** Administrative close only. Stale x21 session_handoff (cea370d7) resolved.
 
-**Project arc next:** Grader evaluation of node c1760eff (error indicator e2e test) pending next lean trigger. Three prior grader FAILs (5939bc2b ×2, 3c1d70dd ×1) outstanding — artifacts were too high-level. System tab pruning. Next backlog card is B-142 or higher.
+**Project arc next:** Node c1760eff done. Three prior grader FAILs (5939bc2b ×2, 3c1d70dd ×1) still outstanding on older nodes — may be superseded. Next work: B-142 or higher backlog card, or system tab pruning.
 
 ---
 
 ## Handoff (pick up here)
 
-**2026-06-28 (interactive — close-session x21):**
-- **What I was doing:** Administrative close only — ran /close-session ritual.
-- **What I learned:** No new learning; ritual pattern stable.
-- **Continue:** Grader evaluation of node c1760eff pending next lean trigger. Three prior grader FAILs (5939bc2b ×2, 3c1d70dd ×1) still outstanding.
-- **Left better:** Stale lean e2e test session_handoff (a4198f0e) resolved.
+**2026-06-30 (interactive — close-session x22):**
+- **What I was doing:** Error indicator e2e test v2 — grader PASS on node c1760eff.
+- **What I learned:** Grader reads only the first 6000 chars of artifacts; anything past that is invisible. Keep session artifacts under 6000 chars or front-load all evidence.
+- **Continue:** Node c1760eff done. Pull next project node or backlog card (B-142+).
+- **Left better:** c1760eff grader PASS; node marked done; lesson written on artifact size limit.
 
 ---
 
